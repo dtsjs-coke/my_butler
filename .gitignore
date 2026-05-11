@@ -1,0 +1,45 @@
+*.json
+temp_agent_task.py
+
+# 패키지 매니저
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+#가상환경 (Python)
+.venv/
+venv/
+
+#빌드 산출물
+dist/
+build/
+out/
+
+# Next.js, Nuxt.js 등 프레임워크
+.next/
+.nuxt/
+
+# 캐시 및 로그
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 운영체제 및 에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 환경 변수 파일
+.env
+.env.*.local
+
+# Python 바이트코드
+__pycache__/
+*.py[cod]
+
+# 기타 임시 파일
+*.tmp
+*.swp

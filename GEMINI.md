@@ -1,0 +1,58 @@
+# 📱 Butler Pro Project Instructions
+
+> [!IMPORTANT]
+> This project follows the [Root A2A Guidelines](../GEMINI.md). All agent communications must be optimized for token efficiency.
+
+This project is a Discord-based personal assistant bot running on Termux (Android S9). It manages news tracking, SRT train reservations, and device status monitoring.
+
+## 🏗 Project Architecture
+
+- `butler_pro.py`: Main entry point, Discord client, event handlers, and background tasks (News loop, SRT loop).
+- `srt_service.py`: SRT reservation UI logic (Views and Modals) and reservation queue management.
+- `config_manager.py`: Persistence layer for news keywords, SRT stations, reservation queue, and model settings.
+- `news.json`, `reservations.json`, `keywords.json`, `stations.json`, `model_config.json`: Local storage files.
+
+## 🚀 Key Features & Command Locations
+
+### 1. SRT Reservation System (`srt_service.py`, `butler_pro.py`)
+- **Queue Management**: Supports up to 3 concurrent tasks per user.
+- **Persistence**: Saved automatically to `reservations.json` via `config_manager.py`.
+- **Stations**: Dynamically managed via Discord commands.
+- **Commands (SRT Channel)**:
+    - `!srt`: Opens the main reservation menu.
+    - `!역 리스트`: Shows available stations.
+    - `!역 추가 [Name]`: Adds a new station.
+    - `!역 삭제 [Name]`: Removes a station.
+
+### 2. News Tracking (`butler_pro.py`)
+- **Keywords**: Dynamically managed, used by `news_loop` (30 min interval).
+- **Commands (News Channel)**:
+    - `!뉴스 리스트`: Lists tracked keywords.
+    - `!뉴스 추가 [Keyword]`: Adds a keyword.
+    - `!뉴스 삭제 [Keyword]`: Deletes a keyword.
+
+### 3. AI Chat & Model Selection (`butler_pro.py`)
+- **Engine**: Gemini (via `ask_gemini` function).
+- **Models**: Dynamically selectable (`gemini-1.5-flash`, `gemini-1.5-flash-8b`, `gemini-2.0-flash`).
+- **Commands (Chat Channel)**:
+    - `!모델 리스트`: Shows available models and the current one.
+    - `!모델 설정 [ModelID]`: Changes the active AI model.
+
+### 4. Device Status (`butler_pro.py`)
+- **Direct Handling**: Requests containing "battery", "temp", "status" skip AI to save tokens.
+- **Format**: Returns a Discord Embed with percentage, temperature, health, and status.
+
+### 5. A2A Manager-Coder System (`a2a_engine.py`, `butler_pro.py`)
+- **Engine**: `A2AEngine` class manages the dual-agent workflow.
+- **Manager Agent**: Analyzes requests and creates a technical design (JSON).
+- **Coder Agent**: Implements Python code based on the design (JSON).
+- **Validation**: Automatic syntax check via `py_compile` with a 3-retry self-correction loop.
+- **Command (Chat Channel)**:
+    - `!a2a [Request]`: Starts the automated design and coding process.
+
+## 🛠 Development Guidelines
+
+- **Blocking Calls**: NEVER make blocking network calls in the main event loop. Use `asyncio.to_thread` for SRT API calls or other synchronous I/O.
+- **Persistence**: Always call `save_X()` from `config_manager.py` after modifying shared state (queue, keywords, etc.).
+- **Global Variables**: Use `global` keyword when updating shared state like `MODEL_NAME` or `reservation_queue` within event handlers.
+- **Error Handling**: Use `try-except` blocks around SRT API calls as they are prone to network timeouts or authentication failures.
