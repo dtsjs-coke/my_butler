@@ -8,13 +8,18 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL_NAME = load_model_name()
 
 # A2A 엔진 초기화
-a2a_engine = A2AEngine(GEMINI_API_KEY, MODEL_NAME)
+a2a_engine = A2AEngine(GEMINI_API_KEY)
 
-async def ask_gemini(text):
+async def ask_gemini(text, workspace_files=None):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
-    system_instruction = """
+    
+    file_info = f"\n[현재 workspace 파일 목록]: {', '.join(workspace_files)}" if workspace_files else ""
+    
+    system_instruction = f"""
     당신은 S9 안드로이드의 관리자 '버틀러'입니다.
+    {file_info}
+    사용자의 질문 의도를 파악하여 적절히 응답하세요. 
     반드시 아래 키워드 중 하나로 응답을 시작하세요:
     [VIBRATE], [BATTERY], [CHAT]
     인사는 짧게 하고 본론만 말하세요.

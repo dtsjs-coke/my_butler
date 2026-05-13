@@ -52,7 +52,14 @@ async def on_message(message):
 
     # 1. SRT 예약 채널
     if channel_id == SRT_CHANNEL_ID:
-        if content == "!srt":
+        if content == "!help":
+            help_text = """🚆 **SRT 채널 도움말**
+- `!srt`: 메인 예약 메뉴 열기
+- `!역 리스트`: 설정된 SRT 역 목록 보기
+- `!역 추가 [역명]`: 새로운 역 추가
+- `!역 삭제 [역명]`: 기존 역 삭제"""
+            await message.channel.send(help_text)
+        elif content == "!srt":
             view = SRTMainMenuView(message.author.id)
             await message.channel.send("🚆 **SRT 예약 메뉴**", view=view)
         elif content == "!역 리스트":
@@ -82,7 +89,14 @@ async def on_message(message):
 
     # 2. 뉴스 채널
     if channel_id == NEWS_CHANNEL_ID:
-        if content == "!뉴스 리스트":
+        if content == "!help":
+            help_text = """📰 **뉴스 채널 도움말**
+- `!뉴스 리스트`: 현재 추적 중인 키워드 목록
+- `!뉴스 추가 [키워드]`: 새로운 뉴스 키워드 추가
+- `!뉴스 삭제 [키워드]`: 기존 키워드 삭제
+* 30분 간격으로 새 뉴스를 자동 검색합니다."""
+            await message.channel.send(help_text)
+        elif content == "!뉴스 리스트":
             keywords = load_keywords()
             await message.channel.send(f"📰 **현재 추적 중인 뉴스 키워드:**\n{', '.join(keywords)}")
         elif content.startswith("!뉴스 추가 "):
@@ -107,7 +121,13 @@ async def on_message(message):
 
     # 3. 기기 상태 채널
     if channel_id == STATUS_CHANNEL_ID:
-        if not content.startswith('!'):
+        if content == "!help":
+            help_text = """📱 **상태 채널 도움말**
+- `배터리`, `온도`, `상태` 등 키워드 포함 메시지: 기기 상태 보고
+- 일반 대화: 버틀러와 자유 대화 (파일 목록 등 의도 파악 자동 대응)
+- AI 응답 내 `[BATTERY]` 포함 시 요약 보고 실행"""
+            await message.channel.send(help_text)
+        elif not content.startswith('!'):
             status_keywords = ["배터리", "battery", "온도", "상태", "status"]
             if any(kw in content.lower() for kw in status_keywords):
                 embed = get_system_status_embed()
@@ -118,7 +138,11 @@ async def on_message(message):
                 return
 
             async with message.channel.typing():
-                ai_reply = await ask_gemini(content)
+                # 실시간 파일 목록 가져오기
+                workspace_dir = os.path.join(PROJECT_ROOT, "workspace")
+                ws_files = os.listdir(workspace_dir) if os.path.exists(workspace_dir) else []
+                
+                ai_reply = await ask_gemini(content, workspace_files=ws_files)
                 if "[VIBRATE]" in ai_reply: os.system('termux-vibrate')
                 elif "[BATTERY]" in ai_reply:
                     report = get_battery_short_report()
@@ -129,24 +153,45 @@ async def on_message(message):
 
     # 4. CHAT / A2A 채널
     elif channel_id == CHAT_CHANNEL_ID:
-        if content == "!모델 리스트":
+        if content == "!help":
+            help_text = f"""🤖 **CHAT/A2A 채널 도움말**
+- `!모델 리스트`: 사용 가능한 AI 모델 추천 및 현재 설정 확인
+- `!모델 설정 [ModelID]`: 일반 대화용 AI 모델 변경
+- `!a2a [요청] [파일명.py]`: 전용 티어 모델(Manager: Pro / Coder: Flash)을 활용한 자동 코딩 협업
+- 일반 대화: 버틀러와 자유 대화 (파일 목록 등 의도 파악 자동 대응)"""
+            await message.channel.send(help_text)
+        elif content == "!모델 리스트":
             current_model = load_model_name()
-            await message.channel.send(f"🤖 **사용 가능한 모델:**\n" + "\n".join([f"- {m}" for m in AVAILABLE_MODELS]) + f"\n\n**현재 설정:** `{current_model}`")
+            model_list = []
+            for m in AVAILABLE_MODELS:
+                recommendation = ""
+                if "lite" in m: recommendation = "(추천: ⚡ 빠른 응답, 일상 대화)"
+                elif "pro" in m: recommendation = "(추천: 🧠 복잡한 논리, 심층 분석)"
+                elif "flash" in m and "lite" not in m: recommendation = "(추천: 🛠️ 일반 질문, 코딩 보조)"
+                model_list.append(f"- `{m}` {recommendation}")
+            
+            a2a_info = f"\n**A2A 전용 티어:**\n- Manager: `{A2A_TIERS['MANAGER']}`\n- Coder: `{A2A_TIERS['CODER']}`"
+            await message.channel.send(f"🤖 **사용 가능한 모델 리스트:**\n" + "\n".join(model_list) + f"\n\n**현재 일반 대화 설정:** `{current_model}`" + a2a_info)
         elif content.startswith("!모델 설정 "):
             new_model = content.replace("!모델 설정 ", "").strip()
-            if new_model in AVAILABLE_MODELS:
+            # 입력값에서 백틱 등 제거
+            new_model = new_model.replace("`", "")
+            
+            # AVAILABLE_MODELS의 요소들과 비교 (추석문 제거 후 비교)
+            clean_models = [m.split("#")[0].strip() for m in AVAILABLE_MODELS]
+            
+            if new_model in clean_models:
                 save_model_name(new_model)
-                # 엔진의 모델명도 업데이트 (재시작 없이 반영하기 위해 엔진 내부 변수 수정 고려)
-                a2a_engine.model_name = new_model
-                await message.channel.send(f"✅ AI 모델이 `{new_model}` 로 변경되었습니다.")
+                await message.channel.send(f"✅ 일반 대화 모델이 `{new_model}` 로 변경되었습니다.\n*(A2A 모델은 시스템 최적화 설정을 유지합니다)*")
             else:
-                await message.channel.send(f"⚠️ 사용 가능한 모델이 아닙니다.")
+                await message.channel.send(f"⚠️ 사용 가능한 모델이 아닙니다. `!모델 리스트`를 확인하세요.")
         elif content.startswith("!a2a "):
             request = content.replace("!a2a ", "").strip()
             status_msg = await message.channel.send("🚀 **A2A 협업 시작**")
 
+            # 정규표현식으로 파일명 추출 (예: status.py를 -> status.py)
             match = re.search(r'([a-zA-Z0-9_-]+\.py)', request)
-            target_file = match.group(1) if match else None
+            target_file = match.group(1) if match else "generated_task.py"
 
             async def progress_callback(text):
                 await status_msg.edit(content=f"⚙️ **진행 중:**\n> {text}")
@@ -160,15 +205,15 @@ async def on_message(message):
                 )
                 
                 if result["status"] == "success":
-                    success_text = "✅ **A2A 작업 완료!**"
-                    if result.get("saved_at"):
-                        success_text += f"\n💾 저장 위치: `{result['saved_at']}`"
-                    await status_msg.edit(content=success_text)
+                    saved_path = result.get("saved_at", "N/A")
                     
+                    # 1. 설계 및 코드 생성 결과 표시
                     design = result["design"]
-                    embed = discord.Embed(title="📋 설계 아키텍처", color=discord.Color.green())
-                    embed.add_field(name="구조", value=design.get("architecture", "N/A"), inline=False)
-                    embed.add_field(name="흐름", value="\n".join([f"- {s}" for s in design.get("logic_flow", [])]), inline=False)
+                    embed = discord.Embed(title="📋 A2A 설계 및 코드 생성 완료", color=discord.Color.green())
+                    embed.add_field(name="파일명", value=f"`{target_file}`", inline=True)
+                    embed.add_field(name="저장 경로", value="`workspace/`", inline=True)
+                    embed.add_field(name="아키텍처", value=design.get("architecture", "N/A"), inline=False)
+                    embed.add_field(name="로직 흐름", value="\n".join([f"- {s}" for s in design.get("logic_flow", [])]), inline=False)
                     await message.channel.send(embed=embed)
 
                     code = result["code"]
@@ -180,6 +225,37 @@ async def on_message(message):
                         os.remove(tmp_path)
                     else:
                         await message.channel.send(f"💻 **생성된 코드:**\n```python\n{code}\n```")
+
+                    # 2. 실행 단계 진행 상태 업데이트
+                    await status_msg.edit(content=f"⚙️ **작업 진행:**\n> 🏃 생성된 코드 실행 중... (`{target_file}`)")
+                    
+                    try:
+                        # workspace 디렉토리에서 실행하도록 cwd 설정
+                        workspace_dir = os.path.join(PROJECT_ROOT, "workspace")
+                        process = await asyncio.create_subprocess_exec(
+                            'python3', target_file,
+                            cwd=workspace_dir,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE
+                        )
+                        
+                        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+                        
+                        if process.returncode == 0:
+                            await status_msg.edit(content=f"✅ **A2A 작업 및 실행 완료!**\n💾 파일은 `workspace/{target_file}` 에 저장되었습니다.")
+                            await message.channel.send(f"🚀 **실행 성공!** 결과는 Discord로 전송되었을 것입니다.")
+                        else:
+                            error_msg = stderr.decode().strip()
+                            await status_msg.edit(content=f"⚠️ **A2A 작업 완료 (실행 중 오류 발생)**")
+                            await message.channel.send(f"⚠️ **실행 중 오류 발생:**\n```\n{error_msg}\n```")
+                            
+                    except asyncio.TimeoutError:
+                        if process: process.kill()
+                        await status_msg.edit(content=f"⏱️ **A2A 작업 완료 (실행 시간 초과)**")
+                        await message.channel.send("⏱️ **실행 시간 초과:** 30초 내에 완료되지 않아 강제 종료되었습니다.")
+                    except Exception as e:
+                        await status_msg.edit(content=f"❌ **A2A 작업 완료 (실행 실패)**")
+                        await message.channel.send(f"❌ **실행 실패:** {str(e)}")
                 else:
                     await status_msg.edit(content=f"❌ **A2A 실패:** {result['message']}")
 
@@ -188,7 +264,11 @@ async def on_message(message):
 
         elif not content.startswith('!'):
             async with message.channel.typing():
-                ai_reply = await ask_gemini(content)
+                # 실시간 파일 목록 가져오기
+                workspace_dir = os.path.join(PROJECT_ROOT, "workspace")
+                ws_files = os.listdir(workspace_dir) if os.path.exists(workspace_dir) else []
+                
+                ai_reply = await ask_gemini(content, workspace_files=ws_files)
                 clean_reply = ai_reply.split(']')[-1].strip() if ']' in ai_reply else ai_reply
                 await message.channel.send(clean_reply)
 

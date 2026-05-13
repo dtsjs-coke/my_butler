@@ -17,13 +17,18 @@ def home():
         {% for n in news %}<p>[{{n.date}}] <b>{{n.keyword}}</b>: <a href="{{n.link}}">{{n.title}}</a></p>{% endfor %}
     """, news=news)
 
+from utils.security import SecurityChecker
+
 @app.route('/send', methods=['POST'])
 async def send_message_api():
-    """외부 스크립트에서 메시지 전송을 요청하는 API"""
+    """외부 스크립트에서 메시지 전송을 요청하는 API (보안 필터링 적용)"""
     global discord_client
     data = await asyncio.to_thread(request.get_json)
     channel_id = data.get('channel_id', CHAT_CHANNEL_ID)
-    content = data.get('content', '')
+    raw_content = data.get('content', '')
+    
+    # 보안 필터링: 민감 정보 마스킹
+    content = SecurityChecker.filter_sensitive_data(raw_content)
     
     if discord_client:
         channel = discord_client.get_channel(int(channel_id))
