@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Load credentials
-load_dotenv("/data/data/com.termux/files/home/dev_pjt/my_butler/.env")
+ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+load_dotenv(ENV_PATH)
 
 # Assuming the module exists as 'srt_module' in parent directory
 from srt_module import SRTClient

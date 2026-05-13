@@ -7,7 +7,9 @@ from config.config_manager import load_keywords
 
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
-NEWS_FILE = "/data/data/com.termux/files/home/dev_pjt/my_butler/news.json"
+# 프로젝트 루트 경로를 기준으로 파일 경로 설정
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+NEWS_FILE = os.path.join(BASE_DIR, "news.json")
 NEWS_CHANNEL_ID = int(os.getenv("NEWS_CHANNEL_ID", 0))
 
 def load_news():

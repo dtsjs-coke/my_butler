@@ -7,6 +7,8 @@ NEWS_CHANNEL_ID = int(os.getenv("NEWS_CHANNEL_ID", 0))
 SRT_CHANNEL_ID = int(os.getenv("SRT_CHANNEL_ID", 0))
 STATUS_CHANNEL_ID = int(os.getenv("STATUS_CHANNEL_ID", 0))
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
+CLI_CHANNEL_ID = int(os.getenv("CLI_CHANNEL_ID", 1504087135827918898))
+DISCORD_ADMIN_USER_ID = int(os.getenv("DISCORD_ADMIN_USER_ID", 1451625941427159124))
 NOTI_CHANNEL_ID = CHAT_CHANNEL_ID
 
 AVAILABLE_MODELS = [
@@ -36,6 +38,6 @@ ENVIRONMENT_INFO:
 - A2A System: Role-based model routing (Pro for Manager, Flash for Coder)
 - CRITICAL: Use 'os.getenv("VARIABLE_NAME")' to access all sensitive values and IDs.
 - CRITICAL: DO NOT hardcode tokens, IDs, or secrets in the code.
-- CRITICAL: For standalone scripts, include 'from dotenv import load_dotenv; load_dotenv("/data/data/com.termux/files/home/dev_pjt/my_butler/.env")' if needed.
+- CRITICAL: For standalone scripts, include 'from dotenv import load_dotenv; load_dotenv()' if the .env file is in the same directory, or provide the relative path.
 - CRITICAL: DO NOT use 'discord_webhook' or other external libs. Use 'requests' to call Local API.
 """

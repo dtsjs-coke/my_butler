@@ -1,62 +1,54 @@
 import os
-import re
 import requests
-import discord
+from sympy import sympify, solve, symbols, diff, integrate
 from discord.ext import commands
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv("/data/data/com.termux/files/home/dev_pjt/my_butler/.env")
+# .env 파일이 상위 폴더(my_butler 루트)에 있으므로 상대 경로로 로드
+ENV_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+load_dotenv(ENV_PATH)
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID"))
+class MathEvaluator:
+    @staticmethod
+    def safe_evaluate(expression):
+        """Evaluates mathematical expressions safely using SymPy."""
+        try:
+            # sympify parses the string into a SymPy expression
+            # evalf() evaluates it to a numerical value
+            expr = sympify(expression)
+            result = expr.evalf() if hasattr(expr, 'evalf') else expr
+            return result
+        except Exception as e:
+            return f"Error: {str(e)}"
 
-# Discord Bot Setup
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+class MathCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.api_url = "http://localhost:5000/send"
 
-def safe_evaluate(expression):
-    # Only allow digits, basic operators, and parentheses for security
-    if not re.match(r'^[0-9+\-*/().\s]+$', expression):
-        return "Error: Illegal characters. Only numbers and +-*/() are allowed."
-    
-    try:
-        # Evaluate in a restricted environment (no built-ins)
-        # Note: eval is used here after strict regex filtering to minimize risk
-        result = eval(expression, {"__builtins__": None}, {})
-        return result
-    except ZeroDivisionError:
-        return "Error: Division by zero is not allowed."
-    except SyntaxError:
-        return "Error: Invalid mathematical syntax."
-    except Exception as e:
-        return f"Error: {str(e)}"
+    @commands.command(name="calc")
+    async def calculate(self, ctx, *, expression: str):
+        """Calculates math expressions and sends result via Local API."""
+        # Sanitize and Evaluate
+        result = MathEvaluator.safe_evaluate(expression)
+        
+        # Prepare result message
+        output_text = f"🔢 **Math Calculation**\nInput: `{expression}`\nResult: **{result}**"
+        
+        # Send via Local API as per requirement
+        payload = {
+            "channel_id": int(os.getenv("CHAT_CHANNEL_ID")),
+            "content": output_text
+        }
+        
+        try:
+            response = requests.post(self.api_url, json=payload)
+            if response.status_code != 200:
+                await ctx.send("⚠️ Failed to relay response through Local API.")
+        except Exception as e:
+            await ctx.send(f"⚠️ API Connection Error: {str(e)}")
 
-@bot.command(name="calc")
-async def calc(ctx, *, expression: str):
-    """Calculates mathematical expressions securely."""
-    # 1. Evaluate logic
-    result = safe_evaluate(expression)
-    
-    # 2. Format result
-    response_text = f"\ud83d\udd22 **계산기 결과**\n**수식:** `{expression}`\n**결과:** `{result}`"
-
-    # 3. Use Local API to send the message as per system design requirements
-    api_url = "http://localhost:5000/send"
-    payload = {
-        "channel_id": CHAT_CHANNEL_ID,
-        "content": response_text
-    }
-    
-    try:
-        requests.post(api_url, json=payload)
-    except Exception as e:
-        print(f"Local API call failed: {e}")
-        await ctx.send(response_text) # Fallback to direct send if API fails
-
-if __name__ == "__main__":
-    if TOKEN:
-        bot.run(TOKEN)
-    else:
-        print("DISCORD_TOKEN: ******** found in environment.")
+def setup(bot):
+    """Standard Cog setup function."""
+    bot.add_cog(MathCog(bot))

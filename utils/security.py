@@ -54,7 +54,8 @@ class FileManager:
     
     def __init__(self, workspace_path):
         self.workspace_path = os.path.abspath(workspace_path)
-        self.root_path = "/data/data/com.termux/files/home"
+        # 환경에 따른 홈 디렉토리 자동 감지 (Termux/Linux vs Windows)
+        self.root_path = os.path.expanduser("~")
 
     def is_in_workspace(self, path):
         """경로가 workspace 내부에 있는지 확인"""
