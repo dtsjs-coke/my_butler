@@ -15,13 +15,19 @@ load_dotenv()
 
 # 모듈별 임포트
 from config.constants import *
-from config.config_manager import load_keywords, save_keywords, load_stations, save_stations, load_model_name, save_model_name
+from config.config_manager import (
+    load_keywords, save_keywords, 
+    load_stations, save_stations, 
+    load_ktx_stations, save_ktx_stations,
+    load_model_name, save_model_name
+)
 from core.ai_service import ask_gemini, a2a_engine, analyze_intent
 from core.news_service import news_loop
 from core.srt_manager import srt_reservation_loop, SRTMainMenuView
+from core.ktx_manager import ktx_reservation_loop, KTXMainMenuView
 from api.flask_app import run_flask
 from utils.system_status import get_system_status_embed, get_battery_short_report
-from core import srt_service
+from core import srt_service, ktx_service
 
 # 봇 초기화
 intents = discord.Intents.default()
@@ -38,6 +44,9 @@ async def on_ready():
     
     if not srt_reservation_loop.is_running():
         srt_reservation_loop.start(client)
+        
+    if not ktx_reservation_loop.is_running():
+        ktx_reservation_loop.start(client)
         
     # Flask 서버 별도 쓰레드 실행
     threading.Thread(target=run_flask, args=(client,), daemon=True).start()
@@ -81,18 +90,23 @@ async def on_message(message):
     content = message.content
     channel_id = message.channel.id
 
-    # 1. SRT 예약 채널
+    # 1. SRT & KTX 예약 채널
     if channel_id == SRT_CHANNEL_ID:
         if content == "!help":
-            help_text = """🚆 **SRT 채널 도움말**
-- `!srt`: 메인 예약 메뉴 열기
-- `!역 리스트`: 설정된 SRT 역 목록 보기
-- `!역 추가 [역명]`: 새로운 역 추가
-- `!역 삭제 [역명]`: 기존 역 삭제"""
+            help_text = """🚆 **기차 예약 채널 도움말**
+- `!srt`: SRT 메인 예약 메뉴
+- `!ktx`: KTX 메인 예약 메뉴
+- `!역 리스트`: 설정된 SRT 역 목록
+- `!역 추가 [역명]`, `!역 삭제 [역명]`
+- `!ktx역 리스트`: 설정된 KTX 역 목록
+- `!ktx역 추가 [역명]`, `!ktx역 삭제 [역명]`"""
             await message.channel.send(help_text)
         elif content == "!srt":
             view = SRTMainMenuView(message.author.id)
             await message.channel.send("🚆 **SRT 예약 메뉴**", view=view)
+        elif content == "!ktx":
+            view = KTXMainMenuView(message.author.id)
+            await message.channel.send("🚆 **KTX 예약 메뉴**", view=view)
         elif content == "!역 리스트":
             stations = load_stations()
             await message.channel.send(f"📍 **현재 설정된 SRT 역 리스트:**\n{', '.join(stations)}")
@@ -103,9 +117,9 @@ async def on_message(message):
                 stations.append(station)
                 save_stations(stations)
                 srt_service.STATIONS = stations
-                await message.channel.send(f"✅ **{station}** 역이 추가되었습니다.")
+                await message.channel.send(f"✅ **{station}** SRT 역이 추가되었습니다.")
             else:
-                await message.channel.send(f"⚠️ **{station}** 역은 이미 리스트에 있습니다.")
+                await message.channel.send(f"⚠️ **{station}** 역은 이미 SRT 리스트에 있습니다.")
         elif content.startswith("!역 삭제 "):
             station = content.replace("!역 삭제 ", "").strip()
             stations = load_stations()
@@ -113,9 +127,32 @@ async def on_message(message):
                 stations.remove(station)
                 save_stations(stations)
                 srt_service.STATIONS = stations
-                await message.channel.send(f"✅ **{station}** 역이 삭제되었습니다.")
+                await message.channel.send(f"✅ **{station}** SRT 역이 삭제되었습니다.")
             else:
-                await message.channel.send(f"⚠️ **{station}** 역을 찾을 수 없습니다.")
+                await message.channel.send(f"⚠️ **{station}** 역을 SRT 리스트에서 찾을 수 없습니다.")
+        elif content == "!ktx역 리스트":
+            stations = load_ktx_stations()
+            await message.channel.send(f"📍 **현재 설정된 KTX 역 리스트:**\n{', '.join(stations)}")
+        elif content.startswith("!ktx역 추가 "):
+            station = content.replace("!ktx역 추가 ", "").strip()
+            stations = load_ktx_stations()
+            if station not in stations:
+                stations.append(station)
+                save_ktx_stations(stations)
+                ktx_service.KTX_STATIONS = stations
+                await message.channel.send(f"✅ **{station}** KTX 역이 추가되었습니다.")
+            else:
+                await message.channel.send(f"⚠️ **{station}** 역은 이미 KTX 리스트에 있습니다.")
+        elif content.startswith("!ktx역 삭제 "):
+            station = content.replace("!ktx역 삭제 ", "").strip()
+            stations = load_ktx_stations()
+            if station in stations:
+                stations.remove(station)
+                save_ktx_stations(stations)
+                ktx_service.KTX_STATIONS = stations
+                await message.channel.send(f"✅ **{station}** KTX 역이 삭제되었습니다.")
+            else:
+                await message.channel.send(f"⚠️ **{station}** 역을 KTX 리스트에서 찾을 수 없습니다.")
         return
 
     # 2. 뉴스 채널
@@ -233,6 +270,8 @@ async def on_message(message):
                         await message.channel.send("📱 시스템 상태를 확인합니다.", embed=embed)
                     elif tool == "SRT":
                         await message.channel.send("🚆 SRT 예약 관련 문의시군요. `!srt` 명령어를 사용하시거나 구체적인 역 정보를 말씀해주세요.")
+                    elif tool == "KTX":
+                        await message.channel.send("🚆 KTX 예약 관련 문의시군요. `!ktx` 명령어를 사용하시거나 구체적인 역 정보를 말씀해주세요.")
                     elif tool == "VIBRATE":
                         os.system('termux-vibrate')
                         await message.channel.send("📳 진동을 울렸습니다.")

@@ -25,7 +25,7 @@ async def analyze_intent(text, workspace_files=None, is_cli_mode=False):
         "type": "object",
         "properties": {
             "intent": {"type": "string", "enum": intent_list},
-            "tool_name": {"type": "string", "enum": ["SRT", "NEWS", "STATUS", "VIBRATE", "NONE"]},
+            "tool_name": {"type": "string", "enum": ["SRT", "KTX", "NEWS", "STATUS", "VIBRATE", "NONE"]},
             "a2a_request": {"type": "string", "description": "A2A로 수행할 상세 요청"},
             "command": {"type": "string", "description": "실행할 셸 명령어 (SHELL 인텐트일 때)"},
             "chat_response": {"type": "string", "description": "즉시 응답할 메시지"},
@@ -39,7 +39,7 @@ async def analyze_intent(text, workspace_files=None, is_cli_mode=False):
     사용자의 요청을 분석하여 최적의 행동을 선택하세요.
     
     1. CHAT: 일상적인 대화, 단순 질문 답변.
-    2. TOOL: 이미 구축된 도구(SRT 예약, 뉴스 관리, 배터리/시스템 상태) 사용.
+    2. TOOL: 이미 구축된 도구(SRT/KTX 예약, 뉴스 관리, 배터리/시스템 상태) 사용.
     3. A2A: 코딩이 필요한 고수준 작업 (파일 생성, 데이터 분석 등).
     """
 
