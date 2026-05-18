@@ -105,8 +105,9 @@ async def on_message(message):
             view = SRTMainMenuView(message.author.id)
             await message.channel.send("🚆 **SRT 예약 메뉴**", view=view)
         elif content == "!ktx":
-            view = KTXMainMenuView(message.author.id)
-            await message.channel.send("🚆 **KTX 예약 메뉴**", view=view)
+            # view = KTXMainMenuView(message.author.id)
+            # await message.channel.send("🚆 **KTX 예약 메뉴**", view=view)
+            await message.channel.send("⚠️ **korail에서 미지원해서 사용 불가**")
         elif content == "!역 리스트":
             stations = load_stations()
             await message.channel.send(f"📍 **현재 설정된 SRT 역 리스트:**\n{', '.join(stations)}")
