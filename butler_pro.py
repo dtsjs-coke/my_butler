@@ -251,6 +251,14 @@ async def on_message(message):
                 await message.channel.send(f"✅ 일반 대화 모델이 `{new_model}` 로 변경되었습니다.\n*(A2A 모델은 시스템 최적화 설정을 유지합니다)*")
             else:
                 await message.channel.send(f"⚠️ 사용 가능한 모델이 아닙니다. `!모델 리스트`를 확인하세요.")
+        elif content.startswith("!승인 "):
+            action_id = content.replace("!승인 ", "").strip()
+            from core.agent_manager import resolve_action
+            action = resolve_action(action_id, approved=True)
+            if action:
+                await message.channel.send(f"🆗 **승인 완료**: ID `{action_id}` 작업을 곧 실행합니다.")
+            else:
+                await message.channel.send(f"❌ **오류**: 유효하지 않은 ID `{action_id}` 입니다.")
         elif content.startswith("!a2a "):
             request = content.replace("!a2a ", "").strip()
             await handle_a2a_task(message, request)
