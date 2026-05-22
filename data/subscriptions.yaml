@@ -1,0 +1,182 @@
+subscriptions:
+  jaeseungjo:
+  - auto_renew: true
+    billing_cycle: 월간
+    description: '요금명세서에 기본팩 1200원, 지니팩 8728로 나옴
+
+      설명에는 무료이며 별 8,728개 나간다고 하는데 확인 필요함.'
+    end_date: '9999-12-31'
+    id: c74775fa-5c02-4ed5-b2e5-06f034ad867a
+    monthly_price: 8728
+    name: 지니뮤직(KT 지니팩2.0)
+    note: ''
+    notify_sent: []
+    payment_date: '11'
+    shared_members: 1
+    start_date: '2018-07-29'
+    status: active
+    total_price: 8728
+    url: ''
+  - auto_renew: true
+    billing_cycle: 연간
+    description: 석훈 재유 인호
+    end_date: '9999-12-31'
+    id: e56160a1-de93-4ffa-a074-03a22b72f14b
+    monthly_price: 9846
+    name: 디즈니
+    note: ''
+    notify_sent: []
+    payment_date: '12'
+    shared_members: 4
+    start_date: '2025-11-12'
+    status: active
+    total_price: 118150
+    url: ''
+  - auto_renew: true
+    billing_cycle: 월간
+    description: '인호
+
+      승수는 안보나?
+
+      태룡은 안봄'
+    end_date: '9999-12-31'
+    id: e9d106b7-22b2-43eb-b0f8-2eeccf029b93
+    monthly_price: 17000
+    name: 넷플릭스 프리미엄
+    note: ''
+    notify_sent: []
+    payment_date: '10'
+    shared_members: 2
+    start_date: '2020-05-10'
+    status: active
+    total_price: 17000
+    url: ''
+  - auto_renew: true
+    billing_cycle: 월간
+    description: ''
+    end_date: '9999-12-31'
+    id: c798f54d-aa26-4e2b-bb54-9d6103b4a5ed
+    monthly_price: 0
+    name: 티빙라이트(KT)
+    note: ''
+    notify_sent: []
+    payment_date: '11'
+    shared_members: 1
+    start_date: '2026-03-04'
+    status: active
+    total_price: 0
+    url: ''
+  - auto_renew: true
+    billing_cycle: 연간
+    description: ''
+    end_date: '9999-12-31'
+    id: 6a7a192a-c0fa-4449-ae69-1cd76cb4e567
+    monthly_price: 0
+    name: 요기요(네이버플러스)
+    note: ''
+    notify_sent: []
+    payment_date: '1'
+    shared_members: 1
+    start_date: '2026-03-01'
+    status: active
+    total_price: 0
+    url: ''
+  - auto_renew: true
+    billing_cycle: 연간
+    description: 조재승, 홍희경 가족 추가
+    end_date: '9999-12-31'
+    id: 7ae8796b-2cb6-43f9-bfb8-88a14c0fb3b5
+    monthly_price: 3900
+    name: 네이버플러스
+    note: ''
+    notify_sent: []
+    payment_date: '1'
+    shared_members: 1
+    start_date: '2026-03-01'
+    status: active
+    total_price: 46800
+    url: ''
+  - auto_renew: true
+    billing_cycle: 월간
+    description: 조재승, 홍희경 패밀리 등록
+    end_date: '9999-12-31'
+    id: aab5c509-054a-4ba4-a01d-c06c8be815a1
+    monthly_price: 5900
+    name: 토스프라임
+    note: ''
+    notify_sent: []
+    payment_date: '20'
+    shared_members: 1
+    start_date: '2023-02-13'
+    status: active
+    total_price: 5900
+    url: ''
+  - auto_renew: false
+    billing_cycle: 월간
+    description: ''
+    end_date: '2026-03-06'
+    id: ec9fbf87-110a-4e65-9440-e81bfc454480
+    monthly_price: 9782
+    name: 디지로카 드라이빙케어
+    note: ''
+    notify_sent:
+    - 0d
+    payment_date: '3'
+    shared_members: 1
+    start_date: '2025-09-03'
+    status: active
+    total_price: 9782
+    url: ''
+  - auto_renew: false
+    billing_cycle: 월간
+    description: 2개월 월간 구독 후 년간 구독으로 바꿀 예정
+    end_date: '2026-07-12'
+    id: b11b01df-46e3-4ab3-a38c-33cb07d76490
+    monthly_price: 14500
+    name: GeminiPro
+    note: ''
+    notify_sent: []
+    payment_date: '12'
+    shared_members: 1
+    start_date: '2026-05-12'
+    status: active
+    total_price: 14500
+    url: ''
+  - auto_renew: true
+    billing_cycle: 연간
+    description: '직장 할인 프로그램으로 155,000 > 108,500원.
+
+      -1명~6명(구독 소유자만 AI 사용 가능)
+
+      -동시에 5대의 장치에 로그인
+
+      -PC, Mac, 휴대폰 및 태블릿에서 사용1,2
+
+      -최대 6TB의 안전한 클라우드 저장소(사용자당 1TB) 제공
+
+      -Microsoft Copilot으로 생산성 앱 활용2
+
+      -엄선된 Copilot 기능에 대해 무료보다 높은 사용 한도2
+
+      -선택된 앱에서 업무 파일을 안전하게 Copilot으로 사용하기3
+
+      -AI 이미지를 생성 및 편집할 수 있는 더 높은 사용 한도2
+
+      -4K 내보내기, 브랜드 키트, 필터 및 특수효과를 제공하는 비디오 편집기
+
+      -데이터 및 장치 보안
+
+      -Teams에서 하루 종일 영상 통화와 Copilot2 를 이용하세요'
+    end_date: '2026-05-22'
+    id: 132082d8-fa46-4cfa-835a-713e267025e5
+    monthly_price: 9042
+    name: Microsoft 365 Family
+    note: ''
+    notify_sent: []
+    payment_date: '22'
+    shared_members: 1
+    start_date: '2026-05-22'
+    status: active
+    total_price: 108500
+    url: ''
+  yjlee: []

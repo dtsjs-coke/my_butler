@@ -25,6 +25,7 @@ from core.ai_service import ask_gemini, a2a_engine, analyze_intent
 from core.news_service import news_loop
 from core.srt_manager import srt_reservation_loop, SRTMainMenuView
 from core.ktx_manager import ktx_reservation_loop, KTXMainMenuView
+from core.subscription_manager import start_subscription_tasks
 from api.flask_app import run_flask
 from utils.system_status import get_system_status_embed, get_battery_short_report
 from core import srt_service, ktx_service
@@ -47,6 +48,9 @@ async def on_ready():
         
     if not ktx_reservation_loop.is_running():
         ktx_reservation_loop.start(client)
+        
+    # 구독 관리 작업 시작
+    start_subscription_tasks(client)
         
     # Flask 서버 별도 쓰레드 실행
     threading.Thread(target=run_flask, args=(client,), daemon=True).start()

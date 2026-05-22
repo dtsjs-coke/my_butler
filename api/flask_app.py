@@ -1,7 +1,8 @@
 import os
 import asyncio
-from flask import Flask, render_template_string, request
+from flask import Flask, render_template_string, request, jsonify
 from core.news_service import load_news
+from core.subscription_service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
 
 app = Flask(__name__)
 discord_client = None
@@ -16,6 +17,42 @@ def home():
         <p>S9 서버 운영 중 (7일 보관)</p><hr>
         {% for n in news %}<p>[{{n.date}}] <b>{{n.keyword}}</b>: <a href="{{n.link}}">{{n.title}}</a></p>{% endfor %}
     """, news=news)
+
+@app.route('/subscriptions/<user_id>', methods=['GET', 'POST'])
+def handle_subscriptions(user_id):
+    if request.method == 'GET':
+        subscriptions = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
+        return jsonify(subscriptions.get(user_id, []))
+    else:
+        data = request.get_json()
+        all_data = load_yaml(SUBSCRIPTIONS_FILE)
+        if "subscriptions" not in all_data:
+            all_data["subscriptions"] = {}
+        all_data["subscriptions"][user_id] = data
+        save_yaml(SUBSCRIPTIONS_FILE, all_data)
+        return jsonify({"status": "success"})
+
+@app.route('/users/<user_id>', methods=['GET', 'POST'])
+def handle_users(user_id):
+    if request.method == 'GET':
+        users_list = load_yaml(USERS_FILE).get("users", [])
+        user_info = next((u for u in users_list if u["id"] == user_id), {})
+        return jsonify(user_info)
+    else:
+        data = request.get_json()
+        all_data = load_yaml(USERS_FILE)
+        users_list = all_data.get("users", [])
+        found = False
+        for i, u in enumerate(users_list):
+            if u["id"] == user_id:
+                users_list[i] = data
+                found = True
+                break
+        if not found:
+            users_list.append(data)
+        all_data["users"] = users_list
+        save_yaml(USERS_FILE, all_data)
+        return jsonify({"status": "success"})
 
 from utils.security import SecurityChecker
 
