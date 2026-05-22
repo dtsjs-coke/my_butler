@@ -85,18 +85,31 @@ def run_tunnel():
         match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
         if match:
             tunnel_url = match.group(0)
-            print(f"\n✨ New Tunnel URL Detected: {tunnel_url}")
+            print(f"\n✨ Current Tunnel URL Detected: {tunnel_url}")
             
             old_url = get_current_stored_url()
-            if tunnel_url != old_url:
-                # 1. URL 저장
+            
+            # 1. URL 저장 및 코드 업데이트 로직
+            code_updated = update_subscription_manager_code(tunnel_url)
+            
+            if tunnel_url != old_url or code_updated:
                 with open(URL_CACHE_FILE, "w") as f:
                     f.write(tunnel_url)
                 
-                # 2. 코드 수정 및 Push
-                if update_subscription_manager_code(tunnel_url):
-                    git_push_changes()
-                    notify_via_butler(f"🔗 **터널 주소 변경 감지**\n새 주소: {tunnel_url}\n웹 코드 수정 및 GitHub Push 완료! (약 1분 후 반영)")
+                # 코드 수정이 일어났거나 URL이 바뀌었다면 Push
+                git_success = git_push_changes()
+                status_msg = "변경 및 업데이트 완료" if git_success else "업데이트 실패"
+                
+                notify_via_butler(
+                    f"🔗 **터널 주소 정보**\n"
+                    f"현재 주소: {tunnel_url}\n"
+                    f"상태: {'새 주소 감지' if tunnel_url != old_url else '기존 주소 유지(코드 동기화)'}\n"
+                    f"GitHub 반영: {status_msg}"
+                )
+            else:
+                # URL도 같고 코드도 이미 최신이라면 단순 안내만
+                notify_via_butler(f"✅ **터널 연결 확인**\n현재 주소: {tunnel_url}\n상태: 정상 가동 중 (변동 없음)")
+            
             break
         
         # 30초 동안 못 찾으면 재시도
