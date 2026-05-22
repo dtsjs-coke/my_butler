@@ -35,6 +35,7 @@ pycparser==3.0
 pydantic==1.10.26
 pyparsing==3.3.2
 python-dotenv==1.2.2
+PyYAML==6.0.3
 requests==2.33.1
 SRTrain==2.6.7
 korail2==0.4.0
