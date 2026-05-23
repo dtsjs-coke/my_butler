@@ -49,12 +49,18 @@ async def news_loop(client):
     for kw in keywords:
         items = await fetch_news(kw)
         for item in items:
-            title = item['title'].replace('<b>','').replace('</b>','').replace('&quot;','"')
+            # HTML 엔티티 및 태그 제거
+            title = item['title'].replace('<b>','').replace('</b>','').replace('&quot;','"').replace('&apos;',"'").replace('&amp;','&').replace('&lt;','<').replace('&gt;','>')
             link = item['link']
-            if not any(n['title'] == title for n in stored):
+            # 중복 체크: 링크(link)를 기준으로 비교
+            if not any(n['link'] == link for n in stored):
                 new_item = {"date": datetime.now().strftime('%Y-%m-%d'), "keyword": kw, "title": title, "link": link}
                 stored.append(new_item)
                 new_found = True
                 await channel.send(f"📰 **새 뉴스 ({kw})**\n{title}\n<{link}>")
     
-    if new_found: save_news(stored)
+    if new_found:
+        # 7일이 지난 뉴스 정리 후 저장
+        limit = datetime.now() - timedelta(days=7)
+        stored = [n for n in stored if datetime.strptime(n['date'], '%Y-%m-%d') > limit]
+        save_news(stored)
