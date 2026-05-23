@@ -21,67 +21,74 @@ def get_current_stored_url():
 
 def update_subscription_manager_code(new_url):
     """subscription-manager의 소스 코드를 새 URL로 수정"""
-    files_to_fix = [
-        os.path.join(SUB_MGR_PATH, "src", "data_manager.py"),
-        os.path.join(SUB_MGR_PATH, "src", "auth_manager.py")
-    ]
+    file_path = os.path.join(SUB_MGR_PATH, "src", "config.py")
     
+    if not os.path.exists(file_path):
+        print(f"⚠️ Config file not found: {file_path}")
+        return False
+        
     pattern = r'BUTLER_API_URL = "https://.*\.trycloudflare\.com"'
     replacement = f'BUTLER_API_URL = "{new_url}"'
     
-    updated = False
-    for file_path in files_to_fix:
-        if not os.path.exists(file_path): continue
-        
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        
-        if re.search(pattern, content):
-            new_content = re.sub(pattern, replacement, content)
-            if content != new_content:
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(new_content)
-                print(f"✅ Updated: {file_path}")
-                updated = True
-    return updated
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    if re.search(pattern, content):
+        new_content = re.sub(pattern, replacement, content)
+        if content != new_content:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            print(f"✅ Updated: {file_path}")
+            return True
+    else:
+        # 패턴이 일치하지 않을 경우 (예: 초기 주소가 다를 때) 직접 쓰기 시도
+        print("⚠️ Pattern match failed in config.py. Attempting direct overwrite.")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f'BUTLER_API_URL = "{new_url}"\n')
+        return True
+    return False
 
 def git_push_changes():
     """수정된 코드를 GitHub에 Push (S9 자율 관리 모드)"""
     from dotenv import load_dotenv
-    # butler_pro 실행 경로 고려하여 .env 로드
     load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
     
     github_token = os.getenv("GITHUB_TOKEN")
     repo_url = "https://github.com/dtsjs-coke/subscription-manager.git"
-    
-    # 토큰이 있으면 인증된 URL 사용, 없으면 기본 URL 사용
     authenticated_url = f"https://{github_token}@github.com/dtsjs-coke/subscription-manager.git" if github_token else repo_url
 
     try:
-        # 안전한 디렉토리 설정
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", SUB_MGR_PATH], check=False)
         
-        # 1. Git 초기화 확인 및 Remote URL 강제 설정
+        # 1. Git 초기화 및 리모트 설정
         if not os.path.exists(os.path.join(SUB_MGR_PATH, ".git")):
-            print("📦 Initializing Git repository on S9...")
             subprocess.run(["git", "init"], cwd=SUB_MGR_PATH, check=True)
             subprocess.run(["git", "remote", "add", "origin", authenticated_url], cwd=SUB_MGR_PATH, check=True)
         else:
-            # PC에서 넘어온 설정 등으로 주소가 바뀌었을 수 있으므로 토큰 주소로 재설정
             subprocess.run(["git", "remote", "set-url", "origin", authenticated_url], cwd=SUB_MGR_PATH, check=True)
 
-        # 2. Git Add
-        subprocess.run(["git", "add", "."], cwd=SUB_MGR_PATH, check=True)
+        # 2. 동기화 (S9의 URL 정보가 우선되어야 하므로 fetch 후 rebase)
+        subprocess.run(["git", "fetch", "origin"], cwd=SUB_MGR_PATH, check=False)
+        # rebase 시 충돌이 나면 S9 버전을 우선하도록 전략 설정 (가능하면)
+        subprocess.run(["git", "rebase", "origin/main"], cwd=SUB_MGR_PATH, capture_output=True)
 
-        # 3. Git Commit
+        # 3. 변경사항 커밋
+        subprocess.run(["git", "add", "."], cwd=SUB_MGR_PATH, check=True)
         commit_msg = f"fix: auto-update tunnel url ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
-        # 변경사항이 없으면 commit이 실패하므로 capture_output으로 처리
         res_commit = subprocess.run(["git", "commit", "-m", commit_msg], cwd=SUB_MGR_PATH, capture_output=True, text=True)
         
-        # 4. Git Push
-        # -u main 설정을 위해 push 명령어 수정
+        if "nothing to commit" in res_commit.stdout and not os.path.exists(os.path.join(SUB_MGR_PATH, ".git/refs/heads/main")):
+            # 브랜치가 아직 없을 경우 (최초 커밋)
+            pass
+        
+        # 4. Push (강제 푸시를 고려 - 터널 주소 업데이트는 S9이 항상 최신이어야 함)
+        # 일반 push 시도 후 실패 시 force push 고려
         res_push = subprocess.run(["git", "push", "origin", "main"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
         
+        if res_push.returncode != 0:
+            print(f"⚠️ Regular push failed, attempting force push... Error: {res_push.stderr}")
+            res_push = subprocess.run(["git", "push", "origin", "main", "--force"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
+
         if res_push.returncode != 0:
             print(f"❌ Git Push Failed: {res_push.stderr}")
             return False
@@ -91,6 +98,7 @@ def git_push_changes():
     except Exception as e:
         print(f"❌ Git Operation Error: {e}")
         return False
+
 
 def notify_via_butler(message):
     """Butler를 통해 디스코드에 알림 전송"""
