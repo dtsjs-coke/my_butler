@@ -266,6 +266,44 @@ async def on_message(message):
         elif content.startswith("!a2a "):
             request = content.replace("!a2a ", "").strip()
             await handle_a2a_task(message, request)
+        elif content == "!구독":
+            from core.subscription_service import load_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
+            from datetime import datetime
+            
+            subs_data = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
+            
+            if not subs_data:
+                await message.channel.send("📭 등록된 구독 정보가 없습니다.")
+                return
+
+            embed = discord.Embed(title="📅 구독 관리 현황", color=discord.Color.green())
+            today = datetime.now().date()
+            
+            for user_id, items in subs_data.items():
+                msg_list = []
+                for item in items:
+                    name = item.get("name", "N/A")
+                    end_date_str = item.get("end_date", "9999-12-31")
+                    price = item.get("price", 0)
+                    
+                    days_left = "∞"
+                    if end_date_str != "9999-12-31":
+                        try:
+                            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+                            days_left = (end_date - today).days
+                        except: pass
+                    
+                    status = "✅"
+                    if isinstance(days_left, int):
+                        if days_left <= 0: status = "🚨"
+                        elif days_left <= 7: status = "⚠️"
+                    
+                    msg_list.append(f"{status} **{name}**: {days_left}일 남음 ({price}원)")
+                
+                if msg_list:
+                    embed.add_field(name=f"👤 사용자: {user_id}", value="\n".join(msg_list), inline=False)
+            
+            await message.channel.send(embed=embed)
         elif not content.startswith('!'):
             async with message.channel.typing():
                 workspace_dir = os.path.join(PROJECT_ROOT, "workspace")

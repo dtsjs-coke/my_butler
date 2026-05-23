@@ -48,13 +48,35 @@ def update_subscription_manager_code(new_url):
 def git_push_changes():
     """수정된 코드를 GitHub에 Push"""
     try:
-        subprocess.run(["git", "add", "."], cwd=SUB_MGR_PATH, check=True)
-        subprocess.run(["git", "commit", "-m", f"fix: auto-update tunnel url ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"], cwd=SUB_MGR_PATH, check=True)
-        subprocess.run(["git", "push"], cwd=SUB_MGR_PATH, check=True)
+        # Git 환경 확인 및 안전한 디렉토리 설정 (Termux/Docker 등에서의 오류 방지)
+        subprocess.run(["git", "config", "--global", "--add", "safe.directory", SUB_MGR_PATH], check=False)
+        
+        # .git 폴더 존재 여부 확인
+        if not os.path.exists(os.path.join(SUB_MGR_PATH, ".git")):
+            print(f"❌ Git repository not found in {SUB_MGR_PATH}")
+            return False
+
+        # Git Add
+        res_add = subprocess.run(["git", "add", "."], cwd=SUB_MGR_PATH, capture_output=True, text=True)
+        if res_add.returncode != 0:
+            print(f"❌ Git Add Failed: {res_add.stderr}")
+            return False
+
+        # Git Commit
+        commit_msg = f"fix: auto-update tunnel url ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        res_commit = subprocess.run(["git", "commit", "-m", commit_msg], cwd=SUB_MGR_PATH, capture_output=True, text=True)
+        # 이미 최신 상태일 경우 returncode가 1일 수 있음
+        
+        # Git Push
+        res_push = subprocess.run(["git", "push"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
+        if res_push.returncode != 0:
+            print(f"❌ Git Push Failed: {res_push.stderr}")
+            return False
+            
         print("🚀 Git Push Success!")
         return True
     except Exception as e:
-        print(f"❌ Git Push Failed: {e}")
+        print(f"❌ Git Operation Error: {e}")
         return False
 
 def notify_via_butler(message):
