@@ -46,43 +46,44 @@ def update_subscription_manager_code(new_url):
     return updated
 
 def git_push_changes():
-    """수정된 코드를 GitHub에 Push (S9 자체 관리 모드)"""
-    repo_url = "https://github.com/dtsjs-coke/subscription-manager"
+    """수정된 코드를 GitHub에 Push (S9 자율 관리 모드)"""
+    from dotenv import load_dotenv
+    # butler_pro 실행 경로 고려하여 .env 로드
+    load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+    
+    github_token = os.getenv("GITHUB_TOKEN")
+    repo_url = "https://github.com/dtsjs-coke/subscription-manager.git"
+    
+    # 토큰이 있으면 인증된 URL 사용, 없으면 기본 URL 사용
+    authenticated_url = f"https://{github_token}@github.com/dtsjs-coke/subscription-manager.git" if github_token else repo_url
+
     try:
-        # 1. Git 초기화 확인 및 기본 설정
-        if not os.path.exists(os.path.join(SUB_MGR_PATH, ".git")):
-            print("📦 Initializing Git repository on S9...")
-            subprocess.run(["git", "init"], cwd=SUB_MGR_PATH, check=True)
-            subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=SUB_MGR_PATH, check=True)
-        
         # 안전한 디렉토리 설정
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", SUB_MGR_PATH], check=False)
         
-        # Remote URL 확인 및 설정 (잘못되어 있을 경우 대비)
-        res_remote = subprocess.run(["git", "remote", "get-url", "origin"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
-        if res_remote.returncode != 0 or res_remote.stdout.strip() != repo_url:
-            subprocess.run(["git", "remote", "remove", "origin"], cwd=SUB_MGR_PATH, check=False)
-            subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=SUB_MGR_PATH, check=True)
+        # 1. Git 초기화 확인 및 Remote URL 강제 설정
+        if not os.path.exists(os.path.join(SUB_MGR_PATH, ".git")):
+            print("📦 Initializing Git repository on S9...")
+            subprocess.run(["git", "init"], cwd=SUB_MGR_PATH, check=True)
+            subprocess.run(["git", "remote", "add", "origin", authenticated_url], cwd=SUB_MGR_PATH, check=True)
+        else:
+            # PC에서 넘어온 설정 등으로 주소가 바뀌었을 수 있으므로 토큰 주소로 재설정
+            subprocess.run(["git", "remote", "set-url", "origin", authenticated_url], cwd=SUB_MGR_PATH, check=True)
 
         # 2. Git Add
-        res_add = subprocess.run(["git", "add", "."], cwd=SUB_MGR_PATH, capture_output=True, text=True)
-        if res_add.returncode != 0:
-            print(f"❌ Git Add Failed: {res_add.stderr}")
-            return False
+        subprocess.run(["git", "add", "."], cwd=SUB_MGR_PATH, check=True)
 
         # 3. Git Commit
         commit_msg = f"fix: auto-update tunnel url ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
+        # 변경사항이 없으면 commit이 실패하므로 capture_output으로 처리
         res_commit = subprocess.run(["git", "commit", "-m", commit_msg], cwd=SUB_MGR_PATH, capture_output=True, text=True)
-        if res_commit.returncode != 0 and "nothing to commit" not in res_commit.stdout:
-            print(f"❌ Git Commit Failed: {res_commit.stderr}")
-            return False
         
         # 4. Git Push
-        # S9(Termux)에서는 토큰 인증이 필요할 수 있으므로, 에러 발생 시 안내 출력
+        # -u main 설정을 위해 push 명령어 수정
         res_push = subprocess.run(["git", "push", "origin", "main"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
+        
         if res_push.returncode != 0:
             print(f"❌ Git Push Failed: {res_push.stderr}")
-            print("💡 TIP: S9(Termux)에서 GitHub 인증(PAT)이 설정되어 있는지 확인하세요.")
             return False
             
         print("🚀 Git Push Success from S9!")
