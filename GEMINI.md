@@ -7,14 +7,26 @@ This project is a Discord-based personal assistant bot running on Termux (Androi
 
 ## 🏗 Project Architecture
 
-- `butler_pro.py`: Main entry point, Discord client, event handlers, and background tasks (News loop, SRT loop).
+- `butler_pro.py`: Main entry point, Discord client, event handlers, and background tasks (News loop, SRT loop, Subscription loop).
+- `subscription_manager.py`: Orchestrates subscription-related tasks (notifications, keep-alive).
+- `subscription_service.py`: Core logic for subscription data processing and notification delivery (Telegram/Discord).
+- `api/flask_app.py`: Flask-based API server for data persistence (YAML) and remote message sending.
+- `utils/tunnel_manager.py`: Automates Cloudflare tunnel setup and synchronizes the tunnel URL with the frontend via GitHub.
 - `srt_service.py`: SRT reservation UI logic (Views and Modals) and reservation queue management.
 - `config_manager.py`: Persistence layer for news keywords, SRT stations, reservation queue, and model settings.
 - `news.json`, `reservations.json`, `keywords.json`, `stations.json`, `model_config.json`: Local storage files.
+- `data/subscriptions.yaml`, `data/users.yaml`: Storage for the subscription management system.
 
 ## 🚀 Key Features & Command Locations
 
-### 1. SRT Reservation System (`srt_service.py`, `butler_pro.py`)
+### 1. Subscription Management (`subscription_manager.py`, `subscription_service.py`, `api/`)
+- **Hybrid Architecture**: Streamlit Cloud (Frontend) + S9 Butler API (Backend/DB).
+- **Data Persistence**: Uses local YAML files via Flask API, bypassing Streamlit's filesystem limitations.
+- **Automated Notifications**: Sends alerts 30, 7, 1, and 0 days before expiration via Telegram and Discord.
+- **Tunnel Automation**: `tunnel_manager.py` automatically updates the API URL in the frontend repo and pushes to GitHub.
+- **Keep-Alive**: Periodically pings the Streamlit app to prevent sleep mode.
+
+### 2. SRT Reservation System (`srt_service.py`, `butler_pro.py`)
 - **Queue Management**: Supports up to 3 concurrent tasks per user.
 - **Persistence**: Saved automatically to `reservations.json` via `config_manager.py`.
 - **Stations**: Dynamically managed via Discord commands.
