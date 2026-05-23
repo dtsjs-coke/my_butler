@@ -104,12 +104,20 @@ def git_push_changes(new_url):
 
 
 def notify_via_butler(message):
-    """Butler를 통해 디스코드에 알림 전송"""
+    """Butler를 통해 디스코드에 알림 전송 (Flask API 호출)"""
     try:
-        # Butler의 Flask API를 사용하여 메시지 전송
-        requests.post("http://localhost:5000/send", json={"content": message}, timeout=5)
-    except:
-        print("Discord notification failed (Butler might be offline)")
+        url = "http://localhost:5000/send"
+        payload = {"content": message}
+        # timeout을 짧게 설정하여 메인 루프 지연 방지
+        response = requests.post(url, json=payload, timeout=3)
+        if response.status_code == 200:
+            print(f"✅ Discord notification sent: {message[:30]}...")
+            return True
+        else:
+            print(f"⚠️ Discord notification failed (HTTP {response.status_code}): {response.text}")
+    except Exception as e:
+        print(f"❌ Discord notification error: {e}")
+    return False
 
 def run_tunnel():
     print("📡 Starting Cloudflare Tunnel...")

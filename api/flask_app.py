@@ -57,22 +57,23 @@ def handle_users(user_id):
 from utils.security import SecurityChecker
 
 @app.route('/send', methods=['POST'])
-async def send_message_api():
+def send_message_api():
     """외부 스크립트에서 메시지 전송을 요청하는 API (보안 필터링 적용)"""
     global discord_client
-    data = await asyncio.to_thread(request.get_json)
+    data = request.get_json()
     channel_id = data.get('channel_id', CHAT_CHANNEL_ID)
     raw_content = data.get('content', '')
     
     # 보안 필터링: 민감 정보 마스킹
     content = SecurityChecker.filter_sensitive_data(raw_content)
     
-    if discord_client:
+    if discord_client and content:
         channel = discord_client.get_channel(int(channel_id))
-        if channel and content:
-            await channel.send(content)
-            return {"status": "success"}, 200
-    return {"status": "failed"}, 400
+        if channel:
+            # 외부 쓰레드(Flask)에서 디스코드 메인 루프로 작업 전달
+            discord_client.loop.create_task(channel.send(content))
+            return jsonify({"status": "success"}), 200
+    return jsonify({"status": "failed"}), 400
 
 def run_flask(client):
     global discord_client
