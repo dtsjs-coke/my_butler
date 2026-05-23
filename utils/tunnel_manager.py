@@ -46,34 +46,46 @@ def update_subscription_manager_code(new_url):
     return updated
 
 def git_push_changes():
-    """수정된 코드를 GitHub에 Push"""
+    """수정된 코드를 GitHub에 Push (S9 자체 관리 모드)"""
+    repo_url = "https://github.com/dtsjs-coke/subscription-manager"
     try:
-        # Git 환경 확인 및 안전한 디렉토리 설정 (Termux/Docker 등에서의 오류 방지)
+        # 1. Git 초기화 확인 및 기본 설정
+        if not os.path.exists(os.path.join(SUB_MGR_PATH, ".git")):
+            print("📦 Initializing Git repository on S9...")
+            subprocess.run(["git", "init"], cwd=SUB_MGR_PATH, check=True)
+            subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=SUB_MGR_PATH, check=True)
+        
+        # 안전한 디렉토리 설정
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", SUB_MGR_PATH], check=False)
         
-        # .git 폴더 존재 여부 확인
-        if not os.path.exists(os.path.join(SUB_MGR_PATH, ".git")):
-            print(f"❌ Git repository not found in {SUB_MGR_PATH}")
-            return False
+        # Remote URL 확인 및 설정 (잘못되어 있을 경우 대비)
+        res_remote = subprocess.run(["git", "remote", "get-url", "origin"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
+        if res_remote.returncode != 0 or res_remote.stdout.strip() != repo_url:
+            subprocess.run(["git", "remote", "remove", "origin"], cwd=SUB_MGR_PATH, check=False)
+            subprocess.run(["git", "remote", "add", "origin", repo_url], cwd=SUB_MGR_PATH, check=True)
 
-        # Git Add
+        # 2. Git Add
         res_add = subprocess.run(["git", "add", "."], cwd=SUB_MGR_PATH, capture_output=True, text=True)
         if res_add.returncode != 0:
             print(f"❌ Git Add Failed: {res_add.stderr}")
             return False
 
-        # Git Commit
+        # 3. Git Commit
         commit_msg = f"fix: auto-update tunnel url ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
         res_commit = subprocess.run(["git", "commit", "-m", commit_msg], cwd=SUB_MGR_PATH, capture_output=True, text=True)
-        # 이미 최신 상태일 경우 returncode가 1일 수 있음
+        if res_commit.returncode != 0 and "nothing to commit" not in res_commit.stdout:
+            print(f"❌ Git Commit Failed: {res_commit.stderr}")
+            return False
         
-        # Git Push
-        res_push = subprocess.run(["git", "push"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
+        # 4. Git Push
+        # S9(Termux)에서는 토큰 인증이 필요할 수 있으므로, 에러 발생 시 안내 출력
+        res_push = subprocess.run(["git", "push", "origin", "main"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
         if res_push.returncode != 0:
             print(f"❌ Git Push Failed: {res_push.stderr}")
+            print("💡 TIP: S9(Termux)에서 GitHub 인증(PAT)이 설정되어 있는지 확인하세요.")
             return False
             
-        print("🚀 Git Push Success!")
+        print("🚀 Git Push Success from S9!")
         return True
     except Exception as e:
         print(f"❌ Git Operation Error: {e}")
