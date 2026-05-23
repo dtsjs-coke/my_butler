@@ -20,33 +20,25 @@ def get_current_stored_url():
     return ""
 
 def update_subscription_manager_code(new_url):
-    """subscription-manager의 소스 코드를 새 URL로 수정"""
-    file_path = os.path.join(SUB_MGR_PATH, "src", "config.py")
+    """subscription-manager의 소스 코드를 새 URL로 수정 및 빌드 트리거 생성"""
+    config_path = os.path.join(SUB_MGR_PATH, "src", "config.py")
+    trigger_path = os.path.join(SUB_MGR_PATH, "reboot_trigger.txt")
     
-    if not os.path.exists(file_path):
-        print(f"⚠️ Config file not found: {file_path}")
-        return False
-        
-    pattern = r'BUTLER_API_URL = "https://.*\.trycloudflare\.com"'
-    replacement = f'BUTLER_API_URL = "{new_url}"'
-    
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    
-    if re.search(pattern, content):
-        new_content = re.sub(pattern, replacement, content)
-        if content != new_content:
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(new_content)
-            print(f"✅ Updated: {file_path}")
-            return True
-    else:
-        # 패턴이 일치하지 않을 경우 (예: 초기 주소가 다를 때) 직접 쓰기 시도
-        print("⚠️ Pattern match failed in config.py. Attempting direct overwrite.")
-        with open(file_path, "w", encoding="utf-8") as f:
+    try:
+        # 1. src/config.py 업데이트
+        with open(config_path, "w", encoding="utf-8") as f:
             f.write(f'BUTLER_API_URL = "{new_url}"\n')
+        print(f"✅ Updated API URL in: {config_path}")
+            
+        # 2. reboot_trigger.txt 업데이트 (Streamlit Cloud 강제 갱신 유도)
+        with open(trigger_path, "w", encoding="utf-8") as f:
+            f.write(f"Force Reboot Trigger\nLast URL Change: {new_url}\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        print(f"🚀 Created rebuild trigger: {trigger_path}")
+        
         return True
-    return False
+    except Exception as e:
+        print(f"❌ Failed to update subscription-manager code: {e}")
+        return False
 
 def git_push_changes(new_url):
     """수정된 코드를 GitHub에 Push (S9 자율 관리 모드)"""
