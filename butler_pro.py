@@ -227,11 +227,21 @@ async def on_message(message):
     # 4. CHAT / A2A 채널
     elif channel_id == CHAT_CHANNEL_ID:
         if content == "!help":
-            help_text = f"""🤖 **CHAT/A2A 채널 도움말**
-- `!모델 리스트`: 사용 가능한 AI 모델 추천 및 현재 설정 확인
+            help_text = f"""🤖 **버틀러 Pro 통합 도움말**
+
+📅 **구독 관리**
+- `!구독`: 현재 등록된 모든 서비스의 만료 현황 및 D-Day 확인
+
+🧠 **AI 모델 설정**
+- `!모델 리스트`: 사용 가능한 모델 목록 및 추천 용도 확인
 - `!모델 설정 [ModelID]`: 일반 대화용 AI 모델 변경
-- `!a2a [요청] [파일명.py]`: 수동 A2A 작업 시작
-- 일반 대화: 버틀러가 의도를 분석하여 자동 대응 (CHAT, TOOL, A2A)"""
+
+🛠️ **자율 작업 (A2A)**
+- `!a2a [요청] [파일명.py]`: 버틀러가 직접 코드를 설계하고 구현
+
+💬 **일반 대화**
+- 명령어 없이 말씀하시면 의도를 분석하여 자동 대응합니다.
+(대화, 시스템 상태 확인, 기차 예약 안내 등)"""
             await message.channel.send(help_text)
         elif content == "!모델 리스트":
             current_model = load_model_name()

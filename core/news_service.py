@@ -43,9 +43,11 @@ async def news_loop(client):
     if not channel: return
 
     keywords = load_keywords()
+    keywords = load_keywords()
+    # 루프 시작 시 항상 최신 정보를 파일에서 로드
     stored = load_news()
     new_found = False
-    
+
     for kw in keywords:
         items = await fetch_news(kw)
         for item in items:
@@ -58,9 +60,11 @@ async def news_loop(client):
                 stored.append(new_item)
                 new_found = True
                 await channel.send(f"📰 **새 뉴스 ({kw})**\n{title}\n<{link}>")
-    
+                # 새 뉴스 발송 즉시 저장하여 재시작 시 중복 방지
+                save_news(stored)
+
+    # 루프 종료 시에도 필터링된 상태로 한 번 더 저장 (유지보수용)
     if new_found:
-        # 7일이 지난 뉴스 정리 후 저장
         limit = datetime.now() - timedelta(days=7)
         stored = [n for n in stored if datetime.strptime(n['date'], '%Y-%m-%d') > limit]
         save_news(stored)
