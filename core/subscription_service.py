@@ -2,6 +2,7 @@ import os
 import yaml
 import requests
 import asyncio
+import aiohttp
 from datetime import datetime, date
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -105,12 +106,16 @@ class SubscriptionService:
             print(f"Telegram send failed: {e}")
 
     async def ping_streamlit(self, url):
-        """Streamlit 앱을 깨우기 위한 Ping"""
+        """Streamlit 앱을 깨우기 위한 Ping (aiohttp 사용)"""
         if not url:
             return
         try:
-            # requests는 동기이므로 asyncio.to_thread 사용
-            await asyncio.to_thread(requests.get, url, timeout=10)
-            print(f"Ping sent to {url}")
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+            }
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.get(url, timeout=15) as resp:
+                    print(f"Ping sent to {url}, Status: {resp.status}")
         except Exception as e:
             print(f"Ping failed: {e}")
