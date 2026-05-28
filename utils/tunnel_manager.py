@@ -4,6 +4,7 @@ import os
 import time
 import requests
 import asyncio
+import threading
 from datetime import datetime
 
 # 설정
@@ -123,47 +124,77 @@ def run_tunnel():
     )
 
     tunnel_url = ""
-    start_time = time.time()
     
-    # 출력 내용을 한 줄씩 읽으며 URL 탐색
-    for line in iter(process.stdout.readline, ""):
-        print(line.strip())
-        match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
-        if match:
-            tunnel_url = match.group(0)
-            print(f"\n✨ Current Tunnel URL Detected: {tunnel_url}")
+    def monitor_stdout():
+        nonlocal tunnel_url
+        for line in iter(process.stdout.readline, ""):
+            line_str = line.strip()
+            if line_str:
+                print(f"[cloudflared] {line_str}")
             
-            old_url = get_current_stored_url()
-            
-            if tunnel_url != old_url:
-                # URL이 바뀌었을 때만 Git 동기화 및 업데이트 진행
-                git_success = git_push_changes(tunnel_url)
-                
-                if git_success:
-                    with open(URL_CACHE_FILE, "w") as f:
-                        f.write(tunnel_url)
-                    status_msg = "변경 및 GitHub 업데이트 완료"
-                else:
-                    status_msg = "GitHub 업데이트 실패 (로그 확인 필요)"
-                
-                notify_via_butler(
-                    f"🔗 **터널 주소 정보 업데이트**\n"
-                    f"현재 주소: {tunnel_url}\n"
-                    f"이전 주소: {old_url}\n"
-                    f"상태: {status_msg}"
-                )
-            else:
-                # URL은 같지만 혹시 코드가 안 맞을 수 있으므로 체크 (Push는 안 함)
-                update_subscription_manager_code(tunnel_url)
-                notify_via_butler(f"✅ **터널 연결 확인**\n현재 주소: {tunnel_url}\n상태: 정상 가동 중 (변동 없음)")
-            
-            break
-        
-        # 30초 동안 못 찾으면 재시도
+            if not tunnel_url:
+                match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+                if match:
+                    tunnel_url = match.group(0)
+    
+    # 별도 쓰레드에서 로그 상시 모니터링 (파이프 버퍼 누적 방지)
+    threading.Thread(target=monitor_stdout, daemon=True).start()
+
+    # 1. URL 감지 대기 (최대 30초)
+    start_time = time.time()
+    while not tunnel_url:
         if time.time() - start_time > 30:
-            print("Wait timeout. Restarting...")
+            print("❌ Wait timeout for URL detection. Restarting...")
             process.terminate()
             return False
+        time.sleep(1)
+
+    print(f"\n✨ Current Tunnel URL Detected: {tunnel_url}")
+    
+    # 2. URL 변경 시 업데이트 및 알림
+    old_url = get_current_stored_url()
+    if tunnel_url != old_url:
+        git_success = git_push_changes(tunnel_url)
+        if git_success:
+            with open(URL_CACHE_FILE, "w") as f:
+                f.write(tunnel_url)
+            status_msg = "변경 및 GitHub 업데이트 완료"
+        else:
+            status_msg = "GitHub 업데이트 실패 (로그 확인 필요)"
+        
+        notify_via_butler(
+            f"🔗 **터널 주소 정보 업데이트**\n"
+            f"현재 주소: {tunnel_url}\n"
+            f"이전 주소: {old_url}\n"
+            f"상태: {status_msg}"
+        )
+    else:
+        update_subscription_manager_code(tunnel_url)
+        notify_via_butler(f"✅ **터널 연결 확인**\n현재 주소: {tunnel_url}\n상태: 정상 가동 중 (변동 없음)")
+
+    # 3. Health Check 루프 (터널 생존 확인)
+    fail_count = 0
+    while process.poll() is None:
+        try:
+            # 60초마다 URL 접속 확인
+            time.sleep(60)
+            response = requests.get(tunnel_url, timeout=10)
+            if response.status_code < 500: # 500 이상은 서버 에러지만 연결은 된 것임. 404 등도 연결은 된 상태.
+                if fail_count > 0:
+                    print(f"💚 Health check recovered: {tunnel_url}")
+                fail_count = 0
+            else:
+                fail_count += 1
+                print(f"⚠️ Health check failed ({fail_count}/3): HTTP {response.status_code}")
+        except Exception as e:
+            fail_count += 1
+            print(f"⚠️ Health check error ({fail_count}/3): {e}")
+
+        if fail_count >= 3:
+            print(f"🚨 Tunnel seems broken. Forcing restart...")
+            notify_via_butler(f"🚨 **터널 접속 불량 감지**\n주소: {tunnel_url}\n3회 연속 응답 없음. 터널을 재시작합니다.")
+            process.terminate()
+            break
 
     # 프로세스가 종료될 때까지 대기
     process.wait()
