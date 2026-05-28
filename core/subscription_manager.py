@@ -16,16 +16,8 @@ class SubscriptionManager:
         print("🔍 Checking subscription notifications...")
         await self.service.send_notifications_async()
 
-    @tasks.loop(minutes=15)
-    async def keep_alive_loop(self):
-        """Streamlit 앱 Sleep 방지를 위한 주기적 Ping"""
-        if STREAMLIT_URL:
-            await self.service.ping_streamlit(STREAMLIT_URL)
-
 def start_subscription_tasks(client):
     manager = SubscriptionManager(client)
     if not manager.notification_loop.is_running():
         manager.notification_loop.start()
-    if not manager.keep_alive_loop.is_running():
-        manager.keep_alive_loop.start()
     return manager
