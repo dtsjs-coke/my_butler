@@ -5,6 +5,11 @@ import subprocess
 import asyncio
 import requests
 from datetime import datetime
+from dotenv import load_dotenv
+
+# .env 파일 로드 (constants 임포트 전에 수행)
+load_dotenv()
+
 from utils.system_status import get_system_status_embed
 from core.ai_service import ask_gemini
 from config.constants import STATUS_CHANNEL_ID, CHAT_CHANNEL_ID
@@ -14,7 +19,7 @@ from core.agent_manager import load_agent_config, save_agent_config, add_pending
 TARGET_APP = "butler"
 PM2_HOME = os.getenv("PM2_HOME", f"{os.path.expanduser('~')}/.pm2")
 LOG_PATH = f"{PM2_HOME}/logs/{TARGET_APP}-error.log"
-LOCAL_API_URL = "http://localhost:5000/send"
+LOCAL_API_URL = "http://127.0.0.1:5000/send"
 CHECK_INTERVAL = 60  # 기본 60초
 
 class ButlerAgent:
@@ -41,7 +46,8 @@ class ButlerAgent:
             
             thermal_cfg = self.config["thermal_management"]
             if temp >= thermal_cfg["critical_temp"]:
-                msg = f"⚠️ **S9 발열 경고 ({temp}°C)**\n온도 임계치를 초과했습니다. 에이전트가 작업을 지연시킵니다."
+                msg = f"""⚠️ **S9 발열 경고 ({temp}°C)**
+온도 임계치를 초과했습니다. 에이전트가 작업을 지연시킵니다."""
                 self.send_discord(msg)
                 return True
             return False
@@ -65,12 +71,11 @@ class ButlerAgent:
         self.last_log_size = current_size
 
         if "Exception" in new_logs or "Error" in new_logs:
-            prompt = (
-                "당신은 Butler AI의 시스템 관리자입니다. 다음 에러 로그를 보고 원인을 진단한 후, "
-                "코드를 수정해야 한다면 수정된 전체 코드 또는 패치 내용을 JSON 형식으로 제안하세요.\n"
-                "형식: {\"analysis\": \"...\", \"need_fix\": true, \"patch\": \"...\", \"file\": \"...\"}\n\n"
-                f"로그:\n{new_logs[-1000:]}"
-            )
+            prompt = f"""당신은 Butler AI의 시스템 관리자입니다. 다음 에러 로그를 보고 원인을 진단한 후, 코드를 수정해야 한다면 수정된 전체 코드 또는 패치 내용을 JSON 형식으로 제안하세요.
+형식: {{"analysis": "...", "need_fix": true, "patch": "...", "file": "..."}}
+
+로그:
+{new_logs[-1000:]}"""
             # JSON 응답을 위해 analyze_intent의 스키마 구조를 빌려쓰거나 ask_gemini 활용
             analysis_text = await ask_gemini(prompt)
             
@@ -79,11 +84,12 @@ class ButlerAgent:
                 # 현재는 텍스트 보고 위주로 구현
                 action_id = add_pending_action("SELF_HEALING", analysis_text, proposed_patch=None)
                 
-                report = (
-                    f"🚨 **자가 진단 보고 (ID: {action_id})**\n\n"
-                    f"**[분석 결과]**\n{analysis_text[:1500]}\n\n"
-                    "✅ 이 문제를 해결하기 위해 코드를 수정하시겠습니까? `!승인 {action_id}` 명령어를 입력하세요."
-                )
+                report = f"""🚨 **자가 진단 보고 (ID: {action_id})**
+
+**[분석 결과]**
+{analysis_text[:1500]}
+
+✅ 이 문제를 해결하기 위해 코드를 수정하시겠습니까? `!승인 {{action_id}}` 명령어를 입력하세요."""
                 self.send_discord(report, CHAT_CHANNEL_ID)
             except Exception as e:
                 print(f"Analysis handling error: {e}")
@@ -104,7 +110,8 @@ class ButlerAgent:
                 subprocess.run(["/data/data/com.termux/files/usr/bin/pm2", "restart", TARGET_APP])
 
     async def run(self):
-        self.send_discord("🤖 **Butler Agent v2 가동 시작**\n자가 치유 및 발열 관리 모드가 활성화되었습니다.")
+        self.send_discord("""🤖 **Butler Agent v2 가동 시작**
+자가 치유 및 발열 관리 모드가 활성화되었습니다.""")
         
         while True:
             # 1. 시스템 체크

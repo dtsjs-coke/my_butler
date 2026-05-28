@@ -60,20 +60,36 @@ from utils.security import SecurityChecker
 def send_message_api():
     """외부 스크립트에서 메시지 전송을 요청하는 API (보안 필터링 적용)"""
     global discord_client
-    data = request.get_json()
-    channel_id = data.get('channel_id', CHAT_CHANNEL_ID)
-    raw_content = data.get('content', '')
-    
-    # 보안 필터링: 민감 정보 마스킹
-    content = SecurityChecker.filter_sensitive_data(raw_content)
-    
-    if discord_client and content:
+    try:
+        data = request.get_json()
+        channel_id = data.get('channel_id', CHAT_CHANNEL_ID)
+        raw_content = data.get('content', '')
+        
+        # 보안 필터링: 민감 정보 마스킹
+        content = SecurityChecker.filter_sensitive_data(raw_content)
+        
+        print(f"[API] Received send request for channel {channel_id}")
+        
+        if not discord_client:
+            print("[API] Error: discord_client is None")
+            return jsonify({"status": "failed", "reason": "client_not_ready"}), 400
+            
+        if not content:
+            print("[API] Error: content is empty")
+            return jsonify({"status": "failed", "reason": "empty_content"}), 400
+            
         channel = discord_client.get_channel(int(channel_id))
         if channel:
             # 외부 쓰레드(Flask)에서 디스코드 메인 루프로 작업 전달
             discord_client.loop.create_task(channel.send(content))
             return jsonify({"status": "success"}), 200
-    return jsonify({"status": "failed"}), 400
+        else:
+            print(f"[API] Error: channel {channel_id} not found in cache")
+            return jsonify({"status": "failed", "reason": "channel_not_found"}), 400
+            
+    except Exception as e:
+        print(f"[API] Critical Error: {e}")
+        return jsonify({"status": "failed", "reason": str(e)}), 500
 
 def run_flask(client):
     global discord_client

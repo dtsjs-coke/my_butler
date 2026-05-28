@@ -36,7 +36,7 @@ class SecurityChecker:
         filtered_text = text
         # 1. 키워드 기반 패턴 마스킹 (KEY=VALUE)
         for key in SecurityChecker.SENSITIVE_PATTERNS:
-            filtered_text = re.sub(f"({key})[\s:=]+[^\s]+", r"\1: ********", filtered_text)
+            filtered_text = re.sub(fr"({key})[\s:=]+[^\s]+", r"\1: ********", filtered_text)
         
         # 2. 실제 토큰/키 형태 탐지 (Discord Token 등)
         # 예: MT... (디스코드 토큰 형태) 또는 AIza... (구글 API 키 형태)
