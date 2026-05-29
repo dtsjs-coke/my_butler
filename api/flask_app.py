@@ -1,6 +1,6 @@
 import os
 import asyncio
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template, request, jsonify
 from core.news_service import load_news
 from core.subscription_service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
 
@@ -10,13 +10,13 @@ CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
 
 @app.route('/')
 def home():
+    return render_template('index.html')
+
+@app.route('/news')
+def news_page():
     news = load_news()
     news.reverse()
-    return render_template_string("""
-        <h1>📱 버틀러 Pro 뉴스룸</h1>
-        <p>S9 서버 운영 중 (7일 보관)</p><hr>
-        {% for n in news %}<p>[{{n.date}}] <b>{{n.keyword}}</b>: <a href="{{n.link}}">{{n.title}}</a></p>{% endfor %}
-    """, news=news)
+    return render_template('news.html', news=news)
 
 @app.route('/subscriptions/<user_id>', methods=['GET', 'POST'])
 def handle_subscriptions(user_id):
