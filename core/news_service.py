@@ -127,6 +127,16 @@ async def news_loop(client):
                 pub_date = parsed_pub.strftime("%Y-%m-%d %H:%M:%S")
             except:
                 pub_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+            # 언론사 정보 파싱 (originallink에서 도메인 추출)
+            publisher = "언론사 정보 없음"
+            if original_link:
+                try:
+                    domain = re.search(r'https?://(?:www\.)?([^/]+)', original_link)
+                    if domain:
+                        publisher = domain.group(1).split('.')[0].upper() # ex: mk.co.kr -> MK
+                except:
+                    pass
             
             norm_naver = normalize_url(naver_link)
             norm_origin = normalize_url(original_link)
@@ -145,9 +155,12 @@ async def news_loop(client):
                 new_item = {
                     "fetch_date": datetime.now().strftime('%Y-%m-%d'), # 보관 기한 산정용
                     "pub_date": pub_date,
+                    "date": pub_date, # 웹 호환성 유지를 위해 date에도 상세 시간 저장
                     "naver_link": naver_link,
                     "original_link": original_link,
+                    "link": naver_link if naver_link else original_link, # 링크 누락 방지
                     "title": title,
+                    "publisher": publisher,
                     "is_sent": 1 if is_duplicate else 0, # 중복이면 메일발송여부(is_sent)=1 로 기록
                     "keyword": kw
                 }

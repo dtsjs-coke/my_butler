@@ -53,12 +53,12 @@
                                         </h4>
 
                                         <!-- Publisher & Link Action -->
-                                        <div class="flex items-center justify-between">
+                                        <div class="flex items-center justify-between mt-4">
                                             <div class="flex items-center gap-2 text-[11px] text-gray-500">
                                                 <i data-lucide="building-2" class="w-3 h-3"></i>
-                                                <span>{{ n.get('publisher', '언론사 정보 없음') }}</span>
+                                                <span class="font-semibold">{{ n.get('publisher', '언론사 파싱 대기중') }}</span>
                                             </div>
-                                            <a href="{{ n.link }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                                            <a href="{{ n.get('link', n.get('naver_link', '#')) }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm cursor-pointer z-10 relative">
                                                 <span>뉴스 바로가기</span>
                                                 <i data-lucide="external-link" class="w-3 h-3"></i>
                                             </a>
