@@ -10,8 +10,10 @@ This project is a Discord-based personal assistant bot running on Termux (Androi
 - `butler_pro.py`: Main entry point, Discord client, event handlers, and background tasks (News loop, SRT loop, Subscription loop).
 - `subscription_manager.py`: Orchestrates subscription-related tasks (notifications, keep-alive).
 - `subscription_service.py`: Core logic for subscription data processing and notification delivery (Telegram/Discord).
-- `api/flask_app.py`: Flask-based API server for data persistence (YAML) and remote message sending.
+- `api/flask_app.py`: Flask-based API server. Handles data persistence (YAML), remote message sending, and **provides data for the Web Dashboard**.
+- `api/templates/`: Jinja2 templates for the Web Dashboard (`base.html`, `index.html`, `news.html`).
 - `utils/tunnel_manager.py`: Automates Cloudflare tunnel setup and synchronizes the tunnel URL with the frontend via GitHub.
+- `utils/system_status.py`: Provides raw system data (Battery, RAM, CPU) for both Discord and Web.
 - `srt_service.py`: SRT reservation UI logic (Views and Modals) and reservation queue management.
 - `config_manager.py`: Persistence layer for news keywords, SRT stations, reservation queue, and model settings.
 - `news.json`, `reservations.json`, `keywords.json`, `stations.json`, `model_config.json`: Local storage files.
@@ -19,7 +21,27 @@ This project is a Discord-based personal assistant bot running on Termux (Androi
 
 ## 🚀 Key Features & Command Locations
 
-### 1. Subscription Management (`subscription_manager.py`, `subscription_service.py`, `api/`)
+### 1. Web Dashboard (New!)
+A modern, 3-pane responsive web interface for monitoring and control.
+- **Architecture**: Flask (Backend) + Tailwind CSS (Styling) + Vanilla JS (Logic).
+- **Layout**:
+    - **Left Sidebar**: Search, Dark/Light mode toggle, Page navigation (Home, News).
+    - **Main Content**: Dynamic page rendering with scrollable areas.
+    - **Right Sidebar**: 
+        - **Graph View**: Interactive node map (Vis.js) showing Keywords and Train tasks.
+        - **Table of Contents (ToC)**: Automatic heading detection for quick navigation.
+- **Real-time Integration**:
+    - `/api/system_status`: Fetches real-time S9 battery/memory data every 30s.
+    - `/api/graph_data`: Dynamically builds the node graph from `keywords.json` and `reservations.json`.
+
+### 2. News Room (Web Optimized)
+Categorized news feed with high scannability.
+- **Categorization**: Grouped by keyword with sticky headers.
+- **UX**: Each category is contained in a scrollable frame to keep the page length manageable.
+- **Latest Badge**: Automatically marks news published within the last 1 hour as "LATEST".
+- **Enhanced Cards**: Displays title, publisher, and publication time with direct external links.
+
+### 3. Subscription Management (`subscription_manager.py`, `subscription_service.py`, `api/`)
 - **Hybrid Architecture**: Streamlit Cloud (Frontend) + S9 Butler API (Backend/DB).
 - **Data Persistence**: Uses local YAML files via Flask API, bypassing Streamlit's filesystem limitations.
 - **Automated Notifications**: Sends alerts 30, 7, 1, and 0 days before expiration via Telegram and Discord.
