@@ -69,15 +69,33 @@
                             <i data-lucide="bot"></i>
                         </div>
                         <h1 class="text-xl font-bold tracking-tight">Butler Pro</h1>
-                    </div>
+                    <h1 class="text-xl font-bold tracking-tight">Butler Pro</h1>
                     <button onclick="toggleSidebar('left-sidebar')" class="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
-                </div>
+                    </div>
 
-                <!-- Navigation -->
-                <nav class="space-y-1 flex-1">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Main Menu</p>
+                    <!-- Search (Restored) -->
+                    <div class="relative mb-6">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                    </span>
+                    <input type="text" placeholder="Search..." class="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <!-- Dark Mode Toggle -->
+                    <button onclick="toggleDarkMode()" class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-card transition-colors mb-6">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                        <span class="text-sm font-medium">테마 변경</span>
+                    </div>
+                    </button>
+
+                    <!-- Navigation -->
+                    <nav class="space-y-1 flex-1">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Pages</p>
+
                     <a href="/" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-card transition-colors group">
                         <i data-lucide="home" class="w-5 h-5 text-gray-500 group-hover:text-blue-500"></i>
                         <span class="text-sm font-medium">Home</span>
