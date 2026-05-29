@@ -78,17 +78,35 @@ def normalize_url(url):
 
 def extract_publisher(url):
     """URL에서 언론사 이름을 추출합니다."""
-    if not url: return "언론사 정보 없음"
+    if not url: return "언론사"
     try:
+        # 네이버 뉴스 전용 처리
+        if 'n.news.naver.com' in url or 'news.naver.com' in url:
+            return "NAVER"
+            
         parsed_uri = urlparse(url)
         domain = parsed_uri.netloc.lower()
-        # 공통 서브도메인 제거
-        domain = re.sub(r'^(www\.|news\.|mnews\.|m\.|app\.|blog\.|v\.|n\.)', '', domain)
-        # 메인 도메인명 추출 (ex: koreadaily.com -> KOREADAILY)
-        name = domain.split('.')[0].upper()
-        return name if name else "언론사"
+        
+        # 도메인에서 의미 있는 이름 추출
+        # ex) www.koreadaily.com -> koreadaily.com
+        # ex) m.sports.naver.com -> sports.naver.com
+        parts = domain.split('.')
+        if len(parts) >= 2:
+            # 보통 끝에서 두 번째가 메인 도메인 (koreadaily, naver 등)
+            # 단, co.kr 같은 경우를 위해 처리
+            if parts[-2] in ['co', 'or', 'go', 'ne', 're', 'ac'] and len(parts) >= 3:
+                name = parts[-3]
+            else:
+                name = parts[-2]
+            
+            # www, news 등 흔한 서브도메인 제외
+            if name in ['www', 'news', 'm', 'mnews', 'sports'] and len(parts) >= 3:
+                name = parts[-2]
+                
+            return name.upper()
+        return "언론사"
     except:
-        return "언론사 정보 없음"
+        return "언론사"
 
 async def fetch_news(query):
     url = "https://openapi.naver.com/v1/search/news.json"

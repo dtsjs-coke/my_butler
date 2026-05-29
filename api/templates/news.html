@@ -39,10 +39,14 @@
                                     <div class="flex-1 min-w-0">
                                         <!-- Meta Info -->
                                         <div class="flex items-center gap-3 mb-2">
-                                            <span class="text-[10px] font-bold text-gray-400">{{ n.date }}</span>
+                                            <!-- 더 가독성 좋은 날짜 표시 (JS에서 포맷팅) -->
+                                            {% set display_date = n.get('date', n.get('pub_date', '시간 정보 없음')) %}
+                                            <span class="news-date-formatted text-[10px] font-bold text-gray-400" data-time="{{ display_date }}">
+                                                {{ display_date[:16] if display_date else '시간 정보 없음' }}
+                                            </span>
                                             
                                             <!-- LATEST Badge (1 hour check) -->
-                                            <span class="latest-badge hidden flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 text-[9px] font-black rounded" data-time="{{ n.date }}">
+                                            <span class="latest-badge hidden flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 text-[9px] font-black rounded shadow-sm" data-time="{{ display_date }}">
                                                 <i data-lucide="zap" class="w-2.5 h-2.5"></i> LATEST
                                             </span>
                                         </div>
