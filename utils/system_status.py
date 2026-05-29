@@ -44,6 +44,41 @@ def get_system_status_embed():
         print(f"상태 정보 파싱 오류: {e}")
         return None
 
+def get_system_status_data():
+    """웹 대시보드용 원시 시스템 데이터 반환"""
+    raw_batt = os.popen('termux-battery-status').read()
+    raw_mem = os.popen('free -m').read()
+    
+    data = {
+        "battery": {"percentage": 0, "temperature": 0, "status": "Unknown", "health": "Unknown"},
+        "memory": {"used": 0, "total": 0, "percentage": 0},
+        "status": "Healthy"
+    }
+    
+    try:
+        batt_json = json.loads(raw_batt)
+        data["battery"] = {
+            "percentage": batt_json.get('percentage'),
+            "temperature": batt_json.get('temperature'),
+            "status": batt_json.get('status'),
+            "health": batt_json.get('health')
+        }
+        
+        mem_lines = raw_mem.split('\n')
+        if len(mem_lines) > 1:
+            mem_info = mem_lines[1].split()
+            total = int(mem_info[1])
+            used = int(mem_info[2])
+            data["memory"] = {
+                "used": used,
+                "total": total,
+                "percentage": round((used / total) * 100, 1)
+            }
+    except Exception as e:
+        data["status"] = f"Error: {str(e)}"
+        
+    return data
+
 def get_battery_short_report():
     raw_res = os.popen('termux-battery-status').read()
     try:

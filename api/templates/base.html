@@ -181,32 +181,33 @@
             }
         }
 
-        // Graph View Mockup
-        function initGraph() {
+        // Graph View Real Data
+        async function initGraph() {
             const container = document.getElementById('graph-view');
-            const nodes = new vis.DataSet([
-                { id: 1, label: 'Home', color: '#3b82f6' },
-                { id: 2, label: 'News', color: '#10b981' },
-                { id: 3, label: 'Keywords', color: '#f59e0b' },
-                { id: 4, label: 'S9 Server', color: '#8b5cf6' }
-            ]);
-            const edges = new vis.DataSet([
-                { from: 1, to: 2 },
-                { from: 2, to: 3 },
-                { from: 1, to: 4 }
-            ]);
-            const data = { nodes, edges };
-            const options = {
-                nodes: {
-                    shape: 'dot',
-                    size: 16,
-                    font: { size: 10, color: '#999' },
-                    borderWidth: 2
-                },
-                edges: { width: 1, color: '#ccc' },
-                physics: { enabled: true }
-            };
-            new vis.Network(container, data, options);
+            try {
+                const res = await fetch('/api/graph_data');
+                const data = await res.json();
+                
+                const nodes = new vis.DataSet(data.nodes);
+                const edges = new vis.DataSet(data.edges);
+                
+                const options = {
+                    nodes: {
+                        shape: 'dot',
+                        size: 16,
+                        font: { size: 10, color: '#999' },
+                        borderWidth: 2
+                    },
+                    edges: { width: 1, color: '#ccc' },
+                    physics: { 
+                        enabled: true,
+                        stabilization: { iterations: 150 }
+                    }
+                };
+                new vis.Network(container, { nodes, edges }, options);
+            } catch (e) {
+                console.error("Graph data load failed", e);
+            }
         }
 
         window.onload = () => {

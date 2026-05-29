@@ -3,6 +3,8 @@ import asyncio
 from flask import Flask, render_template, request, jsonify
 from core.news_service import load_news
 from core.subscription_service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
+from utils.system_status import get_system_status_data
+from config.config_manager import load_keywords, load_queue, load_ktx_queue
 
 app = Flask(__name__)
 discord_client = None
@@ -17,6 +19,53 @@ def news_page():
     news = load_news()
     news.reverse()
     return render_template('news.html', news=news)
+
+@app.route('/api/system_status')
+def api_status():
+    data = get_system_status_data()
+    return jsonify(data)
+
+@app.route('/api/graph_data')
+def api_graph_data():
+    keywords = load_keywords()
+    srt_queue = load_queue()
+    ktx_queue = load_ktx_queue()
+    
+    nodes = [
+        {"id": "root", "label": "Butler Pro", "color": "#3b82f6", "size": 25},
+        {"id": "news_root", "label": "News", "color": "#10b981"},
+        {"id": "train_root", "label": "Trains", "color": "#f59e0b"}
+    ]
+    edges = [
+        {"from": "root", "to": "news_root"},
+        {"from": "root", "to": "train_root"}
+    ]
+    
+    # Add Keywords
+    for i, kw in enumerate(keywords):
+        node_id = f"kw_{i}"
+        nodes.append({"id": node_id, "label": kw, "color": "#6ee7b7", "size": 12})
+        edges.append({"from": "news_root", "to": node_id})
+        
+    # Add SRT/KTX Tasks
+    task_count = 0
+    for user_id, tasks in srt_queue.items():
+        for task in tasks:
+            node_id = f"task_{task_count}"
+            label = f"SRT: {task.get('dep')}→{task.get('arr')}"
+            nodes.append({"id": node_id, "label": label, "color": "#fcd34d", "size": 12})
+            edges.append({"from": "train_root", "to": node_id})
+            task_count += 1
+            
+    for user_id, tasks in ktx_queue.items():
+        for task in tasks:
+            node_id = f"task_{task_count}"
+            label = f"KTX: {task.get('dep')}→{task.get('arr')}"
+            nodes.append({"id": node_id, "label": label, "color": "#fbbf24", "size": 12})
+            edges.append({"from": "train_root", "to": node_id})
+            task_count += 1
+            
+    return jsonify({"nodes": nodes, "edges": edges})
 
 @app.route('/subscriptions/<user_id>', methods=['GET', 'POST'])
 def handle_subscriptions(user_id):
