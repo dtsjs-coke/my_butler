@@ -64,36 +64,43 @@ def get_system_status_data():
                 data["memory"] = {
                     "total": int(p[1]), "used": int(p[2]),
                     "percentage": round((int(p[2])/int(p[1]))*100, 1)
-                }
+                # 3. CPU (AP)
+                # S9 등 안드로이드 상위 버전은 'top -n 1' 결과의 헤더가 다를 수 있음
+                raw_top = os.popen('top -n 1 -b | head -n 20').read()
 
-        # 3. CPU (Android top)
-        # S9 등 안드로이드 상위 버전은 'top -n 1' 결과의 헤더가 다를 수 있음
-        raw_top = os.popen('top -n 1 -b | head -n 20').read()
-        
-        # 패턴 1: "User 10%, System 5%..."
-        cpu_sum = 0
-        m1 = re.search(r'User\s+(\d+)%,\s+System\s+(\d+)%', raw_top, re.I)
-        if m1:
-            cpu_sum = int(m1.group(1)) + int(m1.group(2))
-        else:
-            # 패턴 2: "15% user, 5% sys..."
-            m2 = re.search(r'(\d+)%\s+user,\s+(\d+)%\s+sys', raw_top, re.I)
-            if m2:
-                cpu_sum = int(m2.group(1)) + int(m2.group(2))
-        
-        data["cpu"]["percentage"] = cpu_sum if cpu_sum > 0 else 5 # 최소값 보정
+                cpu_sum = 0
+                # 패턴: "User 10%, System 5%..." 또는 "10% user, 5% sys"
+                m1 = re.search(r'User\s+(\d+)%,\s+System\s+(\d+)%', raw_top, re.I)
+                m2 = re.search(r'(\d+)%\s+user,\s+(\d+)%\s+sys', raw_top, re.I)
 
-        # 4. Storage (Python 내장 shutil 사용 - 가장 확실함)
-        total, used, free = shutil.disk_usage("/")
-        total_gb = round(total / (1024**3), 1)
-        used_gb = round(used / (1024**3), 1)
-        data["storage"] = {
-            "total": f"{total_gb}G",
-            "used": f"{used_gb}G",
-            "percentage": int((used / total) * 100)
-        }
+                if m1:
+                    cpu_sum = int(m1.group(1)) + int(m1.group(2))
+                elif m2:
+                    cpu_sum = int(m2.group(1)) + int(m2.group(2))
 
-    except Exception as e:
+                data["cpu"]["percentage"] = cpu_sum if cpu_sum > 0 else 5 # 기본 부하 5% 보정
+
+                # 4. Storage (S9 Custom logic: +25G Correction)
+                raw_disk = os.popen('df -h /storage/emulated/0').read()
+                disk_lines = raw_disk.strip().split('\n')
+                if len(disk_lines) > 1:
+                    parts = disk_lines[1].split()
+                    # Size(parts[1]), Used(parts[2]) - ex: 231G, 13G
+                    try:
+                        s_val = float(parts[1].replace('G', ''))
+                        u_val = float(parts[2].replace('G', ''))
+
+                        total_final = s_val + 25 # 231 + 25 = 256
+                        used_final = u_val + 25  # 13 + 25 = 38
+
+                        data["storage"] = {
+                            "total": f"{int(total_final)}G",
+                            "used": f"{int(used_final)}G",
+                            "percentage": int((used_final / total_final) * 100)
+                        }
+                    except:
+                        pass
+
         data["status"] = f"Error: {str(e)}"
         
     return data
