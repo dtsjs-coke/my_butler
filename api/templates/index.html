@@ -13,7 +13,7 @@
                     <i data-lucide="zap"></i>
                 </div>
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">System Status</h3>
-                <p class="text-xl font-bold text-green-500 underline decoration-2 underline-offset-4">Healthy</p>
+                <p id="sys-status" class="text-xl font-bold text-green-500 underline decoration-2 underline-offset-4">Loading...</p>
             </div>
             <!-- Status Card 2 -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
@@ -21,15 +21,15 @@
                     <i data-lucide="battery"></i>
                 </div>
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Device Battery</h3>
-                <p class="text-xl font-bold">85% <span class="text-xs font-normal text-gray-400 ml-2">(Charging)</span></p>
+                <p id="batt-status" class="text-xl font-bold">--% <span id="batt-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
             </div>
             <!-- Status Card 3 -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
                 <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-lg flex items-center justify-center mb-4">
                     <i data-lucide="activity"></i>
                 </div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Active Tasks</h3>
-                <p class="text-xl font-bold">3 <span class="text-xs font-normal text-gray-400 ml-2">Running</span></p>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">RAM Usage</h3>
+                <p id="mem-status" class="text-xl font-bold">--% <span id="mem-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
             </div>
         </div>
     </section>
@@ -50,4 +50,29 @@
         </div>
     </section>
 </div>
+
+<script>
+    async function updateStatus() {
+        try {
+            const res = await fetch('/api/system_status');
+            const data = await res.json();
+            
+            document.getElementById('sys-status').innerText = data.status;
+            document.getElementById('batt-status').innerHTML = `${data.battery.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">(${data.battery.status})</span>`;
+            document.getElementById('mem-status').innerHTML = `${data.memory.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">${data.memory.used}/${data.memory.total} MB</span>`;
+            
+            const sysEl = document.getElementById('sys-status');
+            if (data.status === 'Healthy') {
+                sysEl.className = "text-xl font-bold text-green-500 underline decoration-2 underline-offset-4";
+            } else {
+                sysEl.className = "text-xl font-bold text-red-500 underline decoration-2 underline-offset-4";
+            }
+        } catch (e) {
+            console.error("Status update failed", e);
+        }
+    }
+
+    updateStatus();
+    setInterval(updateStatus, 30000);
+</script>
 {% endblock %}
