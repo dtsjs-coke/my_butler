@@ -120,10 +120,13 @@
 
     function generateCategoryNav() {
         const tocContainer = document.getElementById('toc-container');
+        if (!tocContainer) return;
+
         const sections = document.querySelectorAll('.category-section');
         
         if (sections.length > 0) {
-            tocContainer.innerHTML = '<p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Categories</p>';
+            tocContainer.setAttribute('data-custom', 'true'); // base.html 덮어쓰기 방지
+            tocContainer.innerHTML = '<p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">News Keywords</p>';
             sections.forEach(sec => {
                 const kw = sec.querySelector('h3').innerText;
                 const count = sec.querySelector('span.text-xs').innerText;
@@ -148,9 +151,8 @@
         if (window.lucide) lucide.createIcons();
     });
 
-    // In case base.html also uses window.onload
+    // Support for base.html window.onload
     window.addEventListener('load', () => {
-        updateLatestBadges();
         generateCategoryNav();
     });
 </script>

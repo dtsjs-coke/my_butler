@@ -10,17 +10,58 @@ from config.config_manager import load_keywords
 
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
-# 프로젝트 루트 경로를 기준으로 파일 경로 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NEWS_FILE = os.path.join(BASE_DIR, "news.json")
 NEWS_CHANNEL_ID = int(os.getenv("NEWS_CHANNEL_ID", 0))
+
+def extract_publisher(url):
+    """URL에서 언론사 이름을 정밀하게 추출합니다."""
+    if not url: return "언론사"
+    try:
+        if 'n.news.naver.com' in url or 'news.naver.com' in url:
+            return "NAVER"
+            
+        parsed_uri = urlparse(url)
+        domain = parsed_uri.netloc.lower()
+        if not domain: return "언론사"
+        
+        # 불필요한 서브도메인 제거
+        domain = re.sub(r'^(www\.|news\.|mnews\.|m\.|app\.|blog\.|v\.|n\.)', '', domain)
+        
+        parts = domain.split('.')
+        if len(parts) >= 2:
+            # co.kr, or.kr, kyonggi.co.kr 등 복합 도메인 처리
+            if parts[-2] in ['co', 'or', 'go', 'ne', 're', 'ac'] and len(parts) >= 3:
+                name = parts[-3]
+            else:
+                name = parts[-2]
+            return name.upper()
+        return domain.upper()
+    except:
+        return "언론사"
 
 def load_news():
     if not os.path.exists(NEWS_FILE): return []
     try:
         with open(NEWS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            return data if isinstance(data, list) else []
+            news_list = data if isinstance(data, list) else []
+            
+            # 자동 마이그레이션: 누락된 언론사 정보 채우기
+            updated = False
+            for item in news_list:
+                if 'publisher' not in item or item['publisher'] in ["언론사", "NEWS"]:
+                    link = item.get('original_link') or item.get('link') or item.get('naver_link')
+                    item['publisher'] = extract_publisher(link)
+                    updated = True
+                if 'link' not in item:
+                    item['link'] = item.get('original_link') or item.get('naver_link')
+                    updated = True
+            
+            if updated:
+                # Flask 등에서 읽을 때는 저장을 지양하고, news_loop에서만 저장하도록 함 (성능)
+                pass 
+            return news_list
     except Exception as e:
         print(f"Error loading news: {e}")
         return []
@@ -32,7 +73,6 @@ def save_news(news_list):
     
     for n in news_list:
         try:
-            # 신규 스키마(fetch_date) 또는 구형 스키마(date) 호환 지원
             date_str = n.get('fetch_date') or n.get('date', '')[:10]
             if not date_str and n.get('pub_date'):
                 date_str = n.get('pub_date')[:10]
@@ -42,7 +82,6 @@ def save_news(news_list):
         except:
             continue
     
-    # 원자적 저장을 위해 임시 파일 사용 후 교체
     temp_file = NEWS_FILE + ".tmp"
     try:
         with open(temp_file, 'w', encoding='utf-8') as f:
@@ -54,13 +93,8 @@ def save_news(news_list):
             os.rename(temp_file, NEWS_FILE)
     except Exception as e:
         print(f"Error saving news: {e}")
-        if os.path.exists(temp_file):
-            try: os.remove(temp_file)
-            except: pass
-
 
 def clean_html(text):
-    """HTML 태그 및 엔티티 제거, 줄바꿈 정리"""
     if not text: return ""
     text = html.unescape(text)
     text = re.sub(r'<[^>]+>', '', text)
@@ -69,36 +103,8 @@ def clean_html(text):
     return text
 
 def normalize_url(url):
-    """URL 비교를 위해 프로토콜과 트레일링 슬래시 제거"""
     if not url: return ""
     return url.replace("https://", "").replace("http://", "").rstrip("/")
-
-def extract_publisher(url):
-    """URL에서 언론사 이름을 추출합니다."""
-    if not url: return "언론사"
-    try:
-        if 'naver.com' in url:
-            return "NAVER"
-            
-        parsed_uri = urlparse(url)
-        domain = parsed_uri.netloc.lower()
-        parts = domain.split('.')
-        
-        if len(parts) >= 2:
-            # co.kr, or.kr 등 처리
-            if parts[-2] in ['co', 'or', 'go', 'ne', 're', 'ac'] and len(parts) >= 3:
-                name = parts[-3]
-            else:
-                name = parts[-2]
-            
-            # 서브도메인이 이름인 경우 처리
-            if name in ['www', 'news', 'm', 'mnews', 'sports'] and len(parts) >= 3:
-                name = parts[-2]
-                
-            return name.upper()
-        return "언론사"
-    except:
-        return "언론사"
 
 async def fetch_news(query):
     url = "https://openapi.naver.com/v1/search/news.json"
@@ -164,5 +170,10 @@ async def news_loop(client):
                 seen_urls.add(norm_url)
                 new_found = True
 
+    # 루프가 끝날 때 혹은 새 뉴스가 있을 때 저장
     if new_found:
+        save_news(stored)
+    else:
+        # 기존 데이터 마이그레이션 결과 반영을 위해 새 뉴스가 없더라도 
+        # 로직상 publisher가 업데이트된 경우를 위해 강제 저장 (초기 1회용)
         save_news(stored)

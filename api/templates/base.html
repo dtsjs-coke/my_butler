@@ -162,19 +162,22 @@
             }
         }
 
-        // TOC Generator
-        function generateTOC() {
+        // TOC Generator (Default: can be overridden by pages)
+        function generateDefaultTOC() {
+            const tocContainer = document.getElementById('toc-container');
+            // If the page already provided its own TOC (like news.html), don't overwrite
+            if (tocContainer && tocContainer.getAttribute('data-custom') === 'true') return;
+
             const content = document.querySelector('main div');
             const headings = content.querySelectorAll('h1, h2, h3');
-            const tocContainer = document.getElementById('toc-container');
             
-            if (headings.length > 0) {
-                tocContainer.innerHTML = '';
+            if (tocContainer && headings.length > 0) {
+                tocContainer.innerHTML = '<p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">On this page</p>';
                 headings.forEach((h, index) => {
                     if (!h.id) h.id = 'heading-' + index;
                     const item = document.createElement('a');
                     item.href = '#' + h.id;
-                    item.className = 'block hover:text-blue-500 transition-colors py-1 pl-' + (h.tagName[1] === '3' ? '4' : '0');
+                    item.className = 'block hover:text-blue-500 transition-colors py-1 text-sm text-gray-500 dark:text-gray-400 pl-' + (h.tagName[1] === '3' ? '4' : '0');
                     item.innerText = h.innerText;
                     tocContainer.appendChild(item);
                 });
@@ -184,6 +187,7 @@
         // Graph View Real Data
         async function initGraph() {
             const container = document.getElementById('graph-view');
+            if (!container) return;
             try {
                 const res = await fetch('/api/graph_data');
                 const data = await res.json();
@@ -211,8 +215,8 @@
         }
 
         window.onload = () => {
-            generateTOC();
-            initGraph();
+            if (typeof initGraph === 'function') initGraph();
+            if (typeof generateDefaultTOC === 'function') generateDefaultTOC();
         };
     </script>
 </body>
