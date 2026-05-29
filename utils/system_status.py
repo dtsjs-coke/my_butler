@@ -61,47 +61,53 @@ def get_system_status_data():
         for line in raw_mem.split('\n'):
             if 'Mem:' in line:
                 p = line.split()
-                data["memory"] = {
-                    "total": int(p[1]), "used": int(p[2]),
-                    "percentage": round((int(p[2])/int(p[1]))*100, 1)
-                # 3. CPU (AP)
-                # S9 등 안드로이드 상위 버전은 'top -n 1' 결과의 헤더가 다를 수 있음
-                raw_top = os.popen('top -n 1 -b | head -n 20').read()
+                if len(p) >= 3:
+                    total_mb = int(p[1])
+                    used_mb = int(p[2])
+                    data["memory"] = {
+                        "total": total_mb,
+                        "used": used_mb,
+                        "percentage": round((used_mb / total_mb) * 100, 1)
+                    }
+                break
 
-                cpu_sum = 0
-                # 패턴: "User 10%, System 5%..." 또는 "10% user, 5% sys"
-                m1 = re.search(r'User\s+(\d+)%,\s+System\s+(\d+)%', raw_top, re.I)
-                m2 = re.search(r'(\d+)%\s+user,\s+(\d+)%\s+sys', raw_top, re.I)
+        # 3. CPU (AP)
+        raw_top = os.popen('top -n 1 -b | head -n 20').read()
+        cpu_sum = 0
+        m1 = re.search(r'User\s+(\d+)%,\s+System\s+(\d+)%', raw_top, re.I)
+        m2 = re.search(r'(\d+)%\s+user,\s+(\d+)%\s+sys', raw_top, re.I)
+        
+        if m1:
+            cpu_sum = int(m1.group(1)) + int(m1.group(2))
+        elif m2:
+            cpu_sum = int(m2.group(1)) + int(m2.group(2))
+        
+        data["cpu"]["percentage"] = cpu_sum if cpu_sum > 0 else 5
 
-                if m1:
-                    cpu_sum = int(m1.group(1)) + int(m1.group(2))
-                elif m2:
-                    cpu_sum = int(m2.group(1)) + int(m2.group(2))
+        # 4. Storage (S9 Custom: +25G Correction)
+        raw_disk = os.popen('df -h /storage/emulated/0').read()
+        disk_lines = raw_disk.strip().split('\n')
+        if len(disk_lines) > 1:
+            parts = disk_lines[1].split()
+            try:
+                # parts[1]: Size, parts[2]: Used
+                s_val = float(parts[1].replace('G', ''))
+                u_val = float(parts[2].replace('G', ''))
+                
+                total_final = s_val + 25
+                used_final = u_val + 25
+                
+                data["storage"] = {
+                    "total": f"{int(total_final)}G",
+                    "used": f"{int(used_final)}G",
+                    "percentage": int((used_final / total_final) * 100)
+                }
+            except:
+                pass
 
-                data["cpu"]["percentage"] = cpu_sum if cpu_sum > 0 else 5 # 기본 부하 5% 보정
-
-                # 4. Storage (S9 Custom logic: +25G Correction)
-                raw_disk = os.popen('df -h /storage/emulated/0').read()
-                disk_lines = raw_disk.strip().split('\n')
-                if len(disk_lines) > 1:
-                    parts = disk_lines[1].split()
-                    # Size(parts[1]), Used(parts[2]) - ex: 231G, 13G
-                    try:
-                        s_val = float(parts[1].replace('G', ''))
-                        u_val = float(parts[2].replace('G', ''))
-
-                        total_final = s_val + 25 # 231 + 25 = 256
-                        used_final = u_val + 25  # 13 + 25 = 38
-
-                        data["storage"] = {
-                            "total": f"{int(total_final)}G",
-                            "used": f"{int(used_final)}G",
-                            "percentage": int((used_final / total_final) * 100)
-                        }
-                    except:
-                        pass
-
+    except Exception as e:
         data["status"] = f"Error: {str(e)}"
+        print(f"Status parsing error: {e}")
         
     return data
 
