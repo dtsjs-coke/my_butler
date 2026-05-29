@@ -14,6 +14,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">System Status</h3>
                 <p id="sys-status" class="text-xl font-bold text-green-500 underline decoration-2 underline-offset-4">Loading...</p>
+                <p id="sys-temp" class="text-xs text-gray-400 mt-1">Temp: --°C</p>
             </div>
             <!-- Status Card 2 -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
@@ -58,6 +59,7 @@
             const data = await res.json();
             
             document.getElementById('sys-status').innerText = data.status;
+            document.getElementById('sys-temp').innerText = `Temp: ${data.battery.temperature}°C`;
             document.getElementById('batt-status').innerHTML = `${data.battery.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">(${data.battery.status})</span>`;
             document.getElementById('mem-status').innerHTML = `${data.memory.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">${data.memory.used}/${data.memory.total} MB</span>`;
             
