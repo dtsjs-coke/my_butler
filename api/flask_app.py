@@ -14,13 +14,13 @@ CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
 def home():
     return render_template('index.html')
 
+from datetime import datetime, timedelta
+
 @app.route('/news')
 def news_page():
     news = load_news()
-    # 최신순 정렬 (데이터 저장 시점에 따라 다를 수 있으므로 명시적 역순)
     news.reverse()
     
-    # 키워드별 그룹화
     categorized_news = {}
     for n in news:
         kw = n.get('keyword', '기타')
@@ -28,7 +28,7 @@ def news_page():
             categorized_news[kw] = []
         categorized_news[kw].append(n)
         
-    return render_template('news.html', categorized_news=categorized_news)
+    return render_template('news.html', categorized_news=categorized_news, now=datetime.now())
 
 @app.route('/api/system_status')
 def api_status():
