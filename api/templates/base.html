@@ -33,42 +33,51 @@
         .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
         .dark .glass { background: rgba(37, 38, 43, 0.8); }
         #graph-view { height: 250px; width: 100%; }
-        .toc-item.active { @apply text-blue-500 font-semibold; }
+        
+        /* Mobile Overlay Background */
+        .sidebar-overlay {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 40;
+        }
+
+        /* Custom Transition */
+        .sidebar-transition {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Prevent body scroll when sidebar open on mobile */
+        .overflow-hidden-mobile {
+            @media (max-width: 1024px) {
+                overflow: hidden;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors duration-300">
-    <div class="flex h-screen overflow-hidden">
+    <!-- Overlay for mobile -->
+    <div id="sidebar-overlay" onclick="closeAllSidebars()" class="fixed inset-0 sidebar-overlay hidden lg:hidden"></div>
+
+    <div class="flex h-screen overflow-hidden relative">
+        
         <!-- [LEFT] Sidebar -->
-        <aside id="left-sidebar" class="w-64 flex-shrink-0 border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-sidebar flex flex-col transition-all duration-300">
-            <div class="p-6">
-                <div class="flex items-center gap-3 mb-8">
-                    <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white">
-                        <i data-lucide="bot"></i>
-                    </div>
-                    <h1 class="text-xl font-bold tracking-tight">Butler Pro</h1>
-                </div>
-
-                <!-- Search -->
-                <div class="relative mb-6">
-                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                        <i data-lucide="search" class="w-4 h-4"></i>
-                    </span>
-                    <input type="text" placeholder="Search..." class="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-
-                <!-- Dark Mode Toggle -->
-                <button onclick="toggleDarkMode()" class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-card transition-colors mb-6">
+        <aside id="left-sidebar" class="fixed inset-y-0 left-0 z-50 w-64 lg:static lg:translate-x-0 -translate-x-full sidebar-transition border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-sidebar flex flex-col shadow-2xl lg:shadow-none">
+            <div class="p-6 h-full flex flex-col">
+                <div class="flex items-center justify-between mb-8">
                     <div class="flex items-center gap-3">
-                        <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
-                        <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
-                        <span class="text-sm font-medium">테마 변경</span>
+                        <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white">
+                            <i data-lucide="bot"></i>
+                        </div>
+                        <h1 class="text-xl font-bold tracking-tight">Butler Pro</h1>
                     </div>
-                    <div id="theme-indicator" class="w-2 h-2 rounded-full bg-blue-500"></div>
-                </button>
+                    <button onclick="toggleSidebar('left-sidebar')" class="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
 
                 <!-- Navigation -->
-                <nav class="space-y-1">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Pages</p>
+                <nav class="space-y-1 flex-1">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Main Menu</p>
                     <a href="/" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-card transition-colors group">
                         <i data-lucide="home" class="w-5 h-5 text-gray-500 group-hover:text-blue-500"></i>
                         <span class="text-sm font-medium">Home</span>
@@ -77,60 +86,78 @@
                         <i data-lucide="newspaper" class="w-5 h-5 text-gray-500 group-hover:text-blue-500"></i>
                         <span class="text-sm font-medium">News Room</span>
                     </a>
-                    <a href="#" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-card transition-colors group">
-                        <i data-lucide="settings" class="w-5 h-5 text-gray-500 group-hover:text-blue-500"></i>
-                        <span class="text-sm font-medium">Settings</span>
-                    </a>
+                    
+                    <div class="my-6 border-t border-gray-100 dark:border-dark-border pt-6">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">Preferences</p>
+                        <button onclick="toggleDarkMode()" class="w-full flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-card transition-colors">
+                            <div class="flex items-center gap-3">
+                                <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                                <span class="text-sm font-medium">테마 변경</span>
+                            </div>
+                        </button>
+                    </div>
                 </nav>
-            </div>
-            
-            <div class="mt-auto p-6 border-t border-gray-200 dark:border-dark-border">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500"></div>
-                    <div>
-                        <p class="text-xs font-bold">S9 Server</p>
-                        <p class="text-[10px] text-green-500">Online</p>
+
+                <div class="p-4 border-t border-gray-200 dark:border-dark-border mt-auto bg-gray-50 dark:bg-dark-card/50 rounded-xl">
+                    <div class="flex items-center gap-3">
+                        <div class="relative">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500"></div>
+                            <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-dark-sidebar rounded-full"></div>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold">S9 Server</p>
+                            <p class="text-[10px] text-green-500">Active</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </aside>
 
         <!-- [MIDDLE] Main Content -->
-        <main class="flex-1 overflow-y-auto relative bg-white dark:bg-dark-bg">
-            <header class="sticky top-0 z-10 glass border-b border-gray-200 dark:border-dark-border px-8 py-4 flex items-center justify-between">
+        <main class="flex-1 overflow-y-auto relative bg-white dark:bg-dark-bg w-full">
+            <header class="sticky top-0 z-30 glass border-b border-gray-200 dark:border-dark-border px-4 lg:px-8 py-4 flex items-center justify-between">
                 <div class="flex items-center gap-4">
                     <button onclick="toggleSidebar('left-sidebar')" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg lg:hidden">
                         <i data-lucide="menu" class="w-5 h-5"></i>
                     </button>
-                    <h2 class="text-lg font-semibold" id="page-title">{% block page_title %}Dashboard{% endblock %}</h2>
+                    <h2 class="text-base lg:text-lg font-semibold" id="page-title">{% block page_title %}Dashboard{% endblock %}</h2>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
                     <button onclick="toggleSidebar('right-sidebar')" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg">
-                        <i data-lucide="layout-sidebar-right" class="w-5 h-5"></i>
+                        <i data-lucide="info" class="w-5 h-5 lg:hidden"></i>
+                        <i data-lucide="layout-sidebar-right" class="w-5 h-5 hidden lg:block"></i>
                     </button>
                 </div>
             </header>
 
-            <div class="max-w-4xl mx-auto px-8 py-12">
+            <div class="max-w-4xl mx-auto px-4 lg:px-8 py-8 lg:py-12">
                 {% block content %}{% endblock %}
             </div>
         </main>
 
         <!-- [RIGHT] Sidebar -->
-        <aside id="right-sidebar" class="w-72 flex-shrink-0 border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-sidebar flex flex-col transition-all duration-300">
+        <aside id="right-sidebar" class="fixed inset-y-0 right-0 z-50 w-72 lg:static lg:translate-x-0 translate-x-full sidebar-transition border-l border-gray-200 dark:border-dark-border bg-white dark:bg-dark-sidebar flex flex-col shadow-2xl lg:shadow-none">
             <div class="p-6 h-full flex flex-col">
+                <div class="flex items-center justify-between mb-8 lg:hidden">
+                    <h3 class="font-bold">Info Panel</h3>
+                    <button onclick="toggleSidebar('right-sidebar')" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
                 <div class="mb-8">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Graph View</h3>
                     <div id="graph-view" class="bg-gray-50 dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border">
-                        <!-- Vis.js canvas will be here -->
+                        <!-- Vis.js canvas -->
                     </div>
                 </div>
 
                 <div class="flex-1 overflow-y-auto">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">On this page</h3>
                     <div id="toc-container" class="space-y-2 text-sm text-gray-500 dark:text-gray-400">
-                        <!-- ToC items will be auto-generated -->
-                        <p class="italic text-xs">No headings found</p>
+                        <!-- ToC items -->
+                        <p class="italic text-xs text-gray-400">No content found</p>
                     </div>
                 </div>
             </div>
@@ -152,27 +179,44 @@
             document.documentElement.classList.add('dark');
         }
 
-        // Sidebar Toggle
+        // Sidebar Control
         function toggleSidebar(id) {
-            const el = document.getElementById(id);
-            if (el.classList.contains('hidden')) {
-                el.classList.remove('hidden');
+            const sidebar = document.getElementById(id);
+            const overlay = document.getElementById('sidebar-overlay');
+            const isOpen = !sidebar.classList.contains(id === 'left-sidebar' ? '-translate-x-full' : 'translate-x-full');
+
+            if (isOpen) {
+                sidebar.classList.add(id === 'left-sidebar' ? '-translate-x-full' : 'translate-x-full');
+                overlay.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
             } else {
-                el.classList.add('hidden');
+                // Close other sidebars first on mobile
+                if (window.innerWidth < 1024) {
+                    closeAllSidebars();
+                }
+                sidebar.classList.remove(id === 'left-sidebar' ? '-translate-x-full' : 'translate-x-full');
+                overlay.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
             }
         }
 
-        // TOC Generator (Default: can be overridden by pages)
+        function closeAllSidebars() {
+            document.getElementById('left-sidebar').classList.add('-translate-x-full');
+            document.getElementById('right-sidebar').classList.add('translate-x-full');
+            document.getElementById('sidebar-overlay').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+
+        // TOC Generator (Default)
         function generateDefaultTOC() {
             const tocContainer = document.getElementById('toc-container');
-            // If the page already provided its own TOC (like news.html), don't overwrite
             if (tocContainer && tocContainer.getAttribute('data-custom') === 'true') return;
 
             const content = document.querySelector('main div');
-            const headings = content.querySelectorAll('h1, h2, h3');
+            const headings = content.querySelectorAll('h2, h3');
             
             if (tocContainer && headings.length > 0) {
-                tocContainer.innerHTML = '<p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">On this page</p>';
+                tocContainer.innerHTML = '';
                 headings.forEach((h, index) => {
                     if (!h.id) h.id = 'heading-' + index;
                     const item = document.createElement('a');
@@ -184,39 +228,41 @@
             }
         }
 
-        // Graph View Real Data
+        // Graph View
         async function initGraph() {
             const container = document.getElementById('graph-view');
             if (!container) return;
             try {
                 const res = await fetch('/api/graph_data');
                 const data = await res.json();
-                
-                const nodes = new vis.DataSet(data.nodes);
-                const edges = new vis.DataSet(data.edges);
-                
                 const options = {
-                    nodes: {
-                        shape: 'dot',
-                        size: 16,
-                        font: { size: 10, color: '#999' },
-                        borderWidth: 2
-                    },
+                    nodes: { shape: 'dot', size: 16, font: { size: 10, color: '#999' }, borderWidth: 2 },
                     edges: { width: 1, color: '#ccc' },
-                    physics: { 
-                        enabled: true,
-                        stabilization: { iterations: 150 }
-                    }
+                    physics: { enabled: true, stabilization: { iterations: 150 } }
                 };
-                new vis.Network(container, { nodes, edges }, options);
-            } catch (e) {
-                console.error("Graph data load failed", e);
-            }
+                new vis.Network(container, { nodes: new vis.DataSet(data.nodes), edges: new vis.DataSet(data.edges) }, options);
+            } catch (e) { console.error("Graph load failed", e); }
         }
 
         window.onload = () => {
-            if (typeof initGraph === 'function') initGraph();
-            if (typeof generateDefaultTOC === 'function') generateDefaultTOC();
+            initGraph();
+            generateDefaultTOC();
+            // Handle initial state for desktop
+            if (window.innerWidth >= 1024) {
+                document.getElementById('left-sidebar').classList.remove('-translate-x-full');
+                document.getElementById('right-sidebar').classList.remove('translate-x-full');
+            }
+        };
+
+        // Window Resize Handler
+        window.onresize = () => {
+            if (window.innerWidth >= 1024) {
+                document.getElementById('left-sidebar').classList.remove('-translate-x-full');
+                document.getElementById('right-sidebar').classList.remove('translate-x-full');
+                document.getElementById('sidebar-overlay').classList.add('hidden');
+            } else {
+                closeAllSidebars();
+            }
         };
     </script>
 </body>
