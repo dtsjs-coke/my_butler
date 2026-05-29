@@ -6,31 +6,52 @@
 <div class="space-y-8">
     <section>
         <h2 class="text-2xl font-bold mb-6">Welcome back, Butler Pro</h2>
+        
+        <!-- Device Monitoring Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Status Card 1 -->
-            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
-                <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg flex items-center justify-center mb-4">
-                    <i data-lucide="zap"></i>
-                </div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">System Status</h3>
-                <p id="sys-status" class="text-xl font-bold text-green-500 underline decoration-2 underline-offset-4">Loading...</p>
-                <p id="sys-temp" class="text-xs text-gray-400 mt-1">Temp: --°C</p>
-            </div>
-            <!-- Status Card 2 -->
+            <!-- 1. Battery -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
                 <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg flex items-center justify-center mb-4">
                     <i data-lucide="battery"></i>
                 </div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Device Battery</h3>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Battery</h3>
                 <p id="batt-status" class="text-xl font-bold">--% <span id="batt-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
             </div>
-            <!-- Status Card 3 -->
+
+            <!-- 2. Temperature -->
+            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+                <div class="w-10 h-10 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg flex items-center justify-center mb-4">
+                    <i data-lucide="thermometer"></i>
+                </div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Device Temp</h3>
+                <p id="sys-temp" class="text-xl font-bold text-gray-900 dark:text-gray-100">--°C</p>
+            </div>
+
+            <!-- 3. RAM Usage -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
                 <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-lg flex items-center justify-center mb-4">
-                    <i data-lucide="activity"></i>
+                    <i data-lucide="cpu"></i>
                 </div>
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">RAM Usage</h3>
                 <p id="mem-status" class="text-xl font-bold">--% <span id="mem-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
+            </div>
+
+            <!-- 4. AP (CPU) Usage -->
+            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+                <div class="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-lg flex items-center justify-center mb-4">
+                    <i data-lucide="zap"></i>
+                </div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">AP Usage</h3>
+                <p id="cpu-status" class="text-xl font-bold text-gray-900 dark:text-gray-100">--%</p>
+            </div>
+
+            <!-- 5. HDD (Storage) Usage -->
+            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+                <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg flex items-center justify-center mb-4">
+                    <i data-lucide="hard-drive"></i>
+                </div>
+                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">HDD Storage</h3>
+                <p id="storage-status" class="text-xl font-bold">--% <span id="storage-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
             </div>
         </div>
     </section>
@@ -58,23 +79,27 @@
             const res = await fetch('/api/system_status');
             const data = await res.json();
             
-            document.getElementById('sys-status').innerText = data.status;
-            document.getElementById('sys-temp').innerText = `Temp: ${data.battery.temperature}°C`;
+            // 1. Battery
             document.getElementById('batt-status').innerHTML = `${data.battery.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">(${data.battery.status})</span>`;
+            
+            // 2. Temp
+            document.getElementById('sys-temp').innerText = `${data.battery.temperature}°C`;
+            
+            // 3. RAM
             document.getElementById('mem-status').innerHTML = `${data.memory.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">${data.memory.used}/${data.memory.total} MB</span>`;
             
-            const sysEl = document.getElementById('sys-status');
-            if (data.status === 'Healthy') {
-                sysEl.className = "text-xl font-bold text-green-500 underline decoration-2 underline-offset-4";
-            } else {
-                sysEl.className = "text-xl font-bold text-red-500 underline decoration-2 underline-offset-4";
-            }
+            // 4. CPU (AP)
+            document.getElementById('cpu-status').innerText = `${data.cpu.percentage}%`;
+            
+            // 5. Storage (HDD)
+            document.getElementById('storage-status').innerHTML = `${data.storage.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">${data.storage.used}/${data.storage.total}</span>`;
+            
         } catch (e) {
             console.error("Status update failed", e);
         }
     }
 
     updateStatus();
-    setInterval(updateStatus, 30000);
+    setInterval(updateStatus, 30000); // 30초마다 갱신
 </script>
 {% endblock %}
