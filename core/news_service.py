@@ -3,6 +3,7 @@ import json
 import aiohttp
 import re
 import html
+from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from discord.ext import tasks
 from config.config_manager import load_keywords
@@ -75,6 +76,20 @@ def normalize_url(url):
     if not url: return ""
     return url.replace("https://", "").replace("http://", "").rstrip("/")
 
+def extract_publisher(url):
+    """URL에서 언론사 이름을 추출합니다."""
+    if not url: return "언론사 정보 없음"
+    try:
+        parsed_uri = urlparse(url)
+        domain = parsed_uri.netloc.lower()
+        # 공통 서브도메인 제거
+        domain = re.sub(r'^(www\.|news\.|mnews\.|m\.|app\.|blog\.|v\.|n\.)', '', domain)
+        # 메인 도메인명 추출 (ex: koreadaily.com -> KOREADAILY)
+        name = domain.split('.')[0].upper()
+        return name if name else "언론사"
+    except:
+        return "언론사 정보 없음"
+
 async def fetch_news(query):
     url = "https://openapi.naver.com/v1/search/news.json"
     headers = {"X-Naver-Client-Id": NAVER_CLIENT_ID, "X-Naver-Client-Secret": NAVER_CLIENT_SECRET}
@@ -120,7 +135,7 @@ async def news_loop(client):
             naver_link = item.get('link', '')
             original_link = item.get('originallink', '')
             
-            # 발행일자 처리 (Naver Format: Thu, 28 May 2026 09:00:00 +0900)
+            # 1. 발행일자 처리 (Naver Format: Thu, 28 May 2026 09:00:00 +0900)
             raw_pub = item.get('pubDate', '')
             try:
                 parsed_pub = datetime.strptime(raw_pub, "%a, %d %b %Y %H:%M:%S %z")
@@ -128,15 +143,8 @@ async def news_loop(client):
             except:
                 pub_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
-            # 언론사 정보 파싱 (originallink에서 도메인 추출)
-            publisher = "언론사 정보 없음"
-            if original_link:
-                try:
-                    domain = re.search(r'https?://(?:www\.)?([^/]+)', original_link)
-                    if domain:
-                        publisher = domain.group(1).split('.')[0].upper() # ex: mk.co.kr -> MK
-                except:
-                    pass
+            # 2. 언론사 정보 추출 (original_link 우선 활용)
+            publisher = extract_publisher(original_link if original_link else naver_link)
             
             norm_naver = normalize_url(naver_link)
             norm_origin = normalize_url(original_link)
@@ -158,7 +166,7 @@ async def news_loop(client):
                     "date": pub_date, # 웹 호환성 유지를 위해 date에도 상세 시간 저장
                     "naver_link": naver_link,
                     "original_link": original_link,
-                    "link": naver_link if naver_link else original_link, # 링크 누락 방지
+                    "link": original_link if original_link else naver_link, # 실제 기사 링크 우선
                     "title": title,
                     "publisher": publisher,
                     "is_sent": 1 if is_duplicate else 0, # 중복이면 메일발송여부(is_sent)=1 로 기록
@@ -167,7 +175,7 @@ async def news_loop(client):
                 
                 # 완전 새로운 기사인 경우 발송
                 if not is_duplicate:
-                    await channel.send(f"📰 **새 뉴스 ({kw})**\n{title}\n<{naver_link}>")
+                    await channel.send(f"📰 **새 뉴스 ({kw})**\n{title}\n<{naver_link if naver_link else original_link}>")
                     new_item["is_sent"] = 1 # 발송 완료 기록
                 
                 stored.append(new_item)
