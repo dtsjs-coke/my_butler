@@ -3,68 +3,146 @@
 {% block page_title %}News Room{% endblock %}
 
 {% block content %}
-<div class="space-y-12">
+<div class="space-y-10">
+    <!-- Header -->
     <header class="flex items-end justify-between border-b border-gray-200 dark:border-dark-border pb-6">
         <div>
             <h2 class="text-3xl font-bold tracking-tight">뉴스룸</h2>
-            <p class="text-gray-500 mt-2">키워드별로 분류된 최신 소식입니다.</p>
+            <p class="text-gray-500 mt-2">S9 서버에서 실시간 수집된 뉴스입니다.</p>
         </div>
-        <div class="flex gap-3">
-            <span class="px-4 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-xs font-bold rounded-full border border-blue-100 dark:border-blue-800">실시간 수집 중</span>
+        <div class="flex gap-2">
+            <span class="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100 dark:border-blue-800 uppercase tracking-wider">LIVE UPDATING</span>
         </div>
     </header>
 
     {% if categorized_news %}
-        <div class="space-y-16">
+        <div class="space-y-12">
             {% for keyword, articles in categorized_news.items() %}
-            <section class="relative">
-                <div class="sticky top-[73px] z-20 flex items-center gap-4 bg-gray-50/80 dark:bg-dark-bg/80 backdrop-blur-md py-4 mb-6">
-                    <div class="px-4 py-1 bg-gray-900 dark:bg-blue-600 text-white text-sm font-bold rounded-lg shadow-lg">
-                        {{ keyword }}
+            <section id="category-{{ loop.index }}" class="category-section">
+                <!-- Category Header -->
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-6 bg-blue-600 rounded-full"></div>
+                        <h3 class="text-xl font-bold">{{ keyword }}</h3>
                     </div>
-                    <div class="h-[1px] flex-1 bg-gray-200 dark:border-dark-border"></div>
-                    <span class="text-xs text-gray-400 font-medium">{{ articles|length }} Articles</span>
+                    <div class="h-[1px] flex-1 bg-gray-100 dark:bg-dark-border"></div>
+                    <span class="text-xs text-gray-400">{{ articles|length }} Articles</span>
                 </div>
 
-                <div class="grid grid-cols-1 gap-4">
-                    {% for n in articles %}
-                    <a href="{{ n.link }}" target="_blank" class="group block bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-xl hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-300 transform hover:-translate-y-1">
-                        <div class="flex items-start justify-between gap-6">
-                            <div class="flex-1 space-y-3">
-                                <div class="flex items-center gap-3">
-                                    <span class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{{ n.date }}</span>
-                                    {% if loop.first %}
-                                    <span class="flex items-center gap-1 px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 text-[10px] font-black rounded-md animate-pulse">
-                                        <i data-lucide="sparkles" class="w-3 h-3"></i> LATEST
-                                    </span>
-                                    {% endif %}
-                                </div>
-                                <h3 class="text-lg font-bold leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                    {{ n.title }}
-                                </h3>
-                                <div class="flex items-center gap-2 text-xs text-gray-400 font-medium group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
-                                    <span>자세히 보기</span>
-                                    <i data-lucide="arrow-right" class="w-3 h-3 transform group-hover:translate-x-1 transition-transform"></i>
+                <!-- Scrollable Frame -->
+                <div class="relative bg-gray-50/50 dark:bg-dark-card/30 rounded-2xl border border-gray-200 dark:border-dark-border overflow-hidden">
+                    <div class="max-h-[500px] overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                        {% for n in articles %}
+                            <!-- News Card -->
+                            <div class="group relative bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-100 dark:border-dark-border shadow-sm hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-200">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="flex-1 min-w-0">
+                                        <!-- Meta Info -->
+                                        <div class="flex items-center gap-3 mb-2">
+                                            <span class="text-[10px] font-bold text-gray-400">{{ n.date }}</span>
+                                            
+                                            <!-- 1시간 이내 LATEST 로직 (JS에서 처리하거나 대략적인 비교) -->
+                                            <span class="latest-badge hidden flex items-center gap-1 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 text-[9px] font-black rounded" data-time="{{ n.date }}">
+                                                <i data-lucide="zap" class="w-2.5 h-2.5"></i> LATEST
+                                            </span>
+                                        </div>
+                                        
+                                        <!-- Title -->
+                                        <h4 class="text-base font-semibold leading-snug mb-3 group-hover:text-blue-600 transition-colors truncate-2-lines">
+                                            {{ n.title }}
+                                        </h4>
+
+                                        <!-- Publisher & Link Action -->
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex items-center gap-2 text-[11px] text-gray-500">
+                                                <i data-lucide="building-2" class="w-3 h-3"></i>
+                                                <span>{{ n.get('publisher', '언론사 정보 없음') }}</span>
+                                            </div>
+                                            <a href="{{ n.link }}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                                                <span>뉴스 바로가기</span>
+                                                <i data-lucide="external-link" class="w-3 h-3"></i>
+                                            </a>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="hidden sm:flex w-14 h-14 bg-gray-50 dark:bg-dark-sidebar rounded-2xl items-center justify-center text-gray-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:text-blue-500 transition-all">
-                                <i data-lucide="external-link" class="w-6 h-6"></i>
-                            </div>
-                        </div>
-                    </a>
-                    {% endfor %}
+                        {% endfor %}
+                    </div>
                 </div>
             </section>
             {% endfor %}
         </div>
     {% else %}
-        <div class="flex flex-col items-center justify-center py-32 bg-white dark:bg-dark-card rounded-3xl border-2 border-dashed border-gray-200 dark:border-dark-border text-center">
-            <div class="w-20 h-20 bg-gray-50 dark:bg-dark-sidebar rounded-full flex items-center justify-center mb-6">
-                <i data-lucide="inbox" class="w-10 h-10 text-gray-300"></i>
-            </div>
-            <h3 class="text-xl font-bold text-gray-400">수집된 뉴스가 없습니다</h3>
-            <p class="text-gray-400 mt-2">디스코드에서 키워드를 추가해 보세요.</p>
+        <div class="flex flex-col items-center justify-center py-32 text-center">
+            <i data-lucide="inbox" class="w-12 h-12 text-gray-200 mb-4"></i>
+            <p class="text-gray-400">데이터가 없습니다.</p>
         </div>
     {% endif %}
 </div>
+
+<style>
+    .truncate-2-lines {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { 
+        background: #e5e7eb; 
+        border-radius: 10px;
+    }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; }
+</style>
+
+<script>
+    function updateLatestBadges() {
+        const now = new Date();
+        document.querySelectorAll('.latest-badge').forEach(badge => {
+            const timeStr = badge.getAttribute('data-time');
+            try {
+                const artDate = new Date(timeStr.replace(/-/g, '/')); // Compatibility
+                const diffMs = now - artDate;
+                const diffHrs = diffMs / (1000 * 60 * 60);
+                
+                if (diffHrs <= 1 && diffHrs >= 0) {
+                    badge.classList.remove('hidden');
+                }
+            } catch (e) {}
+        });
+    }
+
+    function generateCategoryNav() {
+        const tocContainer = document.getElementById('toc-container');
+        const sections = document.querySelectorAll('.category-section');
+        
+        if (sections.length > 0) {
+            tocContainer.innerHTML = '<p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Categories</p>';
+            sections.forEach(sec => {
+                const kw = sec.querySelector('h3').innerText;
+                const count = sec.querySelector('span.text-xs').innerText;
+                const id = sec.id;
+                
+                const btn = document.createElement('a');
+                btn.href = '#' + id;
+                btn.className = 'flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-card transition-colors group mb-1';
+                btn.innerHTML = `
+                    <span class="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-blue-500">${kw}</span>
+                    <span class="text-[10px] bg-gray-100 dark:bg-dark-border px-1.5 rounded text-gray-400">${count.split(' ')[0]}</span>
+                `;
+                tocContainer.appendChild(btn);
+            });
+        }
+    }
+
+    // Override base.html function or call after base.html onload
+    const oldOnload = window.onload;
+    window.onload = () => {
+        if (oldOnload) oldOnload();
+        updateLatestBadges();
+        generateCategoryNav();
+        lucide.createIcons(); // Re-init for dynamically created items
+    };
+</script>
 {% endblock %}
