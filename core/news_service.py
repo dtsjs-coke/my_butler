@@ -33,7 +33,7 @@ def save_news(news_list):
     for n in news_list:
         try:
             # 신규 스키마(fetch_date) 또는 구형 스키마(date) 호환 지원
-            date_str = n.get('fetch_date') or n.get('date')
+            date_str = n.get('fetch_date') or n.get('date', '')[:10]
             if not date_str and n.get('pub_date'):
                 date_str = n.get('pub_date')[:10]
                 
@@ -62,11 +62,8 @@ def save_news(news_list):
 def clean_html(text):
     """HTML 태그 및 엔티티 제거, 줄바꿈 정리"""
     if not text: return ""
-    # HTML 엔티티 복원 (&#34; -> ", &quot; -> " 등)
     text = html.unescape(text)
-    # 태그 제거
     text = re.sub(r'<[^>]+>', '', text)
-    # 줄바꿈 및 연속된 공백 정리
     text = text.replace('\n', ' ').replace('\r', ' ')
     text = re.sub(r'\s+', ' ', text).strip()
     return text
@@ -80,26 +77,21 @@ def extract_publisher(url):
     """URL에서 언론사 이름을 추출합니다."""
     if not url: return "언론사"
     try:
-        # 네이버 뉴스 전용 처리
-        if 'n.news.naver.com' in url or 'news.naver.com' in url:
+        if 'naver.com' in url:
             return "NAVER"
             
         parsed_uri = urlparse(url)
         domain = parsed_uri.netloc.lower()
-        
-        # 도메인에서 의미 있는 이름 추출
-        # ex) www.koreadaily.com -> koreadaily.com
-        # ex) m.sports.naver.com -> sports.naver.com
         parts = domain.split('.')
+        
         if len(parts) >= 2:
-            # 보통 끝에서 두 번째가 메인 도메인 (koreadaily, naver 등)
-            # 단, co.kr 같은 경우를 위해 처리
+            # co.kr, or.kr 등 처리
             if parts[-2] in ['co', 'or', 'go', 'ne', 're', 'ac'] and len(parts) >= 3:
                 name = parts[-3]
             else:
                 name = parts[-2]
             
-            # www, news 등 흔한 서브도메인 제외
+            # 서브도메인이 이름인 경우 처리
             if name in ['www', 'news', 'm', 'mnews', 'sports'] and len(parts) >= 3:
                 name = parts[-2]
                 
@@ -111,7 +103,7 @@ def extract_publisher(url):
 async def fetch_news(query):
     url = "https://openapi.naver.com/v1/search/news.json"
     headers = {"X-Naver-Client-Id": NAVER_CLIENT_ID, "X-Naver-Client-Secret": NAVER_CLIENT_SECRET}
-    params = {"query": query, "display": 10, "sort": "date"} # 검색 결과 수 약간 확대
+    params = {"query": query, "display": 15, "sort": "date"}
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers, params=params) as resp:
             if resp.status == 200:
@@ -123,26 +115,13 @@ async def fetch_news(query):
 async def news_loop(client):
     await client.wait_until_ready()
     channel = client.get_channel(NEWS_CHANNEL_ID)
-    if not channel: 
-        print(f"News channel {NEWS_CHANNEL_ID} not found.")
-        return
+    if not channel: return
 
     keywords = load_keywords()
     stored = load_news()
     
-    # 중복 체크를 위한 Set 생성 (제목, 네이버링크, 오리지널링크)
-    seen_titles = set()
-    seen_naver_urls = set()
-    seen_origin_urls = set()
-    
-    for n in stored:
-        if n.get('title'): seen_titles.add(n['title'])
-        
-        naver = n.get('naver_link') or n.get('link')
-        if naver: seen_naver_urls.add(normalize_url(naver))
-            
-        origin = n.get('original_link') or n.get('originallink')
-        if origin: seen_origin_urls.add(normalize_url(origin))
+    seen_titles = set(n.get('title', '') for n in stored)
+    seen_urls = set(normalize_url(n.get('link', '')) for n in stored)
 
     new_found = False
 
@@ -152,8 +131,9 @@ async def news_loop(client):
             title = clean_html(item.get('title', ''))
             naver_link = item.get('link', '')
             original_link = item.get('originallink', '')
+            link = original_link if original_link else naver_link
             
-            # 1. 발행일자 처리 (Naver Format: Thu, 28 May 2026 09:00:00 +0900)
+            # 1. 발행일자 처리
             raw_pub = item.get('pubDate', '')
             try:
                 parsed_pub = datetime.strptime(raw_pub, "%a, %d %b %Y %H:%M:%S %z")
@@ -161,48 +141,28 @@ async def news_loop(client):
             except:
                 pub_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
-            # 2. 언론사 정보 추출 (original_link 우선 활용)
-            publisher = extract_publisher(original_link if original_link else naver_link)
+            # 2. 언론사 추출
+            publisher = extract_publisher(link)
             
-            norm_naver = normalize_url(naver_link)
-            norm_origin = normalize_url(original_link)
-            
-            # 중복 체크: 셋 중 하나라도 일치하면 이미 처리한 기사로 간주
-            is_title_seen = title and title in seen_titles
-            is_naver_seen = norm_naver and norm_naver in seen_naver_urls
-            is_origin_seen = norm_origin and norm_origin in seen_origin_urls
-            
-            is_duplicate = is_title_seen or is_naver_seen or is_origin_seen
-            
-            # 세 가지 조건이 완전히 똑같으면 DB 용량을 위해 추가 기록 생략
-            is_exact_match = is_title_seen and (is_naver_seen or not norm_naver) and (is_origin_seen or not norm_origin)
-            
-            if not is_exact_match:
+            norm_url = normalize_url(link)
+            if title not in seen_titles and norm_url not in seen_urls:
                 new_item = {
-                    "fetch_date": datetime.now().strftime('%Y-%m-%d'), # 보관 기한 산정용
+                    "fetch_date": datetime.now().strftime('%Y-%m-%d'),
+                    "date": pub_date,
                     "pub_date": pub_date,
-                    "date": pub_date, # 웹 호환성 유지를 위해 date에도 상세 시간 저장
+                    "title": title,
+                    "link": link,
                     "naver_link": naver_link,
                     "original_link": original_link,
-                    "link": original_link if original_link else naver_link, # 실제 기사 링크 우선
-                    "title": title,
                     "publisher": publisher,
-                    "is_sent": 1 if is_duplicate else 0, # 중복이면 메일발송여부(is_sent)=1 로 기록
                     "keyword": kw
                 }
                 
-                # 완전 새로운 기사인 경우 발송
-                if not is_duplicate:
-                    await channel.send(f"📰 **새 뉴스 ({kw})**\n{title}\n<{naver_link if naver_link else original_link}>")
-                    new_item["is_sent"] = 1 # 발송 완료 기록
-                
+                await channel.send(f"📰 **새 뉴스 ({kw})**\n{title}\n<{link}>")
                 stored.append(new_item)
                 seen_titles.add(title)
-                if norm_naver: seen_naver_urls.add(norm_naver)
-                if norm_origin: seen_origin_urls.add(norm_origin)
-                
+                seen_urls.add(norm_url)
                 new_found = True
-                save_news(stored) # 즉시 저장
 
     if new_found:
-        print(f"[{datetime.now()}] New news items processed and saved.")
+        save_news(stored)

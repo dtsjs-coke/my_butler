@@ -19,8 +19,11 @@ from datetime import datetime, timedelta
 @app.route('/news')
 def news_page():
     news = load_news()
-    news.reverse()
     
+    # 최신순 정렬 (pub_date 또는 date 기준)
+    news.sort(key=lambda x: x.get('pub_date', x.get('date', '')), reverse=True)
+    
+    # 키워드별 그룹화
     categorized_news = {}
     for n in news:
         kw = n.get('keyword', '기타')
