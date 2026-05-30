@@ -80,6 +80,11 @@ def api_graph_data():
             
     return jsonify({"nodes": nodes, "edges": edges})
 
+@app.route('/subscriptions/all', methods=['GET'])
+def get_all_subscriptions():
+    data = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
+    return jsonify(data)
+
 @app.route('/subscriptions/<user_id>', methods=['GET', 'POST'])
 def handle_subscriptions(user_id):
     if request.method == 'GET':
@@ -93,6 +98,11 @@ def handle_subscriptions(user_id):
         all_data["subscriptions"][user_id] = data
         save_yaml(SUBSCRIPTIONS_FILE, all_data)
         return jsonify({"status": "success"})
+
+@app.route('/users/all', methods=['GET'])
+def get_all_users():
+    users_list = load_yaml(USERS_FILE).get("users", [])
+    return jsonify(users_list)
 
 @app.route('/users/<user_id>', methods=['GET', 'POST'])
 def handle_users(user_id):
