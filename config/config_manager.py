@@ -4,12 +4,15 @@ from SRT.passenger import Adult, Child, Senior, Disability1To3, Disability4To6
 from SRT import SeatType
 from korail2 import AdultPassenger, ChildPassenger, SeniorPassenger, ReserveOption
 
-KEYWORDS_FILE = "keywords.json"
-STATIONS_FILE = "stations.json"
-QUEUE_FILE = "reservations.json"
-KTX_STATIONS_FILE = "ktx_stations.json"
-KTX_QUEUE_FILE = "ktx_reservations.json"
-MODEL_FILE = "model_config.json"
+# 프로젝트 루트 경로 설정 (config/ 폴더의 부모인 my_butler/)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+KEYWORDS_FILE = os.path.join(BASE_DIR, "keywords.json")
+STATIONS_FILE = os.path.join(BASE_DIR, "stations.json")
+QUEUE_FILE = os.path.join(BASE_DIR, "reservations.json")
+KTX_STATIONS_FILE = os.path.join(BASE_DIR, "ktx_stations.json")
+KTX_QUEUE_FILE = os.path.join(BASE_DIR, "ktx_reservations.json")
+MODEL_FILE = os.path.join(BASE_DIR, "model_config.json")
 
 DEFAULT_KEYWORDS = ["AI Agent", "하네스 엔지니어링", "대우 건설"]
 DEFAULT_STATIONS = ["수서", "동탄","광주송정", "평택지제", "천안아산", "오송", "대전", "김천(구미)", "서대구", "대구", "울산(통도사)", "부산", "공주", "익산", "정읍", "나주", "목포", "남원","순천","여천","여수EXPO"]
