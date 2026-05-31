@@ -35,25 +35,33 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
+# 글로벌 초기화 플래그
+_tasks_started = False
+
 @client.event
 async def on_ready():
+    global _tasks_started
     print(f'✅ {client.user} 가동 시작! (Clean Architecture)')
     
-    # 주기적 작업 시작
-    if not news_loop.is_running():
-        news_loop.start(client)
-    
-    if not srt_reservation_loop.is_running():
-        srt_reservation_loop.start(client)
+    if not _tasks_started:
+        # 주기적 작업 시작 (최초 1회만)
+        if not news_loop.is_running():
+            news_loop.start(client)
         
-    if not ktx_reservation_loop.is_running():
-        ktx_reservation_loop.start(client)
-        
-    # 구독 관리 작업 시작
-    start_subscription_tasks(client)
-        
-    # Flask 서버 별도 쓰레드 실행
-    threading.Thread(target=run_flask, args=(client,), daemon=True).start()
+        if not srt_reservation_loop.is_running():
+            srt_reservation_loop.start(client)
+            
+        if not ktx_reservation_loop.is_running():
+            ktx_reservation_loop.start(client)
+            
+        # 구독 관리 작업 시작
+        start_subscription_tasks(client)
+            
+        # Flask 서버 별도 쓰레드 실행
+        threading.Thread(target=run_flask, args=(client,), daemon=True).start()
+        _tasks_started = True
+    else:
+        print("🔄 재연결 완료: 작업 루프가 이미 실행 중입니다.")
 
 async def handle_a2a_task(message, request):
     """A2A 작업을 처리하는 공통 함수"""
@@ -401,5 +409,23 @@ async def on_message(message):
                 await message.channel.send(await ask_gemini(content))
         return
 
+async def main():
+    async with client:
+        try:
+            print("🚀 Butler Pro starting...")
+            await client.start(DISCORD_TOKEN)
+        except Exception as e:
+            print(f"❌ Critical error in main loop: {e}")
+        finally:
+            if not client.is_closed():
+                await client.close()
+
 if __name__ == "__main__":
-    client.run(DISCORD_TOKEN)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("🛑 Butler Pro stopping...")
+    except Exception as e:
+        print(f"💥 Fatal error: {e}")
+        sys.exit(1)
+
