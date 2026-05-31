@@ -99,10 +99,11 @@ def git_push_changes(new_url):
 def notify_via_butler(message):
     """Butler를 통해 디스코드에 알림 전송 (Flask API 호출)"""
     try:
-        url = "http://localhost:5000/send"
+        # S9의 실제 로컬 IP를 사용하여 통신 안정성 확보
+        url = "http://172.30.1.5:5000/send"
         payload = {"content": message}
         # timeout을 짧게 설정하여 메인 루프 지연 방지
-        response = requests.post(url, json=payload, timeout=3)
+        response = requests.post(url, json=payload, timeout=5)
         if response.status_code == 200:
             print(f"✅ Discord notification sent: {message[:30]}...")
             return True
@@ -114,9 +115,9 @@ def notify_via_butler(message):
 
 def run_tunnel():
     print("📡 Starting Cloudflare Tunnel...")
-    # cloudflared 실행 (stderr에 로그가 찍히므로 stderr를 캡처)
+    # cloudflared 실행 (0.0.0.0으로 바인딩하여 모든 인터페이스에서 접근 가능하도록 함)
     process = subprocess.Popen(
-        ["cloudflared", "tunnel", "--url", f"http://localhost:{BUTLER_API_PORT}"],
+        ["cloudflared", "tunnel", "--url", f"http://172.30.1.5:{BUTLER_API_PORT}"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
