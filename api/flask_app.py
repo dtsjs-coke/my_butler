@@ -1,6 +1,12 @@
 import os
 import asyncio
 from flask import Flask, render_template, request, jsonify
+from dotenv import load_dotenv
+
+# .env 로드 추가
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+
 from core.news_service import load_news
 from core.subscription_service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
 from utils.system_status import get_system_status_data

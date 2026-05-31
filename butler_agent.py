@@ -31,6 +31,10 @@ class ButlerAgent:
         print(f"🚀 Butler Agent initialized. Watching {LOG_PATH}")
 
     def send_discord(self, content, channel_id=STATUS_CHANNEL_ID):
+        if not channel_id or channel_id == 0:
+            print(f"⚠️ Skipping send_discord: Invalid channel_id ({channel_id})")
+            return
+            
         try:
             payload = {"channel_id": channel_id, "content": content}
             requests.post(LOCAL_API_URL, json=payload, timeout=5)
