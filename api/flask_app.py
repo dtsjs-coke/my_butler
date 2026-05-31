@@ -128,9 +128,16 @@ def handle_users(user_id):
 
 from utils.security import SecurityChecker
 
+async def safe_send(channel, content):
+    """실제 메시지 전송을 수행하는 비동기 래퍼 (예외 처리 포함)"""
+    try:
+        await channel.send(content)
+    except Exception as e:
+        print(f"[API] Failed to send message in background: {e}")
+
 @app.route('/send', methods=['POST'])
 def send_message_api():
-    """외부 스크립트에서 메시지 전송을 요청하는 API (보안 필터링 적용)"""
+    """외부 스크립트에서 메시지 전송을 요청하는 API (보안 필터링 및 안정성 강화)"""
     global discord_client
     try:
         data = request.get_json()
@@ -146,14 +153,18 @@ def send_message_api():
             print("[API] Error: discord_client is None")
             return jsonify({"status": "failed", "reason": "client_not_ready"}), 400
             
+        if discord_client.is_closed() or not discord_client.is_ready():
+            print("[API] Error: discord_client is closed or not ready")
+            return jsonify({"status": "failed", "reason": "connection_not_active"}), 503
+
         if not content:
             print("[API] Error: content is empty")
             return jsonify({"status": "failed", "reason": "empty_content"}), 400
             
         channel = discord_client.get_channel(int(channel_id))
         if channel:
-            # 외부 쓰레드(Flask)에서 디스코드 메인 루프로 작업 전달
-            discord_client.loop.create_task(channel.send(content))
+            # 외부 쓰레드(Flask)에서 디스코드 메인 루프로 작업 안전하게 전달
+            asyncio.run_coroutine_threadsafe(safe_send(channel, content), discord_client.loop)
             return jsonify({"status": "success"}), 200
         else:
             print(f"[API] Error: channel {channel_id} not found in cache")
