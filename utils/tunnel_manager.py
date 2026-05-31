@@ -6,10 +6,13 @@ import requests
 import asyncio
 import threading
 from datetime import datetime
+from dotenv import load_dotenv
 
 # 설정
-BUTLER_API_PORT = 5000
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+
+BUTLER_API_PORT = 5000
 SUB_MGR_PATH = os.path.join(os.path.dirname(PROJECT_ROOT), "subscription-manager")
 URL_CACHE_FILE = os.path.join(PROJECT_ROOT, "data", "tunnel_url.txt")
 DISCORD_WEBHOOK_URL = None # 필요시 추가 가능하지만, 여기선 Butler API를 사용합니다.
@@ -99,13 +102,19 @@ def git_push_changes(new_url):
 def notify_via_butler(message):
     """Butler를 통해 디스코드에 알림 전송 (Flask API 호출)"""
     try:
+        # 상태 확인 채널 ID 가져오기 (기본값 0)
+        status_channel_id = int(os.getenv("STATUS_CHANNEL_ID", 0))
+        
         # S9의 실제 로컬 IP를 사용하여 통신 안정성 확보
         url = "http://172.30.1.5:5000/send"
-        payload = {"content": message}
+        payload = {
+            "channel_id": status_channel_id,
+            "content": message
+        }
         # timeout을 짧게 설정하여 메인 루프 지연 방지
         response = requests.post(url, json=payload, timeout=5)
         if response.status_code == 200:
-            print(f"✅ Discord notification sent: {message[:30]}...")
+            print(f"✅ Discord notification sent to {status_channel_id}: {message[:30]}...")
             return True
         else:
             print(f"⚠️ Discord notification failed (HTTP {response.status_code}): {response.text}")
