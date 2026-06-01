@@ -103,21 +103,38 @@ def api_graph_data():
 
 from config.config_manager import save_keywords
 
-@app.route('/api/add_keyword', methods=['POST'])
+@app.route('/api/keywords', methods=['GET', 'POST', 'DELETE'])
 @token_required
-def add_keyword():
+def manage_keywords():
+    if request.method == 'GET':
+        return jsonify({"status": "success", "keywords": load_keywords()})
+    
     data = request.get_json()
-    keyword = data.get('keyword')
-    if not keyword:
-        return jsonify({"status": "failed", "reason": "empty_keyword"}), 400
-    
-    keywords = load_keywords()
-    if keyword in keywords:
-        return jsonify({"status": "failed", "reason": "already_exists"}), 400
-    
-    keywords.append(keyword)
-    save_keywords(keywords)
-    return jsonify({"status": "success"}), 200
+    if request.method == 'POST':
+        keyword = data.get('keyword')
+        if not keyword:
+            return jsonify({"status": "failed", "reason": "empty_keyword"}), 400
+        
+        keywords = load_keywords()
+        if keyword in keywords:
+            return jsonify({"status": "failed", "reason": "already_exists"}), 400
+        
+        keywords.append(keyword)
+        save_keywords(keywords)
+        return jsonify({"status": "success"}), 200
+
+    elif request.method == 'DELETE':
+        keyword = data.get('keyword')
+        if not keyword:
+            return jsonify({"status": "failed", "reason": "empty_keyword"}), 400
+        
+        keywords = load_keywords()
+        if keyword not in keywords:
+            return jsonify({"status": "failed", "reason": "not_found"}), 404
+        
+        keywords.remove(keyword)
+        save_keywords(keywords)
+        return jsonify({"status": "success"}), 200
 
 @app.route('/subscriptions/all', methods=['GET'])
 @token_required
