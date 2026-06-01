@@ -43,3 +43,7 @@ __pycache__/
 # 기타 임시 파일
 *.tmp
 *.swp
+
+# DB
+*.yaml
+data/*.yaml
