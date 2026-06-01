@@ -35,8 +35,10 @@ def get_system_status_embed():
         print(f"상태 정보 파싱 오류: {e}")
         return None
 
+import threading
+
 def get_system_status_data():
-    """S9(Termux) 환경에 최적화된 리소스 수집"""
+    """S9(Termux) 환경에 최적화된 리소스 수집 (병렬 처리로 성능 개선)"""
     data = {
         "battery": {"percentage": 0, "temperature": 0, "status": "Unknown"},
         "memory": {"used": 0, "total": 0, "percentage": 0},
@@ -44,10 +46,35 @@ def get_system_status_data():
         "storage": {"used": "0", "total": "0", "percentage": 0},
         "status": "Healthy"
     }
+
+    results = {}
     
+    def run_cmd(key, cmd):
+        try:
+            results[key] = os.popen(cmd).read()
+        except:
+            results[key] = ""
+
+    # 병렬 실행을 위한 쓰레드 정의
+    commands = {
+        "batt": "termux-battery-status",
+        "mem": "free -m",
+        "cpu": "top -n 1 -b | head -n 20",
+        "disk": "df -h /storage/emulated/0"
+    }
+
+    threads = []
+    for k, v in commands.items():
+        t = threading.Thread(target=run_cmd, args=(k, v))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join(timeout=2) # 최대 2초 대기
+
     try:
-        # 1. Battery (Termux API)
-        raw_batt = os.popen('termux-battery-status').read()
+        # 1. Battery 파싱
+        raw_batt = results.get("batt")
         if raw_batt:
             bj = json.loads(raw_batt)
             data["battery"] = {
@@ -56,54 +83,52 @@ def get_system_status_data():
                 "status": bj.get('status', 'Unknown')
             }
         
-        # 2. RAM (free -m)
-        raw_mem = os.popen('free -m').read()
-        for line in raw_mem.split('\n'):
-            if 'Mem:' in line:
-                p = line.split()
-                if len(p) >= 3:
-                    total_mb = int(p[1])
-                    used_mb = int(p[2])
-                    data["memory"] = {
-                        "total": total_mb,
-                        "used": used_mb,
-                        "percentage": round((used_mb / total_mb) * 100, 1)
+        # 2. RAM 파싱
+        raw_mem = results.get("mem")
+        if raw_mem:
+            for line in raw_mem.split('\n'):
+                if 'Mem:' in line:
+                    p = line.split()
+                    if len(p) >= 3:
+                        total_mb = int(p[1])
+                        used_mb = int(p[2])
+                        data["memory"] = {
+                            "total": total_mb,
+                            "used": used_mb,
+                            "percentage": round((used_mb / total_mb) * 100, 1)
+                        }
+                    break
+
+        # 3. CPU 파싱
+        raw_top = results.get("cpu")
+        if raw_top:
+            cpu_sum = 0
+            m1 = re.search(r'User\s+(\d+)%,\s+System\s+(\d+)%', raw_top, re.I)
+            m2 = re.search(r'(\d+)%\s+user,\s+(\d+)%\s+sys', raw_top, re.I)
+            if m1:
+                cpu_sum = int(m1.group(1)) + int(m1.group(2))
+            elif m2:
+                cpu_sum = int(m2.group(1)) + int(m2.group(2))
+            data["cpu"]["percentage"] = cpu_sum if cpu_sum > 0 else 5
+
+        # 4. Storage 파싱
+        raw_disk = results.get("disk")
+        if raw_disk:
+            disk_lines = raw_disk.strip().split('\n')
+            if len(disk_lines) > 1:
+                parts = disk_lines[1].split()
+                try:
+                    s_val = float(parts[1].replace('G', ''))
+                    u_val = float(parts[2].replace('G', ''))
+                    total_final = s_val + 25
+                    used_final = u_val + 25
+                    data["storage"] = {
+                        "total": f"{int(total_final)}G",
+                        "used": f"{int(used_final)}G",
+                        "percentage": int((used_final / total_final) * 100)
                     }
-                break
-
-        # 3. CPU (AP)
-        raw_top = os.popen('top -n 1 -b | head -n 20').read()
-        cpu_sum = 0
-        m1 = re.search(r'User\s+(\d+)%,\s+System\s+(\d+)%', raw_top, re.I)
-        m2 = re.search(r'(\d+)%\s+user,\s+(\d+)%\s+sys', raw_top, re.I)
-        
-        if m1:
-            cpu_sum = int(m1.group(1)) + int(m1.group(2))
-        elif m2:
-            cpu_sum = int(m2.group(1)) + int(m2.group(2))
-        
-        data["cpu"]["percentage"] = cpu_sum if cpu_sum > 0 else 5
-
-        # 4. Storage (S9 Custom: +25G Correction)
-        raw_disk = os.popen('df -h /storage/emulated/0').read()
-        disk_lines = raw_disk.strip().split('\n')
-        if len(disk_lines) > 1:
-            parts = disk_lines[1].split()
-            try:
-                # parts[1]: Size, parts[2]: Used
-                s_val = float(parts[1].replace('G', ''))
-                u_val = float(parts[2].replace('G', ''))
-                
-                total_final = s_val + 25
-                used_final = u_val + 25
-                
-                data["storage"] = {
-                    "total": f"{int(total_final)}G",
-                    "used": f"{int(used_final)}G",
-                    "percentage": int((used_final / total_final) * 100)
-                }
-            except:
-                pass
+                except:
+                    pass
 
     except Exception as e:
         data["status"] = f"Error: {str(e)}"
