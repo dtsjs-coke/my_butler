@@ -1,9 +1,0 @@
-users:
-- created_at: '2026-03-03'
-  id: jaeseungjo
-  password_hash: $2b$12$m2I55TOiaFQO15b1XyILfOiOE1zrkPoldK/z8WN8ez1aLMYIudoRW
-  telegram_chat_id: '8105683512'
-- created_at: '2026-03-03'
-  id: yjlee
-  password_hash: $2b$12$KUZzutD7SCkK0uV1Jz19kOTo0ae5om.YTZZa8og67iRshdIR0kPCu
-  telegram_chat_id: ''
