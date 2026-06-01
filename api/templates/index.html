@@ -101,96 +101,11 @@
         }
     }
 
-    // 전역 함수로 선언하여 다른 페이지에서도 접근 가능하게 함
-    window.handleManageNews = async function() {
-        try {
-            const res = await fetch('/api/keywords', {
-                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
-            });
-            const data = await res.json();
-            const keywords = data.keywords || [];
-
-            const bodyHtml = `
-                <div class="space-y-6">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">키워드 추가</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="new-keyword" placeholder="예: 인공지능" class="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                            <button onclick="addKeywordAction()" class="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors">추가</button>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">현재 트래킹 중인 키워드 (${keywords.length})</label>
-                        <div class="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                            ${keywords.length > 0 ? keywords.map(kw => `
-                                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-card/50 rounded-xl border border-gray-100 dark:border-dark-border">
-                                    <span class="text-sm font-medium">${kw}</span>
-                                    <button onclick="deleteKeywordAction('${kw}')" class="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
-                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            `).join('') : '<p class="text-sm text-gray-500 italic">등록된 키워드가 없습니다.</p>'}
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            openModal('뉴스 키워드 관리', bodyHtml);
-        } catch (e) {
-            alert("키워드 목록을 불러오는데 실패했습니다.");
-        }
-    };
-
-    window.addKeywordAction = async function() {
-        const input = document.getElementById('new-keyword');
-        const keyword = input.value.trim();
-        if (!keyword) return;
-
-        try {
-            const res = await fetch('/api/keywords', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Butler-Token': BUTLER_API_TOKEN 
-                },
-                body: JSON.stringify({ keyword })
-            });
-            const result = await res.json();
-            if (result.status === 'success') {
-                input.value = '';
-                handleManageNews(); // UI 갱신
-                if (typeof initGraph === 'function') initGraph();
-            } else {
-                alert("추가 실패: " + (result.reason || "알 수 없는 오류"));
-            }
-        } catch (e) { alert("서버 연결 에러"); }
-    };
-
-    window.deleteKeywordAction = async function(keyword) {
-        if (!confirm(`'${keyword}' 키워드를 삭제하시겠습니까?`)) return;
-
-        try {
-            const res = await fetch('/api/keywords', {
-                method: 'DELETE',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Butler-Token': BUTLER_API_TOKEN 
-                },
-                body: JSON.stringify({ keyword })
-            });
-            const result = await res.json();
-            if (result.status === 'success') {
-                handleManageNews(); // UI 갱신
-                if (typeof initGraph === 'function') initGraph();
-            } else {
-                alert("삭제 실패: " + (result.reason || "알 수 없는 오류"));
-            }
-        } catch (e) { alert("서버 연결 에러"); }
-    };
-
-    // Manage News 버튼 클릭 이벤트
+    // Manage News 버튼 클릭 이벤트 (base.html의 전역 함수 호출)
     document.getElementById('btn-manage-news').addEventListener('click', () => {
-        handleManageNews();
+        if (typeof handleManageNews === 'function') {
+            handleManageNews();
+        }
     });
 
     updateStatus();
