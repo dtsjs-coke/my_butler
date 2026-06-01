@@ -171,7 +171,47 @@
         </aside>
     </div>
 
+    <!-- [MODAL] Reusable Modal for Management -->
+    <div id="common-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal()"></div>
+        <div class="relative bg-white dark:bg-dark-sidebar w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 dark:border-dark-border overflow-hidden transform transition-all">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 id="modal-title" class="text-xl font-bold">제목</h3>
+                    <button onclick="closeModal()" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div id="modal-body" class="space-y-4">
+                    <!-- Dynamic Content -->
+                </div>
+            </div>
+            <div id="modal-footer" class="bg-gray-50 dark:bg-dark-card/50 px-6 py-4 flex justify-end gap-3">
+                <!-- Dynamic Buttons -->
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Modal Control
+        function openModal(title, bodyHtml, footerHtml = '') {
+            const modal = document.getElementById('common-modal');
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-body').innerHTML = bodyHtml;
+            document.getElementById('modal-footer').innerHTML = footerHtml || `
+                <button onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">닫기</button>
+            `;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('common-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
         // API Token for authorized calls
         const BUTLER_API_TOKEN = "{{ api_token }}";
 

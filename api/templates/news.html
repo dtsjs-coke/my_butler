@@ -46,7 +46,11 @@
             <h2 class="text-3xl font-bold tracking-tight">뉴스룸</h2>
             <p class="text-gray-500 mt-2">S9 서버에서 실시간 수집된 뉴스입니다.</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-3">
+            <button onclick="handleManageNews()" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl text-xs font-bold hover:border-blue-500 transition-all shadow-sm">
+                <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
+                <span>키워드 관리</span>
+            </button>
             <span class="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100 dark:border-blue-800 uppercase tracking-wider">LIVE UPDATING</span>
         </div>
     </header>
@@ -67,23 +71,20 @@
 
                 <!-- Scrollable Frame -->
                 <div class="relative bg-gray-50/50 dark:bg-dark-card/30 rounded-2xl border border-gray-200 dark:border-dark-border overflow-hidden">
-                    <div class="max-h-[600px] overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                        <!-- Top 10 Articles -->
-                        {% for n in articles[:10] %}
-                            {{ render_news_card(n) }}
-                        {% endfor %}
-
-                        <!-- Hidden Articles -->
-                        {% if articles|length > 10 %}
-                            <div id="more-{{ loop.index }}" class="hidden space-y-3 pt-3 border-t border-gray-200 dark:border-dark-border">
-                                {% for n in articles[10:] %}
+                    <div class="max-h-[700px] overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                        <!-- Articles List -->
+                        <div id="list-{{ loop.index }}" class="space-y-3">
+                            {% for n in articles %}
+                                <div class="news-item-hidden {% if loop.index > 10 %}hidden{% endif %}" data-index="{{ loop.index }}">
                                     {{ render_news_card(n) }}
-                                {% endfor %}
-                            </div>
-                            
-                            <!-- Toggle Button -->
-                            <button id="btn-more-{{ loop.index }}" onclick="toggleMore('{{ loop.index }}')" class="w-full flex items-center justify-center gap-2 py-3 bg-white dark:bg-dark-card text-blue-600 dark:text-blue-400 text-sm font-bold rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-border/50 transition-all shadow-sm">
-                                <span>더보기 (+{{ articles|length - 10 }}개)</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Toggle Button -->
+                        {% if articles|length > 10 %}
+                            <button id="btn-more-{{ loop.index }}" onclick="loadTenMore('{{ loop.index }}')" class="w-full flex items-center justify-center gap-2 py-3 bg-white dark:bg-dark-card text-blue-600 dark:text-blue-400 text-sm font-bold rounded-xl border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-border/50 transition-all shadow-sm mt-4">
+                                <span>더보기 (잔여 {{ articles|length - 10 }}개)</span>
                                 <i data-lucide="chevron-down" class="w-4 h-4"></i>
                             </button>
                         {% endif %}
@@ -117,21 +118,28 @@
 </style>
 
 <script>
-    function toggleMore(index) {
-        const moreDiv = document.getElementById(`more-${index}`);
+    function loadTenMore(index) {
+        const listDiv = document.getElementById(`list-${index}`);
+        const hiddenItems = listDiv.querySelectorAll('.news-item-hidden.hidden');
         const btn = document.getElementById(`btn-more-${index}`);
-        const isHidden = moreDiv.classList.contains('hidden');
         
-        if (isHidden) {
-            moreDiv.classList.remove('hidden');
-            btn.querySelector('span').innerText = '간략히 보기';
-            btn.querySelector('i').setAttribute('data-lucide', 'chevron-up');
+        // 상위 10개 추출하여 표시
+        let count = 0;
+        hiddenItems.forEach(item => {
+            if (count < 10) {
+                item.classList.remove('hidden');
+                count++;
+            }
+        });
+
+        // 남은 개수 확인 및 버튼 갱신
+        const remaining = listDiv.querySelectorAll('.news-item-hidden.hidden').length;
+        if (remaining > 0) {
+            btn.querySelector('span').innerText = `더보기 (잔여 ${remaining}개)`;
         } else {
-            moreDiv.classList.add('hidden');
-            const count = moreDiv.querySelectorAll('.group').length;
-            btn.querySelector('span').innerText = `더보기 (+${count}개)`;
-            btn.querySelector('i').setAttribute('data-lucide', 'chevron-down');
+            btn.classList.add('hidden'); // 더 이상 볼 뉴스가 없으면 버튼 숨김
         }
+        
         if (window.lucide) lucide.createIcons();
     }
 
