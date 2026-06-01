@@ -61,7 +61,7 @@
             <h2 class="text-xl font-bold">Quick Actions</h2>
         </div>
         <div class="grid grid-cols-2 gap-4">
-            <button class="flex flex-col items-center justify-center p-8 bg-gray-100 dark:bg-dark-card rounded-2xl border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-blue-500 transition-colors group">
+            <button id="btn-add-keyword" class="flex flex-col items-center justify-center p-8 bg-gray-100 dark:bg-dark-card rounded-2xl border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-blue-500 transition-colors group">
                 <i data-lucide="plus-circle" class="w-8 h-8 text-gray-400 group-hover:text-blue-500 mb-2"></i>
                 <span class="text-sm font-medium">Add News Keyword</span>
             </button>
@@ -98,6 +98,32 @@
             console.error("Status update failed", e);
         }
     }
+
+    // Add News Keyword
+    document.getElementById('btn-add-keyword').addEventListener('click', async () => {
+        const keyword = prompt("Enter a news keyword to track:");
+        if (keyword && keyword.trim()) {
+            try {
+                const res = await fetch('/api/add_keyword', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword: keyword.trim() })
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    alert("Keyword added successfully!");
+                    if (typeof initGraph === 'function') {
+                        initGraph(); // Refresh the graph view
+                    }
+                } else {
+                    alert("Failed to add keyword: " + (result.reason || "unknown error"));
+                }
+            } catch (e) {
+                console.error("Failed to add keyword", e);
+                alert("Error connecting to server.");
+            }
+        }
+    });
 
     updateStatus();
     setInterval(updateStatus, 30000); // 30초마다 갱신
