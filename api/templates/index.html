@@ -76,7 +76,9 @@
 <script>
     async function updateStatus() {
         try {
-            const res = await fetch('/api/system_status');
+            const res = await fetch('/api/system_status', {
+                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
+            });
             const data = await res.json();
             
             // 1. Battery
@@ -106,7 +108,10 @@
             try {
                 const res = await fetch('/api/add_keyword', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Butler-Token': BUTLER_API_TOKEN
+                    },
                     body: JSON.stringify({ keyword: keyword.trim() })
                 });
                 const result = await res.json();

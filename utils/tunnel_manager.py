@@ -27,12 +27,14 @@ def update_subscription_manager_code(new_url):
     """subscription-manager의 소스 코드를 새 URL로 수정 및 빌드 트리거 생성"""
     config_path = os.path.join(SUB_MGR_PATH, "src", "config.py")
     trigger_path = os.path.join(SUB_MGR_PATH, "reboot_trigger.txt")
+    api_token = os.getenv("BUTLER_API_TOKEN", "butler_v3_secret_2026")
     
     try:
         # 1. src/config.py 업데이트
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(f'BUTLER_API_URL = "{new_url}"\n')
-        print(f"✅ Updated API URL in: {config_path}")
+            f.write(f'BUTLER_API_TOKEN = "{api_token}"\n')
+        print(f"✅ Updated API URL and Token in: {config_path}")
             
         # 2. reboot_trigger.txt 업데이트 (Streamlit Cloud 강제 갱신 유도)
         with open(trigger_path, "w", encoding="utf-8") as f:
@@ -104,6 +106,7 @@ def notify_via_butler(message):
     try:
         # 상태 확인 채널 ID 가져오기 (기본값 0)
         status_channel_id = int(os.getenv("STATUS_CHANNEL_ID", 0))
+        api_token = os.getenv("BUTLER_API_TOKEN", "butler_v3_secret_2026")
         
         # S9의 실제 로컬 IP를 사용하여 통신 안정성 확보
         url = "http://172.30.1.5:5000/send"
@@ -111,8 +114,11 @@ def notify_via_butler(message):
             "channel_id": status_channel_id,
             "content": message
         }
+        headers = {
+            "X-Butler-Token": api_token
+        }
         # timeout을 짧게 설정하여 메인 루프 지연 방지
-        response = requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=payload, headers=headers, timeout=5)
         if response.status_code == 200:
             print(f"✅ Discord notification sent to {status_channel_id}: {message[:30]}...")
             return True

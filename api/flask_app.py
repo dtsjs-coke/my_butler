@@ -15,10 +15,23 @@ from config.config_manager import load_keywords, load_queue, load_ktx_queue
 app = Flask(__name__)
 discord_client = None
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
+BUTLER_API_TOKEN = os.getenv("BUTLER_API_TOKEN", "butler_v3_secret_2026")
+
+from functools import wraps
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('X-Butler-Token')
+        if not token or token != BUTLER_API_TOKEN:
+            # 브라우저 직접 접근 시 또는 토큰 누락 시
+            return jsonify({"status": "failed", "reason": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return render_template('index.html', api_token=BUTLER_API_TOKEN)
 
 from datetime import datetime, timedelta
 
@@ -37,14 +50,16 @@ def news_page():
             categorized_news[kw] = []
         categorized_news[kw].append(n)
         
-    return render_template('news.html', categorized_news=categorized_news, now=datetime.now())
+    return render_template('news.html', categorized_news=categorized_news, now=datetime.now(), api_token=BUTLER_API_TOKEN)
 
 @app.route('/api/system_status')
+@token_required
 def api_status():
     data = get_system_status_data()
     return jsonify(data)
 
 @app.route('/api/graph_data')
+@token_required
 def api_graph_data():
     keywords = load_keywords()
     srt_queue = load_queue()
@@ -89,6 +104,7 @@ def api_graph_data():
 from config.config_manager import save_keywords
 
 @app.route('/api/add_keyword', methods=['POST'])
+@token_required
 def add_keyword():
     data = request.get_json()
     keyword = data.get('keyword')
@@ -104,11 +120,13 @@ def add_keyword():
     return jsonify({"status": "success"}), 200
 
 @app.route('/subscriptions/all', methods=['GET'])
+@token_required
 def get_all_subscriptions():
     data = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
     return jsonify(data)
 
 @app.route('/subscriptions/<user_id>', methods=['GET', 'POST'])
+@token_required
 def handle_subscriptions(user_id):
     if request.method == 'GET':
         subscriptions = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
@@ -123,11 +141,13 @@ def handle_subscriptions(user_id):
         return jsonify({"status": "success"})
 
 @app.route('/users/all', methods=['GET'])
+@token_required
 def get_all_users():
     users_list = load_yaml(USERS_FILE).get("users", [])
     return jsonify(users_list)
 
 @app.route('/users/<user_id>', methods=['GET', 'POST'])
+@token_required
 def handle_users(user_id):
     if request.method == 'GET':
         users_list = load_yaml(USERS_FILE).get("users", [])
@@ -159,6 +179,7 @@ async def safe_send(channel, content):
         print(f"[API] Failed to send message in background: {e}")
 
 @app.route('/send', methods=['POST'])
+@token_required
 def send_message_api():
     """외부 스크립트에서 메시지 전송을 요청하는 API (보안 필터링 및 안정성 강화)"""
     global discord_client

@@ -172,6 +172,9 @@
     </div>
 
     <script>
+        // API Token for authorized calls
+        const BUTLER_API_TOKEN = "{{ api_token }}";
+
         // Init Lucide Icons
         lucide.createIcons();
 
@@ -240,7 +243,9 @@
             const container = document.getElementById('graph-view');
             if (!container) return;
             try {
-                const res = await fetch('/api/graph_data');
+                const res = await fetch('/api/graph_data', {
+                    headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
+                });
                 const data = await res.json();
                 const options = {
                     nodes: { shape: 'dot', size: 16, font: { size: 10, color: '#999' }, borderWidth: 2 },
