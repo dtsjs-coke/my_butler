@@ -55,7 +55,10 @@ def news_page():
 @app.route('/api/system_status')
 @token_required
 def api_status():
+    start_time = time.time()
     data = get_system_status_data()
+    elapsed = (time.time() - start_time) * 1000
+    print(f"[API] system_status request took {elapsed:.2f}ms")
     return jsonify(data)
 
 @app.route('/api/graph_data')

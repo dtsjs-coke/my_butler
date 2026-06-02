@@ -384,12 +384,14 @@
         }
 
         window.onload = () => {
-            initGraph();
+            updateStatus(); // 상태 정보 먼저 호출
             generateDefaultTOC();
             if (window.innerWidth >= 1024) {
                 document.getElementById('left-sidebar').classList.remove('-translate-x-full');
                 document.getElementById('right-sidebar').classList.remove('translate-x-full');
             }
+            // 그래프 뷰는 부하가 크므로 약간의 지연 후 실행
+            setTimeout(initGraph, 1000); 
         };
 
         window.onresize = () => {
