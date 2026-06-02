@@ -63,7 +63,12 @@ def news_page():
     for n in news:
         raw_kw = n.get('keyword', '기타')
         # 그룹 매핑이 있으면 그룹명 사용, 없으면 원본 키워드 사용
-        kw = groups.get(raw_kw.lower(), raw_kw)
+        kw_lower = raw_kw.lower()
+        kw = groups.get(kw_lower, raw_kw)
+        
+        # UI 표시를 위해 그룹 이름은 대문자로 통일하거나 첫 글자 대문자 처리
+        if kw_lower in groups:
+            kw = groups[kw_lower].upper()
         
         if kw not in categorized_news:
             categorized_news[kw] = []

@@ -44,14 +44,14 @@
     <header class="flex items-end justify-between border-b border-gray-200 dark:border-dark-border pb-6">
         <div>
             <h2 class="text-3xl font-bold tracking-tight">뉴스룸</h2>
-            <p class="text-gray-500 mt-2">S9 서버에서 실시간 수집된 뉴스입니다.</p>
+            <p class="text-gray-500 mt-2">S9 서버에서 그룹화되어 수집된 뉴스입니다.</p>
         </div>
         <div class="flex items-center gap-3">
             <button onclick="handleManageNews()" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl text-xs font-bold hover:border-blue-500 transition-all shadow-sm">
                 <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
                 <span>키워드 관리</span>
             </button>
-            <span class="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100 dark:border-blue-800 uppercase tracking-wider">LIVE UPDATING</span>
+            <span class="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100 dark:border-blue-800 uppercase tracking-wider">GROUPED VIEW</span>
         </div>
     </header>
 
@@ -63,7 +63,7 @@
                 <div class="flex items-center gap-4 mb-4">
                     <div class="flex items-center gap-2">
                         <div class="w-2 h-6 bg-blue-600 rounded-full"></div>
-                        <h3 class="text-xl font-bold">{{ keyword }}</h3>
+                        <h3 class="text-xl font-bold uppercase">{{ keyword }}</h3>
                     </div>
                     <div class="h-[1px] flex-1 bg-gray-100 dark:bg-dark-border"></div>
                     <span class="text-xs text-gray-400">{{ articles|length }} Articles</span>
@@ -191,6 +191,10 @@
         updateLatestBadges();
         generateCategoryNav();
         if (window.lucide) lucide.createIcons();
+        // Graph View 강제 트리거 (뉴스룸에서도 보이도록)
+        if (typeof initGraph === 'function') {
+            setTimeout(initGraph, 500);
+        }
     });
 
     // Support for base.html window.onload
