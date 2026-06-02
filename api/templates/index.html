@@ -96,6 +96,11 @@
             // 5. Storage (HDD)
             document.getElementById('storage-status').innerHTML = `${data.storage.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">${data.storage.used}/${data.storage.total}</span>`;
             
+            // 6. Last Updated Time
+            if (data.last_updated) {
+                document.getElementById('last-updated').innerText = `Last updated: ${data.last_updated}`;
+            }
+            
         } catch (e) {
             console.error("Status update failed", e);
         }
