@@ -38,19 +38,33 @@ from datetime import datetime, timedelta
 
 @app.route('/news')
 def news_page():
-    # 3일치 뉴스 로드 (news_service에서 관리)
+    # 3일치 뉴스 로드
     news = load_news()
+    
+    # 키워드 그룹 설정 로드
+    groups = {}
+    group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
+    if os.path.exists(group_file):
+        try:
+            with open(group_file, 'r', encoding='utf-8') as f:
+                raw_groups = json.load(f)
+                # 역방향 매핑 (아이온큐 -> ionq)
+                for group_name, members in raw_groups.items():
+                    for m in members:
+                        groups[m.lower()] = group_name
+        except: pass
 
     # 최신순 정렬
     news.sort(key=lambda x: x.get('pub_date', x.get('date', '')), reverse=True)
-
-    # 성능을 위해 총 뉴스 개수 제한 (최신 200개)
     news = news[:200]
 
-    # 키워드별 그룹화 (각 키워드당 최대 50개)
+    # 키워드별 그룹화 (그룹핑 적용)
     categorized_news = {}
     for n in news:
-        kw = n.get('keyword', '기타')
+        raw_kw = n.get('keyword', '기타')
+        # 그룹 매핑이 있으면 그룹명 사용, 없으면 원본 키워드 사용
+        kw = groups.get(raw_kw.lower(), raw_kw)
+        
         if kw not in categorized_news:
             categorized_news[kw] = []
         if len(categorized_news[kw]) < 50:
@@ -73,7 +87,13 @@ def api_graph_data():
     keywords = load_keywords()
     srt_queue = load_queue()
     ktx_queue = load_ktx_queue()
-    
+
+    # 뉴스 카테고리 정보 (그룹핑 반영된 키워드 목록을 위해 실제 뉴스 로드)
+    news = load_news()
+
+    # 그룹 설정 로드 (매핑 로직 중복 방지를 위해 간단히 키워드만 추출)
+    news_kws = list(set(n.get('keyword', '기타') for n in news))
+
     nodes = [
         {"id": "root", "label": "Butler Pro", "color": "#3b82f6", "size": 25},
         {"id": "news_root", "label": "News", "color": "#10b981"},
@@ -83,10 +103,10 @@ def api_graph_data():
         {"from": "root", "to": "news_root"},
         {"from": "root", "to": "train_root"}
     ]
-    
-    # Add Keywords
-    for i, kw in enumerate(keywords):
-        node_id = f"kw_{i}"
+
+    # 뉴스 키워드 노드 추가
+    for i, kw in enumerate(news_kws):
+        node_id = f"news_kw_{i}"
         nodes.append({"id": node_id, "label": kw, "color": "#6ee7b7", "size": 12})
         edges.append({"from": "news_root", "to": node_id})
         
