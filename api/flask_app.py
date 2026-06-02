@@ -1,6 +1,7 @@
 import os
 import asyncio
 import time
+import json
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 
@@ -44,7 +45,7 @@ def news_page():
     # 키워드 그룹 설정 로드
     groups = {}
     group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
-    if os.path.exists(group_file):
+    if os.path.exists(group_file) and os.path.getsize(group_file) > 0:
         try:
             with open(group_file, 'r', encoding='utf-8') as f:
                 raw_groups = json.load(f)
@@ -82,28 +83,25 @@ def news_page():
 def manage_keyword_groups():
     group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
     
-    if request.method == 'GET':
-        if not os.path.exists(group_file):
-            return jsonify({"status": "success", "groups": {}})
+    # helper to load groups safely
+    def load_groups():
+        if not os.path.exists(group_file) or os.path.getsize(group_file) == 0:
+            return {}
         try:
             with open(group_file, 'r', encoding='utf-8') as f:
-                return jsonify({"status": "success", "groups": json.load(f)})
+                return json.load(f)
         except:
-            return jsonify({"status": "failed", "reason": "load_error"}), 500
+            return {}
+
+    if request.method == 'GET':
+        return jsonify({"status": "success", "groups": load_groups()})
 
     data = request.get_json()
-    
-    # 로드 current groups
-    groups = {}
-    if os.path.exists(group_file):
-        try:
-            with open(group_file, 'r', encoding='utf-8') as f:
-                groups = json.load(f)
-        except: pass
+    groups = load_groups()
 
     if request.method == 'POST':
         group_name = data.get('group_name')
-        members = data.get('members', []) # 리스트 형태
+        members = data.get('members', [])
         if not group_name:
             return jsonify({"status": "failed", "reason": "empty_group_name"}), 400
         
@@ -146,7 +144,7 @@ def api_graph_data():
     # 그룹 정보 로드
     groups_map = {}
     group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
-    if os.path.exists(group_file):
+    if os.path.exists(group_file) and os.path.getsize(group_file) > 0:
         try:
             with open(group_file, 'r', encoding='utf-8') as f:
                 groups_map = json.load(f)
