@@ -109,7 +109,7 @@ def notify_via_butler(message):
         api_token = os.getenv("BUTLER_API_TOKEN", "butler_v3_secret_2026")
         
         # S9의 실제 로컬 IP를 사용하여 통신 안정성 확보
-        url = "http://172.30.1.5:5000/send"
+        url = "http://127.0.0.1:5000/send"
         payload = {
             "channel_id": status_channel_id,
             "content": message
@@ -130,9 +130,9 @@ def notify_via_butler(message):
 
 def run_tunnel():
     print("📡 Starting Cloudflare Tunnel...")
-    # cloudflared 실행 (0.0.0.0으로 바인딩하여 모든 인터페이스에서 접근 가능하도록 함)
+    # cloudflared 실행 (안정성을 위해 http2 프로토콜 사용 및 localhost 바인딩)
     process = subprocess.Popen(
-        ["cloudflared", "tunnel", "--url", f"http://172.30.1.5:{BUTLER_API_PORT}"],
+        ["cloudflared", "tunnel", "--protocol", "http2", "--url", f"http://127.0.0.1:{BUTLER_API_PORT}"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
