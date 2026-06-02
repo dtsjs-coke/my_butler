@@ -77,6 +77,56 @@ def news_page():
 
     return render_template('news.html', categorized_news=categorized_news, now=datetime.now(), api_token=BUTLER_API_TOKEN)
 
+@app.route('/api/keyword_groups', methods=['GET', 'POST', 'DELETE'])
+@token_required
+def manage_keyword_groups():
+    group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
+    
+    if request.method == 'GET':
+        if not os.path.exists(group_file):
+            return jsonify({"status": "success", "groups": {}})
+        try:
+            with open(group_file, 'r', encoding='utf-8') as f:
+                return jsonify({"status": "success", "groups": json.load(f)})
+        except:
+            return jsonify({"status": "failed", "reason": "load_error"}), 500
+
+    data = request.get_json()
+    
+    # 로드 current groups
+    groups = {}
+    if os.path.exists(group_file):
+        try:
+            with open(group_file, 'r', encoding='utf-8') as f:
+                groups = json.load(f)
+        except: pass
+
+    if request.method == 'POST':
+        group_name = data.get('group_name')
+        members = data.get('members', []) # 리스트 형태
+        if not group_name:
+            return jsonify({"status": "failed", "reason": "empty_group_name"}), 400
+        
+        groups[group_name] = members
+        try:
+            with open(group_file, 'w', encoding='utf-8') as f:
+                json.dump(groups, f, ensure_ascii=False, indent=4)
+            return jsonify({"status": "success"}), 200
+        except:
+            return jsonify({"status": "failed", "reason": "save_error"}), 500
+
+    elif request.method == 'DELETE':
+        group_name = data.get('group_name')
+        if group_name in groups:
+            del groups[group_name]
+            try:
+                with open(group_file, 'w', encoding='utf-8') as f:
+                    json.dump(groups, f, ensure_ascii=False, indent=4)
+                return jsonify({"status": "success"}), 200
+            except:
+                return jsonify({"status": "failed", "reason": "save_error"}), 500
+        return jsonify({"status": "failed", "reason": "not_found"}), 404
+
 @app.route('/api/system_status')
 @token_required
 def api_status():
@@ -93,46 +143,63 @@ def api_graph_data():
     srt_queue = load_queue()
     ktx_queue = load_ktx_queue()
 
-    # 뉴스 카테고리 정보 (그룹핑 반영된 키워드 목록을 위해 실제 뉴스 로드)
-    news = load_news()
-
-    # 그룹 설정 로드 (매핑 로직 중복 방지를 위해 간단히 키워드만 추출)
-    news_kws = list(set(n.get('keyword', '기타') for n in news))
+    # 그룹 정보 로드
+    groups_map = {}
+    group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
+    if os.path.exists(group_file):
+        try:
+            with open(group_file, 'r', encoding='utf-8') as f:
+                groups_map = json.load(f)
+        except: pass
 
     nodes = [
         {"id": "root", "label": "Butler Pro", "color": "#3b82f6", "size": 25},
-        {"id": "news_root", "label": "News", "color": "#10b981"},
-        {"id": "train_root", "label": "Trains", "color": "#f59e0b"}
+        {"id": "news_root", "label": "News Room", "color": "#10b981", "size": 20},
+        {"id": "train_root", "label": "Trains", "color": "#f59e0b", "size": 20}
     ]
     edges = [
         {"from": "root", "to": "news_root"},
         {"from": "root", "to": "train_root"}
     ]
 
-    # 뉴스 키워드 노드 추가
-    for i, kw in enumerate(news_kws):
-        node_id = f"news_kw_{i}"
-        nodes.append({"id": node_id, "label": kw, "color": "#6ee7b7", "size": 12})
-        edges.append({"from": "news_root", "to": node_id})
-        
+    # 그룹 노드 및 해당 멤버 노드 추가
+    processed_keywords = set()
+    for group_name, members in groups_map.items():
+        group_node_id = f"group_{group_name}"
+        nodes.append({"id": group_node_id, "label": group_name.upper(), "color": "#34d399", "size": 18, "font": {"bold": True}})
+        edges.append({"from": "news_root", "to": group_node_id})
+
+        for m in members:
+            member_node_id = f"kw_{m}"
+            nodes.append({"id": member_node_id, "label": m, "color": "#6ee7b7", "size": 10})
+            edges.append({"from": group_node_id, "to": member_node_id})
+            processed_keywords.add(m.lower())
+
+    # 그룹에 속하지 않은 독립 키워드 추가
+    for kw in keywords:
+        if kw.lower() not in processed_keywords:
+            node_id = f"kw_{kw}"
+            nodes.append({"id": node_id, "label": kw, "color": "#a7f3d0", "size": 10})
+            edges.append({"from": "news_root", "to": node_id})
+
     # Add SRT/KTX Tasks
     task_count = 0
     for user_id, tasks in srt_queue.items():
         for task in tasks:
-            node_id = f"task_{task_count}"
+            node_id = f"task_srt_{task_count}"
             label = f"SRT: {task.get('dep')}→{task.get('arr')}"
             nodes.append({"id": node_id, "label": label, "color": "#fcd34d", "size": 12})
             edges.append({"from": "train_root", "to": node_id})
             task_count += 1
-            
+
     for user_id, tasks in ktx_queue.items():
         for task in tasks:
-            node_id = f"task_{task_count}"
+            node_id = f"task_ktx_{task_count}"
             label = f"KTX: {task.get('dep')}→{task.get('arr')}"
             nodes.append({"id": node_id, "label": label, "color": "#fbbf24", "size": 12})
             edges.append({"from": "train_root", "to": node_id})
             task_count += 1
-            
+
     return jsonify({"nodes": nodes, "edges": edges})
 
 from config.config_manager import save_keywords

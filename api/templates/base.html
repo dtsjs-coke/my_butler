@@ -215,44 +215,174 @@
         // API Token for authorized calls
         const BUTLER_API_TOKEN = "{{ api_token }}";
 
-        // 키워드 관리 전역 함수
+        // 키워드 관리 전역 함수 (그룹핑 관리 추가)
         window.handleManageNews = async function() {
             try {
-                const res = await fetch('/api/keywords', {
-                    headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
-                });
-                const data = await res.json();
-                const keywords = data.keywords || [];
+                // 1. 키워드 및 그룹 정보 병렬 로드
+                const [kwRes, groupRes] = await Promise.all([
+                    fetch('/api/keywords', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } }),
+                    fetch('/api/keyword_groups', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } })
+                ]);
+                
+                const kwData = await kwRes.json();
+                const groupData = await groupRes.json();
+                
+                const allKeywords = kwData.keywords || [];
+                const groups = groupData.groups || {};
+                
+                // 역방향 매핑 확인 (이미 그룹에 속한 키워드 제외용)
+                const keywordToGroup = {};
+                for (const g in groups) {
+                    groups[g].forEach(m => keywordToGroup[m.toLowerCase()] = g);
+                }
 
                 const bodyHtml = `
                     <div class="space-y-6">
+                        <!-- 1. 키워드 추가 -->
                         <div>
-                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">키워드 추가</label>
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">새 키워드 추가 (Discord 수집용)</label>
                             <div class="flex gap-2">
                                 <input type="text" id="new-keyword" placeholder="예: 인공지능" class="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                                 <button onclick="addKeywordAction()" class="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors">추가</button>
                             </div>
                         </div>
+
+                        <!-- 2. 그룹 추가 -->
                         <div>
-                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">현재 트래킹 중인 키워드 (${keywords.length})</label>
-                            <div class="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                                ${keywords.length > 0 ? keywords.map(kw => `
-                                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-card/50 rounded-xl border border-gray-100 dark:border-dark-border">
-                                        <span class="text-sm font-medium">${kw}</span>
-                                        <button onclick="deleteKeywordAction('${kw}')" class="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
-                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                        </button>
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">새 그룹 생성 (Web 묶어보기용)</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="new-group-name" placeholder="예: QUANTUM" class="flex-1 px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                <button onclick="addGroupAction()" class="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-xl hover:bg-green-700 transition-colors">그룹 생성</button>
+                            </div>
+                        </div>
+
+                        <!-- 3. 계층형 목록 -->
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">키워드 및 그룹 구성</label>
+                            <div class="max-h-64 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                                <!-- Groups -->
+                                ${Object.keys(groups).map(g => `
+                                    <div class="p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800/30">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase">${g}</span>
+                                            <button onclick="deleteGroupAction('${g}')" class="p-1 text-gray-400 hover:text-red-500">
+                                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2">
+                                            ${groups[g].map(m => `
+                                                <span class="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-dark-card rounded-lg text-[11px] border border-blue-200 dark:border-blue-800">
+                                                    ${m}
+                                                    <button onclick="removeFromGroupAction('${g}', '${m}')" class="text-gray-400 hover:text-red-500">
+                                                        <i data-lucide="x" class="w-2.5 h-2.5"></i>
+                                                    </button>
+                                                </span>
+                                            `).join('')}
+                                            <select onchange="addToGroupAction('${g}', this.value)" class="px-2 py-1 bg-white dark:bg-dark-card text-[11px] border border-dashed border-gray-300 dark:border-dark-border rounded-lg outline-none cursor-pointer hover:border-blue-500">
+                                                <option value="">+ 키워드 연결</option>
+                                                ${allKeywords.filter(k => !keywordToGroup[k.toLowerCase()]).map(k => `<option value="${k}">${k}</option>`).join('')}
+                                            </select>
+                                        </div>
                                     </div>
-                                `).join('') : '<p class="text-sm text-gray-500 italic">등록된 키워드가 없습니다.</p>'}
+                                `).join('')}
+
+                                <!-- Unassigned Keywords -->
+                                <div>
+                                    <p class="text-[10px] font-bold text-gray-400 mb-2">그룹 미지정 키워드</p>
+                                    <div class="flex flex-wrap gap-2">
+                                        ${allKeywords.filter(k => !keywordToGroup[k.toLowerCase()]).map(kw => `
+                                            <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-dark-card/50 rounded-xl border border-gray-100 dark:border-dark-border group">
+                                                <span class="text-sm font-medium">${kw}</span>
+                                                <button onclick="deleteKeywordAction('${kw}')" class="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 `;
                 
-                openModal('뉴스 키워드 관리', bodyHtml);
+                openModal('키워드 및 그룹 관리', bodyHtml);
             } catch (e) {
-                alert("키워드 목록을 불러오는데 실패했습니다.");
+                alert("정보를 불러오는데 실패했습니다.");
             }
+        };
+
+        window.addGroupAction = async function() {
+            const input = document.getElementById('new-group-name');
+            const group_name = input.value.trim();
+            if (!group_name) return;
+
+            try {
+                const res = await fetch('/api/keyword_groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN },
+                    body: JSON.stringify({ group_name, members: [] })
+                });
+                if ((await res.json()).status === 'success') {
+                    input.value = '';
+                    handleManageNews();
+                    if (typeof initGraph === 'function') initGraph();
+                }
+            } catch (e) { alert("연결 에러"); }
+        };
+
+        window.deleteGroupAction = async function(group_name) {
+            if (!confirm(`'${group_name}' 그룹을 삭제하시겠습니까? (키워드는 삭제되지 않습니다)`)) return;
+            try {
+                const res = await fetch('/api/keyword_groups', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN },
+                    body: JSON.stringify({ group_name })
+                });
+                if ((await res.json()).status === 'success') {
+                    handleManageNews();
+                    if (typeof initGraph === 'function') initGraph();
+                }
+            } catch (e) { alert("연결 에러"); }
+        };
+
+        window.addToGroupAction = async function(group_name, keyword) {
+            if (!keyword) return;
+            try {
+                // 1. 기존 그룹 정보 로드
+                const gRes = await fetch('/api/keyword_groups', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+                const gData = await gRes.json();
+                const members = gData.groups[group_name] || [];
+                if (!members.includes(keyword)) {
+                    members.push(keyword);
+                    const res = await fetch('/api/keyword_groups', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN },
+                        body: JSON.stringify({ group_name, members })
+                    });
+                    if ((await res.json()).status === 'success') {
+                        handleManageNews();
+                        if (typeof initGraph === 'function') initGraph();
+                    }
+                }
+            } catch (e) { alert("연결 에러"); }
+        };
+
+        window.removeFromGroupAction = async function(group_name, keyword) {
+            try {
+                const gRes = await fetch('/api/keyword_groups', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+                const gData = await gRes.json();
+                let members = gData.groups[group_name] || [];
+                members = members.filter(m => m !== keyword);
+                const res = await fetch('/api/keyword_groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN },
+                    body: JSON.stringify({ group_name, members })
+                });
+                if ((await res.json()).status === 'success') {
+                    handleManageNews();
+                    if (typeof initGraph === 'function') initGraph();
+                }
+            } catch (e) { alert("연결 에러"); }
         };
 
         window.addKeywordAction = async function() {
