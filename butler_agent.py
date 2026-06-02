@@ -42,10 +42,11 @@ class ButlerAgent:
             print(f"Failed to send discord message: {e}")
 
     async def check_system(self):
-        """S9 시스템 상태 모니터링 및 발열 관리"""
+        """S9 시스템 상태 모니터링 및 발열 관리 (캐시 활용)"""
         try:
-            raw_batt = os.popen('termux-battery-status').read()
-            batt_data = json.loads(raw_batt)
+            from utils.system_status import get_system_status_data
+            data = get_system_status_data()
+            batt_data = data.get("battery", {})
             temp = batt_data.get('temperature', 0)
             
             thermal_cfg = self.config["thermal_management"]
