@@ -67,21 +67,9 @@ def load_news():
         return []
 
 def save_news(news_list):
-    # 최근 3일 기사만 보유
+    # 최근 3일 기사만 보유 (성능 최적화를 위해 기간 단축)
     limit = datetime.now() - timedelta(days=3)
-    filtered = []
-    
-    for n in news_list:
-        try:
-            date_str = n.get('fetch_date') or n.get('date', '')[:10]
-            if not date_str and n.get('pub_date'):
-                date_str = n.get('pub_date')[:10]
-                
-            if date_str and datetime.strptime(date_str, '%Y-%m-%d') > limit:
-                filtered.append(n)
-        except:
-            continue
-    
+    filtered = [n for n in news_list if (n.get('fetch_date') or n.get('date', '')[:10]) and datetime.strptime(n.get('fetch_date') or n.get('date', '')[:10], '%Y-%m-%d') > limit]
     temp_file = NEWS_FILE + ".tmp"
     try:
         with open(temp_file, 'w', encoding='utf-8') as f:

@@ -38,19 +38,24 @@ from datetime import datetime, timedelta
 
 @app.route('/news')
 def news_page():
+    # 3일치 뉴스 로드 (news_service에서 관리)
     news = load_news()
-    
-    # 최신순 정렬 (pub_date 또는 date 기준)
+
+    # 최신순 정렬
     news.sort(key=lambda x: x.get('pub_date', x.get('date', '')), reverse=True)
-    
-    # 키워드별 그룹화
+
+    # 성능을 위해 총 뉴스 개수 제한 (최신 200개)
+    news = news[:200]
+
+    # 키워드별 그룹화 (각 키워드당 최대 50개)
     categorized_news = {}
     for n in news:
         kw = n.get('keyword', '기타')
         if kw not in categorized_news:
             categorized_news[kw] = []
-        categorized_news[kw].append(n)
-        
+        if len(categorized_news[kw]) < 50:
+            categorized_news[kw].append(n)
+
     return render_template('news.html', categorized_news=categorized_news, now=datetime.now(), api_token=BUTLER_API_TOKEN)
 
 @app.route('/api/system_status')
