@@ -8,7 +8,7 @@ import time
 import subprocess
 from datetime import datetime
 
-# 글로벌 캐시 저장소
+# 글로벌 캐시 저장소 (초기값 설정)
 _status_cache = {
     "battery": {"percentage": 0, "temperature": 0, "status": "Unknown"},
     "memory": {"used": 0, "total": 0, "percentage": 0},
@@ -18,186 +18,146 @@ _status_cache = {
     "last_updated": None
 }
 
-# CPU 계산을 위한 이전 상태 저장
 _last_cpu_info = {"total": 0, "idle": 0}
+_cache_lock = threading.Lock()
+
+def get_system_status_data():
+    """캐시된 데이터를 즉시 반환 (Lock 최소화)"""
+    with _cache_lock:
+        return _status_cache.copy()
 
 def get_system_status_embed():
-    """캐시된 데이터를 사용하여 즉시 임베드 생성 (속도 대폭 개선)"""
-    data = _status_cache
+    data = get_system_status_data()
     embed = discord.Embed(title="📱 S9 서버 시스템 상태", color=discord.Color.blue(), timestamp=datetime.now())
-    
     try:
-        # 1. 배터리
         batt = data.get("battery", {})
-        perc = batt.get('percentage', 0)
-        temp = batt.get('temperature', 0)
-        status = batt.get('status', 'Unknown')
-        embed.add_field(name="🔋 배터리", value=f"{perc}% ({status})", inline=True)
-        embed.add_field(name="🌡️ 온도", value=f"{temp}°C", inline=True)
-            
-        # 2. RAM
+        embed.add_field(name="🔋 배터리", value=f"{batt.get('percentage', 0)}% ({batt.get('status', 'Unknown')})", inline=True)
+        embed.add_field(name="🌡️ 온도", value=f"{batt.get('temperature', 0)}°C", inline=True)
         mem = data.get("memory", {})
-        used = mem.get('used', 0)
-        total = mem.get('total', 0)
-        embed.add_field(name="🧠 RAM 사용량", value=f"{used} / {total} MB ({mem.get('percentage', 0)}%)", inline=True)
-        
-        # 3. CPU & Storage (추가 정보)
-        embed.add_field(name="⚡ CPU 사용량", value=f"{data.get('cpu', {}).get('percentage', 0)}%", inline=True)
+        embed.add_field(name="🧠 RAM 사용량", value=f"{mem.get('used', 0)} / {mem.get('total', 0)} MB", inline=True)
+        embed.add_field(name="⚡ CPU", value=f"{data.get('cpu', {}).get('percentage', 0)}%", inline=True)
         storage = data.get("storage", {})
-        embed.add_field(name="💾 저장 공간", value=f"{storage.get('percentage', 0)}% ({storage.get('used', '0')} / {storage.get('total', '0')})", inline=True)
-        
+        embed.add_field(name="💾 저장", value=f"{storage.get('percentage', 0)}%", inline=True)
         if data.get("last_updated"):
             embed.set_footer(text=f"최근 갱신: {data['last_updated']}")
-            
         return embed
-    except Exception as e:
-        print(f"임베드 생성 오류: {e}")
-        return None
+    except: return None
 
-def _get_cpu_usage():
-    """/proc/stat을 읽어 CPU 사용율 계산 (가장 빠름)"""
+def _safe_run(cmd, timeout=2):
+    """명령어를 안전하고 빠르게 실행"""
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return res.stdout if res.returncode == 0 else ""
+    except: return ""
+
+def _update_battery():
+    # 1. Sysfs (Fastest)
+    try:
+        path = "/sys/class/power_supply/battery"
+        if os.path.exists(path):
+            with open(f"{path}/capacity", "r") as f: p = int(f.read().strip())
+            with open(f"{path}/temp", "r") as f: t = int(f.read().strip()) / 10.0
+            with open(f"{path}/status", "r") as f: s = f.read().strip()
+            return {"percentage": p, "temperature": t, "status": s}
+    except: pass
+    # 2. Termux API
+    raw = _safe_run(['termux-battery-status'], timeout=1.5)
+    if raw:
+        try:
+            bj = json.loads(raw)
+            return {"percentage": bj.get('percentage', 0), "temperature": bj.get('temperature', 0), "status": bj.get('status', 'Unknown')}
+        except: pass
+    return _status_cache["battery"]
+
+def _update_memory():
+    # 1. Proc (Fastest)
+    try:
+        with open('/proc/meminfo', 'r') as f:
+            m = {l.split(':')[0]: int(l.split(':')[1].split()[0]) for l in f.readlines()[:10]}
+        total = m['MemTotal'] // 1024
+        free = m.get('MemAvailable', m.get('MemFree', 0)) // 1024
+        used = total - free
+        return {"total": total, "used": used, "percentage": round((used/total)*100, 1)}
+    except: pass
+    # 2. free -m
+    raw = _safe_run(['free', '-m'])
+    if raw:
+        for line in raw.split('\n'):
+            if 'Mem:' in line:
+                p = line.split()
+                t, u = int(p[1]), int(p[2])
+                return {"total": t, "used": u, "percentage": round((u/t)*100, 1)}
+    return _status_cache["memory"]
+
+def _update_cpu():
     global _last_cpu_info
     try:
-        with open('/proc/stat', 'r') as f:
-            line = f.readline()
-        if not line.startswith('cpu '):
-            return 0
-        
-        parts = list(map(int, line.split()[1:]))
-        # user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice
-        idle = parts[3] + parts[4]
-        total = sum(parts)
-        
-        diff_idle = idle - _last_cpu_info["idle"]
-        diff_total = total - _last_cpu_info["total"]
-        
-        _last_cpu_info = {"total": total, "idle": idle}
-        
-        if diff_total == 0: return 0
-        usage = round(100 * (1 - (diff_idle / diff_total)), 1)
-        return max(0, min(100, usage))
-    except:
-        return 5 # 실패 시 기본값
-
-def _get_memory_info():
-    """/proc/meminfo를 읽어 RAM 정보 획득 (무부하)"""
-    try:
-        mem_info = {}
-        with open('/proc/meminfo', 'r') as f:
-            for line in f:
-                parts = line.split(':')
-                if len(parts) == 2:
-                    mem_info[parts[0].strip()] = int(parts[1].split()[0])
-        
-        total_kb = mem_info.get('MemTotal', 0)
-        avail_kb = mem_info.get('MemAvailable', mem_info.get('MemFree', 0) + mem_info.get('Cached', 0))
-        used_kb = total_kb - avail_kb
-        
-        total_mb = total_kb // 1024
-        used_mb = used_kb // 1024
-        
-        return {
-            "total": total_mb,
-            "used": used_mb,
-            "percentage": round((used_mb / total_mb) * 100, 1) if total_mb > 0 else 0
-        }
-    except:
-        return {"used": 0, "total": 0, "percentage": 0}
-
-def _get_battery_info():
-    """시스템 파일 또는 termux-api를 통해 배터리 정보 획득"""
-    # 1. 시스템 파일 시도 (Root 권한 없어도 읽기 가능한 경우 많음)
-    try:
-        base_path = "/sys/class/power_supply/battery"
-        if os.path.exists(base_path):
-            with open(f"{base_path}/capacity", "r") as f:
-                perc = int(f.read().strip())
-            with open(f"{base_path}/temp", "r") as f:
-                temp = int(f.read().strip()) / 10.0 # 보통 0.1도 단위
-            with open(f"{base_path}/status", "r") as f:
-                status = f.read().strip()
-            return {"percentage": perc, "temperature": temp, "status": status}
-    except:
-        pass
-
-    # 2. Termux API 시도 (Timeout 설정하여 지연 방지)
-    try:
-        res = subprocess.run(['termux-battery-status'], capture_output=True, text=True, timeout=2)
-        if res.returncode == 0:
-            bj = json.loads(res.stdout)
-            return {
-                "percentage": bj.get('percentage', 0),
-                "temperature": bj.get('temperature', 0),
-                "status": bj.get('status', 'Unknown')
-            }
-    except:
-        pass
-        
-    return {"percentage": 0, "temperature": 0, "status": "Unknown"}
-
-def _get_storage_info():
-    """shutil을 사용하여 저장 공간 확인 (가장 빠름)"""
-    try:
-        # S9의 주요 저장소 경로 시도
-        paths = ["/storage/emulated/0", "/data/data/com.termux/files/home", "/"]
-        path = "/"
-        for p in paths:
-            if os.path.exists(p):
-                path = p
-                break
-                
-        usage = shutil.disk_usage(path)
-        total_gb = usage.total // (1024**3)
-        used_gb = usage.used // (1024**3)
-        perc = int((usage.used / usage.total) * 100)
-        
-        return {
-            "total": f"{total_gb}G",
-            "used": f"{used_gb}G",
-            "percentage": perc
-        }
-    except:
-        return {"used": "0", "total": "0", "percentage": 0}
-
-def _collect_system_data():
-    """모든 데이터를 최적화된 방식으로 수집"""
-    new_data = {
-        "battery": _get_battery_info(),
-        "memory": _get_memory_info(),
-        "cpu": {"percentage": _get_cpu_usage()},
-        "storage": _get_storage_info(),
-        "status": "Healthy"
-    }
-    return new_data
-
-def _update_cache_loop():
-    """백그라운드에서 주기적으로 캐시를 업데이트 (초기 지연 방지)"""
-    global _status_cache
-    # 첫 실행 시 CPU 기초 데이터 확보를 위해 한 번 미리 실행
-    try:
-        _collect_system_data()
-        time.sleep(1) # CPU 델타 계산을 위한 간격
+        with open('/proc/stat', 'r') as f: line = f.readline()
+        if line.startswith('cpu '):
+            p = list(map(int, line.split()[1:]))
+            idle, total = p[3] + p[4], sum(p)
+            du, dt = idle - _last_cpu_info["idle"], total - _last_cpu_info["total"]
+            _last_cpu_info = {"total": total, "idle": idle}
+            if dt > 0: return {"percentage": max(0, min(100, round(100 * (1 - (du / dt)), 1)))}
     except: pass
+    # Fallback to a very lightweight top
+    raw = _safe_run(['top', '-n', '1', '-b', '-d', '0.1'], timeout=1)
+    m = re.search(r'(\d+)%\s+user,\s+(\d+)%\s+sys', raw, re.I)
+    if m: return {"percentage": int(m.group(1)) + int(m.group(2))}
+    return {"percentage": 5}
+
+def _update_storage():
+    try:
+        u = shutil.disk_usage("/data/data/com.termux/files/home")
+        return {"total": f"{u.total//(1024**3)}G", "used": f"{u.used//(1024**3)}G", "percentage": int((u.used/u.total)*100)}
+    except: pass
+    return _status_cache["storage"]
+
+def _worker_loop():
+    global _status_cache
+    print("📡 Status Worker started.")
+    
+    # 지연 없는 초기화
+    initial_data = {
+        "battery": _update_battery(),
+        "memory": _update_memory(),
+        "cpu": _update_cpu(),
+        "storage": _update_storage(),
+        "status": "Healthy",
+        "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    with _cache_lock: _status_cache = initial_data
 
     while True:
         try:
-            new_stats = _collect_system_data()
-            new_stats["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            _status_cache = new_stats
+            # 15초마다 수집
+            time.sleep(15)
+            
+            # 각 태스크를 개별 쓰레드로 실행하여 지연 방지
+            new_data = {}
+            def task(key, func): new_data[key] = func()
+            
+            threads = [
+                threading.Thread(target=task, args=("battery", _update_battery)),
+                threading.Thread(target=task, args=("memory", _update_memory)),
+                threading.Thread(target=task, args=("cpu", _update_cpu)),
+                threading.Thread(target=task, args=("storage", _update_storage))
+            ]
+            for t in threads: t.start()
+            # 최대 5초 대기
+            for t in threads: t.join(timeout=5)
+            
+            new_data["status"] = "Healthy"
+            new_data["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            with _cache_lock:
+                _status_cache.update(new_data)
         except Exception as e:
-            print(f"Cache update loop error: {e}")
-        time.sleep(10) # 10초 간격으로 업데이트 (더 기민하게)
+            print(f"Worker Error: {e}")
 
-# 모듈 로드 시 백그라운드 쓰레드 시작
-threading.Thread(target=_update_cache_loop, daemon=True).start()
-
-def get_system_status_data():
-    """캐시된 데이터를 즉시 반환 (웹 대시보드 속도 향상)"""
-    return _status_cache
+# 백그라운드 쓰레드 실행
+threading.Thread(target=_worker_loop, daemon=True).start()
 
 def get_battery_short_report():
-    """캐시된 데이터를 활용하여 즉시 보고"""
-    data = _status_cache.get("battery", {})
-    if data.get("percentage") != 0:
-        return f"📊 **S9 배터리**: {data.get('percentage')}% | {data.get('temperature')}°C | {data.get('status')}"
-    return "⏳ 시스템 상태 수집 중..."
+    d = get_system_status_data().get("battery", {})
+    return f"📊 **S9 배터리**: {d.get('percentage')}% | {d.get('temperature')}°C"

@@ -238,4 +238,5 @@ def send_message_api():
 def run_flask(client):
     global discord_client
     discord_client = client
-    app.run(host='0.0.0.0', port=5000)
+    # threaded=True를 명시하여 동시 요청 처리 능력 향상
+    app.run(host='0.0.0.0', port=5000, threaded=True)
