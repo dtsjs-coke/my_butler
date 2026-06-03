@@ -81,18 +81,20 @@ def api_srt_reserve():
     if len(queue[user_id]) >= 3:
         return jsonify({"status": "failed", "reason": "queue_full"}), 400
 
+    # 승객 리스트 (직렬화 가능한 이름 리스트로 저장)
+    passengers = []
+    for _ in range(int(data.get('adult', 1))): passengers.append('Adult')
+    for _ in range(int(data.get('child', 0))): passengers.append('Child')
+    for _ in range(int(data.get('senior', 0))): passengers.append('Senior')
+    for _ in range(int(data.get('disability', 0))): passengers.append('Disability1To3')
+
     task = {
         "dep": data['dep'],
         "arr": data['arr'],
         "date": data['date'],
         "time": data['time'],
         "time_limit": data.get('time_limit'),
-        "passengers_count": {
-            "adult": int(data.get('adult', 1)),
-            "child": int(data.get('child', 0)),
-            "senior": int(data.get('senior', 0)),
-            "disability": int(data.get('disability', 0))
-        },
+        "passengers": passengers,  # 'passengers_count' 대신 'passengers' 이름 리스트 사용
         "seat_type": data.get('seat_type', 'GENERAL_FIRST'),
         "window_seat": data.get('window_seat', False),
         "status": "시도중",
@@ -101,6 +103,9 @@ def api_srt_reserve():
     }
     
     queue[user_id].append(task)
+    # config_manager의 save_queue는 객체를 직렬화하므로, 
+    # 여기서는 이미 직렬화된 데이터와 봇 메모리의 객체가 섞여있을 수 있음.
+    # 일단 저장
     save_queue(queue)
     return jsonify({"status": "success"}), 200
 

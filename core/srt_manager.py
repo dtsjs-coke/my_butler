@@ -86,42 +86,55 @@ class SRTMainMenuView(discord.ui.View):
 
     @discord.ui.button(label="현재 Queue 확인", style=discord.ButtonStyle.secondary, emoji="⏳")
     async def queue_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_tasks = reservation_queue.get(self.user_id, [])
-        if not user_tasks:
+        # 전체 큐를 보여주도록 수정하여 Web 예약건도 디스코드에서 관리 가능하게 함
+        all_tasks = []
+        for uid, tasks_list in reservation_queue.items():
+            for i, t in enumerate(tasks_list):
+                all_tasks.append({'user_id': uid, 'index': i, 'data': t})
+
+        if not all_tasks:
             return await interaction.response.send_message("현재 진행 중인 예약 시도 작업이 없습니다.", ephemeral=True)
         
         embed = discord.Embed(
-            title="⏳ 실시간 예약 시도 현황", 
-            description=f"버틀러가 현재 {len(user_tasks)}개의 조건으로 좌석을 찾고 있습니다. (최대 3개)",
+            title="⏳ 실시간 예약 시도 현황 (전체)", 
+            description=f"버틀러가 현재 총 {len(all_tasks)}개의 조건으로 좌석을 찾고 있습니다.",
             color=discord.Color.orange()
         )
         
         view = discord.ui.View()
         
-        for i, data in enumerate(user_tasks):
+        for i, task_info in enumerate(all_tasks[:5]): # 디스코드 버튼 제한 고려 상위 5개만
+            uid = task_info['user_id']
+            idx = task_info['index']
+            data = task_info['data']
+            
+            user_label = "Web" if uid == 'WEB_USER' else f"User {uid}"
             embed.add_field(
-                name=f"작업 #{i+1}", 
+                name=f"작업 {i+1} ({user_label})", 
                 value=f"🛣️ {data['dep']} ➡️ {data['arr']}\n📅 {data['date']} {data['time']}\n📡 {data.get('status', '대기 중')}", 
                 inline=False
             )
             
             stop_btn = discord.ui.Button(label=f"#{i+1} 삭제", style=discord.ButtonStyle.danger)
             
-            def make_callback(index):
+            def make_callback(target_uid, target_idx):
                 async def callback(it: discord.Interaction):
-                    if self.user_id in reservation_queue and index < len(reservation_queue[self.user_id]):
-                        removed = reservation_queue[self.user_id].pop(index)
-                        if not reservation_queue[self.user_id]:
-                            del reservation_queue[self.user_id]
+                    if target_uid in reservation_queue and target_idx < len(reservation_queue[target_uid]):
+                        removed = reservation_queue[target_uid].pop(target_idx)
+                        if not reservation_queue[target_uid]:
+                            del reservation_queue[target_uid]
                         save_queue(reservation_queue)
-                        await it.response.send_message(f"🛑 작업 #{index+1} ({removed['dep']}➡️{removed['arr']}) 이 삭제되었습니다.", ephemeral=True)
+                        await it.response.send_message(f"🛑 작업 ({removed['dep']}➡️{removed['arr']}) 이 삭제되었습니다.", ephemeral=True)
                     else:
                         await it.response.send_message("이미 처리되었거나 삭제된 작업입니다.", ephemeral=True)
                 return callback
             
-            stop_btn.callback = make_callback(i)
+            stop_btn.callback = make_callback(uid, idx)
             view.add_item(stop_btn)
         
+        if len(all_tasks) > 5:
+            embed.set_footer(text=f"그 외 {len(all_tasks)-5}개의 작업이 더 있습니다. 웹 대시보드에서 확인하세요.")
+
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="예약 취소", style=discord.ButtonStyle.danger, emoji="❌")
