@@ -12,7 +12,10 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 from core.news_service import load_news
 from core.subscription_service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
 from utils.system_status import get_system_status_data
-from config.config_manager import load_keywords, load_queue, load_ktx_queue, load_stations, save_queue, save_ktx_queue
+from config.config_manager import (
+    load_keywords, load_queue, load_ktx_queue, load_stations, 
+    save_queue, save_ktx_queue, serialize_queue
+)
 
 app = Flask(__name__)
 discord_client = None
@@ -44,7 +47,7 @@ def trains_page():
 @token_required
 def manage_srt_queue():
     if request.method == 'GET':
-        return jsonify({"status": "success", "queue": load_queue()})
+        return jsonify({"status": "success", "queue": serialize_queue(load_queue())})
     
     data = request.get_json()
     user_id = str(data.get('user_id'))
