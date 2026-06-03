@@ -16,6 +16,9 @@ from config.config_manager import (
     load_keywords, load_queue, load_ktx_queue, load_stations, 
     save_queue, save_ktx_queue, serialize_queue
 )
+from core.srt_service import reservation_queue
+from SRT.passenger import Adult, Child, Senior, Disability1To3
+from SRT import SeatType
 
 app = Flask(__name__)
 discord_client = None
@@ -47,18 +50,25 @@ def trains_page():
 @token_required
 def manage_srt_queue():
     if request.method == 'GET':
-        return jsonify({"status": "success", "queue": serialize_queue(load_queue())})
+        # [수정] 파일 대신 봇 메모리(reservation_queue)를 직접 직렬화하여 반환
+        return jsonify({"status": "success", "queue": serialize_queue(reservation_queue)})
     
     data = request.get_json()
     user_id = str(data.get('user_id'))
+    # 키가 숫자인 경우를 위해 변환 시도
+    try:
+        user_id_key = int(user_id)
+    except ValueError:
+        user_id_key = user_id
+
     idx = data.get('index')
     
-    queue = load_queue()
-    if user_id in queue and 0 <= idx < len(queue[user_id]):
-        del queue[user_id][idx]
-        if not queue[user_id]:
-            del queue[user_id]
-        save_queue(queue)
+    # [수정] 봇 메모리에서 즉시 삭제
+    if user_id_key in reservation_queue and 0 <= idx < len(reservation_queue[user_id_key]):
+        del reservation_queue[user_id_key][idx]
+        if not reservation_queue[user_id_key]:
+            del reservation_queue[user_id_key]
+        save_queue(reservation_queue)
         return jsonify({"status": "success"}), 200
     return jsonify({"status": "failed", "reason": "not_found"}), 404
 
@@ -73,20 +83,27 @@ def api_srt_reserve():
 
     # 데이터 변환 (Discord와 동일한 포맷)
     user_id = "WEB_USER" # 웹 예약은 공통 ID 사용
-    queue = load_queue()
     
-    if user_id not in queue:
-        queue[user_id] = []
+    # [수정] 봇 메모리 직접 사용
+    if user_id not in reservation_queue:
+        reservation_queue[user_id] = []
     
-    if len(queue[user_id]) >= 3:
+    if len(reservation_queue[user_id]) >= 3:
         return jsonify({"status": "failed", "reason": "queue_full"}), 400
 
-    # 승객 리스트 (직렬화 가능한 이름 리스트로 저장)
+    # [수정] 승객 리스트를 단순 글자가 아닌 실제 SRT 객체로 생성 (중요: 에러 해결책)
     passengers = []
-    for _ in range(int(data.get('adult', 1))): passengers.append('Adult')
-    for _ in range(int(data.get('child', 0))): passengers.append('Child')
-    for _ in range(int(data.get('senior', 0))): passengers.append('Senior')
-    for _ in range(int(data.get('disability', 0))): passengers.append('Disability1To3')
+    for _ in range(int(data.get('adult', 1))): passengers.append(Adult())
+    for _ in range(int(data.get('child', 0))): passengers.append(Child())
+    for _ in range(int(data.get('senior', 0))): passengers.append(Senior())
+    for _ in range(int(data.get('disability', 0))): passengers.append(Disability1To3())
+
+    # [수정] SeatType을 Enum 객체로 변환
+    seat_type_str = data.get('seat_type', 'GENERAL_FIRST')
+    try:
+        seat_type = SeatType[seat_type_str]
+    except:
+        seat_type = SeatType.GENERAL_FIRST
 
     task = {
         "dep": data['dep'],
@@ -94,19 +111,17 @@ def api_srt_reserve():
         "date": data['date'],
         "time": data['time'],
         "time_limit": data.get('time_limit'),
-        "passengers": passengers,  # 'passengers_count' 대신 'passengers' 이름 리스트 사용
-        "seat_type": data.get('seat_type', 'GENERAL_FIRST'),
+        "passengers": passengers,  # 실제 객체 리스트 저장
+        "seat_type": seat_type,    # Enum 객체 저장
         "window_seat": data.get('window_seat', False),
         "status": "시도중",
         "user_name": "Web Dashboard",
         "created_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     
-    queue[user_id].append(task)
-    # config_manager의 save_queue는 객체를 직렬화하므로, 
-    # 여기서는 이미 직렬화된 데이터와 봇 메모리의 객체가 섞여있을 수 있음.
-    # 일단 저장
-    save_queue(queue)
+    reservation_queue[user_id].append(task)
+    # 영속성 파일 저장
+    save_queue(reservation_queue)
     return jsonify({"status": "success"}), 200
 
 from datetime import datetime, timedelta
