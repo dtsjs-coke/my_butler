@@ -42,7 +42,7 @@
             </button>
             <h2 class="text-2xl font-bold">2단계: 언제 출발하시나요?</h2>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">출발 일자</label>
                 <input type="date" id="srt-date" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
@@ -54,6 +54,11 @@
                     <option value="{{ '%02d' % h }}0000">{{ '%02d' % h }}:00</option>
                     {% endfor %}
                 </select>
+            </div>
+            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">조회 시간 한도 (hhmmss)</label>
+                <input type="text" id="srt-time-limit" placeholder="예: 235959" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                <p class="text-[10px] text-gray-400 mt-2">* 입력 시간 이전 열차만 조회합니다. (선택사항)</p>
             </div>
         </div>
         <button onclick="nextStep(3)" class="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
@@ -114,7 +119,6 @@
     <section class="mt-12">
         <h2 class="text-xl font-bold mb-6">현재 예약 대기 목록</h2>
         <div id="queue-list" class="space-y-4">
-            <!-- 동적 콘텐츠 -->
             <p class="text-sm text-gray-400 italic">대기열을 불러오는 중...</p>
         </div>
     </section>
@@ -139,12 +143,11 @@
                 alert("출발역과 도착역은 달라야 합니다.");
                 return;
             }
-            // 오늘 날짜를 기본값으로 설정
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('srt-date').value = today;
         }
         if (step === 3) {
-            const rawDate = document.getElementById('srt-date').value; // yyyy-mm-dd
+            const rawDate = document.getElementById('srt-date').value;
             if (!rawDate) {
                 alert("출발 일자를 선택해주세요.");
                 return;
@@ -261,7 +264,11 @@
     }
 
     loadQueue();
-    // 30초마다 대기열 자동 갱신
-    setInterval(loadQueue, 30000);
+    setInterval(loadQueue, 15000); // 15초로 단축
+
+    // Graph View 초기화
+    if (typeof initGraph === 'function') {
+        setTimeout(initGraph, 1000);
+    }
 </script>
 {% endblock %}

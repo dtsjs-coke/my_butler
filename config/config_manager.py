@@ -93,7 +93,11 @@ def deserialize_queue(serialized_queue):
     
     for user_id_str, task_list in serialized_queue.items():
         try:
-            user_id = int(user_id_str)
+            try:
+                user_id = int(user_id_str)
+            except ValueError:
+                user_id = user_id_str
+                
             if isinstance(task_list, dict):
                 task_list = [task_list]
                 
@@ -159,7 +163,11 @@ def deserialize_ktx_queue(serialized_queue):
     
     for user_id_str, task_list in serialized_queue.items():
         try:
-            user_id = int(user_id_str)
+            try:
+                user_id = int(user_id_str)
+            except ValueError:
+                user_id = user_id_str
+                
             if isinstance(task_list, dict):
                 task_list = [task_list]
                 
