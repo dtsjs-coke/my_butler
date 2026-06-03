@@ -83,6 +83,7 @@ def api_srt_reserve():
         "arr": data['arr'],
         "date": data['date'],
         "time": data['time'],
+        "time_limit": data.get('time_limit'),
         "passengers_count": {
             "adult": int(data.get('adult', 1)),
             "child": int(data.get('child', 0)),
