@@ -292,6 +292,10 @@
 
     // 초기화
     document.addEventListener('DOMContentLoaded', () => {
+        // 오늘 날짜를 기본값으로 설정
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('srt-date').value = today;
+
         loadQueue();
         setInterval(loadQueue, 15000);
 
