@@ -140,6 +140,16 @@ def api_graph_data():
     keywords = load_keywords()
     srt_queue = load_queue()
     ktx_queue = load_ktx_queue()
+    sys_data = get_system_status_data()
+
+    # 모델 정보 로드
+    model_name = "Unknown"
+    model_config_path = os.path.join(PROJECT_ROOT, "model_config.json")
+    if os.path.exists(model_config_path):
+        try:
+            with open(model_config_path, 'r', encoding='utf-8') as f:
+                model_name = json.load(f).get("model_name", "Unknown")
+        except: pass
 
     # 그룹 정보 로드
     groups_map = {}
@@ -153,12 +163,43 @@ def api_graph_data():
     nodes = [
         {"id": "root", "label": "Butler Pro", "color": "#3b82f6", "size": 25},
         {"id": "news_root", "label": "News Room", "color": "#10b981", "size": 20},
-        {"id": "train_root", "label": "Trains", "color": "#f59e0b", "size": 20}
+        {"id": "train_root", "label": "Trains", "color": "#f59e0b", "size": 20},
+        {"id": "device_root", "label": "S9 Server", "color": "#ef4444", "size": 20},
+        {"id": "ai_root", "label": "AI Engine", "color": "#8b5cf6", "size": 20},
+        {"id": "sub_root", "label": "Subscriptions", "color": "#ec4899", "size": 20}
     ]
     edges = [
         {"from": "root", "to": "news_root"},
-        {"from": "root", "to": "train_root"}
+        {"from": "root", "to": "train_root"},
+        {"from": "root", "to": "device_root"},
+        {"from": "root", "to": "ai_root"},
+        {"from": "root", "to": "sub_root"}
     ]
+
+    # Add Subscription Details
+    try:
+        subs_data = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
+        total_subs = sum(len(user_subs) for user_subs in subs_data.values())
+        nodes.append({"id": "sub_count", "label": f"Active: {total_subs}", "color": "#f472b6", "size": 12})
+        edges.append({"from": "sub_root", "to": "sub_count"})
+    except: pass
+
+    # Add Device Details
+    nodes.append({"id": "dev_batt", "label": f"Battery: {sys_data['battery']['percentage']}%", "color": "#f87171", "size": 12})
+    nodes.append({"id": "dev_mem", "label": f"RAM: {sys_data['memory']['percentage']}%", "color": "#f87171", "size": 12})
+    nodes.append({"id": "dev_cpu", "label": f"CPU: {sys_data['cpu']['percentage']}%", "color": "#f87171", "size": 12})
+    nodes.append({"id": "dev_storage", "label": f"HDD: {sys_data['storage']['percentage']}%", "color": "#f87171", "size": 12})
+    
+    edges.extend([
+        {"from": "device_root", "to": "dev_batt"},
+        {"from": "device_root", "to": "dev_mem"},
+        {"from": "device_root", "to": "dev_cpu"},
+        {"from": "device_root", "to": "dev_storage"}
+    ])
+
+    # Add AI Details
+    nodes.append({"id": "ai_model", "label": model_name, "color": "#a78bfa", "size": 12})
+    edges.append({"from": "ai_root", "to": "ai_model"})
 
     # 그룹 노드 및 해당 멤버 노드 추가
     processed_keywords = set()
