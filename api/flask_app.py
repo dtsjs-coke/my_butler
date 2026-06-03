@@ -12,7 +12,7 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 from core.news_service import load_news
 from core.subscription_service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
 from utils.system_status import get_system_status_data
-from config.config_manager import load_keywords, load_queue, load_ktx_queue
+from config.config_manager import load_keywords, load_queue, load_ktx_queue, load_stations, save_queue, save_ktx_queue
 
 app = Flask(__name__)
 discord_client = None
@@ -34,6 +34,71 @@ def token_required(f):
 @app.route('/')
 def home():
     return render_template('index.html', api_token=BUTLER_API_TOKEN)
+
+@app.route('/trains')
+def trains_page():
+    stations = load_stations()
+    return render_template('trains.html', stations=stations, api_token=BUTLER_API_TOKEN)
+
+@app.route('/api/srt/queue', methods=['GET', 'DELETE'])
+@token_required
+def manage_srt_queue():
+    if request.method == 'GET':
+        return jsonify({"status": "success", "queue": load_queue()})
+    
+    data = request.get_json()
+    user_id = str(data.get('user_id'))
+    idx = data.get('index')
+    
+    queue = load_queue()
+    if user_id in queue and 0 <= idx < len(queue[user_id]):
+        del queue[user_id][idx]
+        if not queue[user_id]:
+            del queue[user_id]
+        save_queue(queue)
+        return jsonify({"status": "success"}), 200
+    return jsonify({"status": "failed", "reason": "not_found"}), 404
+
+@app.route('/api/srt/reserve', methods=['POST'])
+@token_required
+def api_srt_reserve():
+    from datetime import datetime
+    data = request.get_json()
+    # 기본 검증
+    if not data.get('dep') or not data.get('arr') or not data.get('date'):
+        return jsonify({"status": "failed", "reason": "missing_data"}), 400
+
+    # 데이터 변환 (Discord와 동일한 포맷)
+    user_id = "WEB_USER" # 웹 예약은 공통 ID 사용
+    queue = load_queue()
+    
+    if user_id not in queue:
+        queue[user_id] = []
+    
+    if len(queue[user_id]) >= 3:
+        return jsonify({"status": "failed", "reason": "queue_full"}), 400
+
+    task = {
+        "dep": data['dep'],
+        "arr": data['arr'],
+        "date": data['date'],
+        "time": data['time'],
+        "passengers_count": {
+            "adult": int(data.get('adult', 1)),
+            "child": int(data.get('child', 0)),
+            "senior": int(data.get('senior', 0)),
+            "disability": int(data.get('disability', 0))
+        },
+        "seat_type": data.get('seat_type', 'GENERAL_FIRST'),
+        "window_seat": data.get('window_seat', False),
+        "status": "시도중",
+        "user_name": "Web Dashboard",
+        "created_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+    
+    queue[user_id].append(task)
+    save_queue(queue)
+    return jsonify({"status": "success"}), 200
 
 from datetime import datetime, timedelta
 

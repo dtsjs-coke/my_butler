@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block page_title %}SRT Reservation{% endblock %}
+
+{% block content %}
+<div class="space-y-8" id="srt-app">
+    <!-- Step 1: Station Selection -->
+    <section id="step-1" class="space-y-6">
+        <h2 class="text-2xl font-bold">Step 1: Where are you going?</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Departure -->
+            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Departure</label>
+                <select id="dep-station" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="">Select Station</option>
+                    {% for station in stations %}
+                    <option value="{{ station }}">{{ station }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Arrival -->
+            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Arrival</label>
+                <select id="arr-station" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="">Select Station</option>
+                    {% for station in stations %}
+                    <option value="{{ station }}">{{ station }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <button onclick="nextStep(2)" class="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+            Next: Date & Time <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+    </section>
+
+    <!-- Step 2: Date & Time Selection -->
+    <section id="step-2" class="hidden space-y-6">
+        <div class="flex items-center gap-4">
+            <button onclick="prevStep(1)" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <h2 class="text-2xl font-bold">Step 2: When?</h2>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Date</label>
+                <input type="date" id="srt-date" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Time (After)</label>
+                <select id="srt-time" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                    {% for h in range(0, 24, 2) %}
+                    <option value="{{ '%02d' % h }}0000">{{ '%02d' % h }}:00</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <button onclick="nextStep(3)" class="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-2">
+            Next: Passengers <i data-lucide="chevron-right" class="w-5 h-5"></i>
+        </button>
+    </section>
+
+    <!-- Step 3: Passengers & Options -->
+    <section id="step-3" class="hidden space-y-6">
+        <div class="flex items-center gap-4">
+            <button onclick="prevStep(2)" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <h2 class="text-2xl font-bold">Step 3: Who & How?</h2>
+        </div>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">Adult</label>
+                <input type="number" id="count-adult" value="1" min="0" max="9" class="w-full px-3 py-2 bg-gray-50 dark:bg-dark-bg rounded-lg outline-none">
+            </div>
+            <div class="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">Child</label>
+                <input type="number" id="count-child" value="0" min="0" max="9" class="w-full px-3 py-2 bg-gray-50 dark:bg-dark-bg rounded-lg outline-none">
+            </div>
+            <div class="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">Senior</label>
+                <input type="number" id="count-senior" value="0" min="0" max="9" class="w-full px-3 py-2 bg-gray-50 dark:bg-dark-bg rounded-lg outline-none">
+            </div>
+            <div class="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">Disability</label>
+                <input type="number" id="count-disability" value="0" min="0" max="9" class="w-full px-3 py-2 bg-gray-50 dark:bg-dark-bg rounded-lg outline-none">
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm space-y-4">
+            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Seat Options</label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <select id="seat-type" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl outline-none">
+                    <option value="GENERAL_FIRST">General First</option>
+                    <option value="GENERAL_ONLY">General Only</option>
+                    <option value="SPECIAL_FIRST">Special First</option>
+                    <option value="SPECIAL_ONLY">Special Only</option>
+                </select>
+                <label class="flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl cursor-pointer">
+                    <input type="checkbox" id="window-seat" class="w-4 h-4 text-blue-600 rounded">
+                    <span class="text-sm font-medium">Window Seat Priority</span>
+                </label>
+            </div>
+        </div>
+
+        <button onclick="submitReservation()" id="btn-submit" class="w-full py-4 bg-orange-500 text-white font-bold rounded-2xl hover:bg-orange-600 shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2">
+            Confirm & Add to Queue <i data-lucide="check-circle" class="w-5 h-5"></i>
+        </button>
+    </section>
+
+    <!-- Current Queue Status -->
+    <section class="mt-12">
+        <h2 class="text-xl font-bold mb-6">Current Reservation Queue</h2>
+        <div id="queue-list" class="space-y-4">
+            <!-- Dynamic Content -->
+            <p class="text-sm text-gray-400 italic">Loading queue...</p>
+        </div>
+    </section>
+</div>
+
+<script>
+    let srtData = {
+        dep: '', arr: '', date: '', time: '',
+        adult: 1, child: 0, senior: 0, disability: 0,
+        seat_type: 'GENERAL_FIRST', window_seat: false
+    };
+
+    function nextStep(step) {
+        if (step === 2) {
+            srtData.dep = document.getElementById('dep-station').value;
+            srtData.arr = document.getElementById('arr-station').value;
+            if (!srtData.dep || !srtData.arr) {
+                alert("Please select departure and arrival stations.");
+                return;
+            }
+            if (srtData.dep === srtData.arr) {
+                alert("Departure and Arrival must be different.");
+                return;
+            }
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('srt-date').value = today;
+        }
+        if (step === 3) {
+            const rawDate = document.getElementById('srt-date').value; // yyyy-mm-dd
+            if (!rawDate) {
+                alert("Please select a date.");
+                return;
+            }
+            srtData.date = rawDate.replace(/-/g, '');
+            srtData.time = document.getElementById('srt-time').value;
+        }
+
+        document.getElementById('step-1').classList.toggle('hidden', step !== 1);
+        document.getElementById('step-2').classList.toggle('hidden', step !== 2);
+        document.getElementById('step-3').classList.toggle('hidden', step !== 3);
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function prevStep(step) {
+        nextStep(step);
+    }
+
+    async function submitReservation() {
+        srtData.adult = parseInt(document.getElementById('count-adult').value);
+        srtData.child = parseInt(document.getElementById('count-child').value);
+        srtData.senior = parseInt(document.getElementById('count-senior').value);
+        srtData.disability = parseInt(document.getElementById('count-disability').value);
+        srtData.seat_type = document.getElementById('seat-type').value;
+        srtData.window_seat = document.getElementById('window-seat').checked;
+
+        const btn = document.getElementById('btn-submit');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="animate-spin" data-lucide="loader"></i> Processing...';
+        lucide.createIcons();
+
+        try {
+            const res = await fetch('/api/srt/reserve', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Butler-Token': BUTLER_API_TOKEN 
+                },
+                body: JSON.stringify(srtData)
+            });
+            const result = await res.json();
+            if (result.status === 'success') {
+                alert("Success! Your reservation has been added to the queue.");
+                location.reload();
+            } else {
+                alert("Failed: " + result.reason);
+                btn.disabled = false;
+                btn.innerText = 'Confirm & Add to Queue';
+            }
+        } catch (e) {
+            alert("Network error.");
+            btn.disabled = false;
+            btn.innerText = 'Confirm & Add to Queue';
+        }
+    }
+
+    async function loadQueue() {
+        try {
+            const res = await fetch('/api/srt/queue', {
+                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
+            });
+            const data = await res.json();
+            const container = document.getElementById('queue-list');
+            
+            if (!data.queue || Object.keys(data.queue).length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-400 italic">No active tasks in queue.</p>';
+                return;
+            }
+
+            let html = '';
+            for (const user in data.queue) {
+                data.queue[user].forEach((task, idx) => {
+                    html += `
+                        <div class="bg-white dark:bg-dark-card p-4 rounded-2xl border border-gray-200 dark:border-dark-border flex items-center justify-between shadow-sm">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-xl flex items-center justify-center">
+                                    <i data-lucide="train"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-bold">${task.dep} → ${task.arr}</p>
+                                    <p class="text-[10px] text-gray-400">${task.date} ${task.time.substring(0,4)} | ${task.user_name || 'Web'}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span class="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-[10px] font-bold rounded-lg">${task.status}</span>
+                                <button onclick="deleteQueueTask('${user}', ${idx})" class="p-2 text-gray-400 hover:text-red-500 transition-colors">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            container.innerHTML = html;
+            lucide.createIcons();
+        } catch (e) { console.error(e); }
+    }
+
+    async function deleteQueueTask(userId, taskIdx) {
+        if (!confirm("Remove this task?")) return;
+        try {
+            const res = await fetch('/api/srt/queue', {
+                method: 'DELETE',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Butler-Token': BUTLER_API_TOKEN 
+                },
+                body: JSON.stringify({ user_id: userId, index: taskIdx })
+            });
+            if ((await res.json()).status === 'success') loadQueue();
+        } catch (e) { alert("Error deleting task."); }
+    }
+
+    loadQueue();
+    // Auto refresh queue every 30s
+    setInterval(loadQueue, 30000);
+</script>
+{% endblock %}
