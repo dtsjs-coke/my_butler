@@ -128,6 +128,30 @@ def notify_via_butler(message):
         print(f"❌ Discord notification error: {e}")
     return False
 
+def handle_url_change(new_url):
+    """URL 변경 감지 시 호출하여 업데이트 및 알림 수행"""
+    old_url = get_current_stored_url()
+    if new_url == old_url:
+        # 이미 반영된 주소인 경우 (중복 알림 방지용 보조 체크)
+        return False
+
+    print(f"🔄 URL Change Detected: {old_url} -> {new_url}")
+    git_success = git_push_changes(new_url)
+    if git_success:
+        with open(URL_CACHE_FILE, "w") as f:
+            f.write(new_url)
+        status_msg = "변경 및 GitHub 업데이트 완료"
+    else:
+        status_msg = "GitHub 업데이트 실패 (로그 확인 필요)"
+    
+    notify_via_butler(
+        f"🔗 **터널 주소 정보 업데이트**\n"
+        f"현재 주소: {new_url}\n"
+        f"이전 주소: {old_url}\n"
+        f"상태: {status_msg}"
+    )
+    return True
+
 def run_tunnel():
     print("📡 Starting Cloudflare Tunnel...")
     # cloudflared 실행 (안정성을 위해 http2 프로토콜 사용 및 localhost 바인딩)
@@ -139,54 +163,49 @@ def run_tunnel():
         bufsize=1
     )
 
-    tunnel_url = ""
+    # 상태 관리를 위한 가변 객체
+    state = {
+        "url": "",
+        "last_notified_url": get_current_stored_url(),
+        "change_handled": False
+    }
     
     def monitor_stdout():
-        nonlocal tunnel_url
         for line in iter(process.stdout.readline, ""):
             line_str = line.strip()
             if line_str:
                 print(f"[cloudflared] {line_str}")
             
-            if not tunnel_url:
-                match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
-                if match:
-                    tunnel_url = match.group(0)
+            # URL 패턴 검색 (최초 및 변경 시 모두 대응)
+            match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+            if match:
+                detected_url = match.group(0)
+                if detected_url != state["url"]:
+                    state["url"] = detected_url
+                    # 저장된 주소와 다르다면 즉시 업데이트 수행
+                    if detected_url != state["last_notified_url"]:
+                        handle_url_change(detected_url)
+                        state["last_notified_url"] = detected_url
+                        state["change_handled"] = True
     
     # 별도 쓰레드에서 로그 상시 모니터링 (파이프 버퍼 누적 방지)
     threading.Thread(target=monitor_stdout, daemon=True).start()
 
     # 1. URL 감지 대기 (최대 30초)
     start_time = time.time()
-    while not tunnel_url:
+    while not state["url"]:
         if time.time() - start_time > 30:
             print("❌ Wait timeout for URL detection. Restarting...")
-            process.terminate()
+            process.kill() # 강제 종료로 변경
             return False
         time.sleep(1)
 
-    print(f"\n✨ Current Tunnel URL Detected: {tunnel_url}")
+    print(f"\n✨ Current Tunnel URL Detected: {state['url']}")
     
-    # 2. URL 변경 시 업데이트 및 알림
-    old_url = get_current_stored_url()
-    if tunnel_url != old_url:
-        git_success = git_push_changes(tunnel_url)
-        if git_success:
-            with open(URL_CACHE_FILE, "w") as f:
-                f.write(tunnel_url)
-            status_msg = "변경 및 GitHub 업데이트 완료"
-        else:
-            status_msg = "GitHub 업데이트 실패 (로그 확인 필요)"
-        
-        notify_via_butler(
-            f"🔗 **터널 주소 정보 업데이트**\n"
-            f"현재 주소: {tunnel_url}\n"
-            f"이전 주소: {old_url}\n"
-            f"상태: {status_msg}"
-        )
-    else:
-        update_subscription_manager_code(tunnel_url)
-        notify_via_butler(f"✅ **터널 연결 확인**\n현재 주소: {tunnel_url}\n상태: 정상 가동 중 (변동 없음)")
+    # 2. 초기 기동 시 알림 (이미 변경 감지에서 처리되지 않았을 경우를 대비)
+    if not state["change_handled"]:
+        update_subscription_manager_code(state["url"])
+        notify_via_butler(f"✅ **터널 연결 확인**\n현재 주소: {state['url']}\n상태: 정상 가동 중 (변동 없음)")
 
     # 3. Health Check 루프 (터널 생존 확인)
     fail_count = 0
@@ -194,10 +213,13 @@ def run_tunnel():
         try:
             # 60초마다 URL 접속 확인
             time.sleep(60)
-            response = requests.get(tunnel_url, timeout=10)
-            if response.status_code < 500: # 500 이상은 서버 에러지만 연결은 된 것임. 404 등도 연결은 된 상태.
+            current_url = state["url"]
+            response = requests.get(current_url, timeout=10)
+            
+            # [수정] 200 OK일 때만 정상으로 간주 (404 등 Cloudflare 에러 페이지 방지)
+            if response.status_code == 200:
                 if fail_count > 0:
-                    print(f"💚 Health check recovered: {tunnel_url}")
+                    print(f"💚 Health check recovered: {current_url}")
                 fail_count = 0
             else:
                 fail_count += 1
@@ -208,8 +230,8 @@ def run_tunnel():
 
         if fail_count >= 3:
             print(f"🚨 Tunnel seems broken. Forcing restart...")
-            notify_via_butler(f"🚨 **터널 접속 불량 감지**\n주소: {tunnel_url}\n3회 연속 응답 없음. 터널을 재시작합니다.")
-            process.terminate()
+            notify_via_butler(f"🚨 **터널 접속 불량 감지**\n주소: {state['url']}\n3회 연속 응답 없음. 터널을 재시작합니다.")
+            process.kill() # 강제 종료
             break
 
     # 프로세스가 종료될 때까지 대기
