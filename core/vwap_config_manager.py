@@ -24,7 +24,7 @@ class VwapConfigManager:
             "x_percent": 2.0,               # 손절 비율 %
             "k_percent": 10.0,              # 투자 비중 % (잔고 대비)
             "initial_balance": 10000000.0,  # 가상 투자 초기 자본 (원화 또는 USD 기준)
-            "max_investment_limit": 5000000.0, # 1회 최대 투자 가용 한도액 (미수/신용 차단용)
+            "max_daily_loss_limit": 5.0,    # 당일 최대 손실 한도 %
             "reset_time": "22:30",          # VWAP 누적 리셋 시각 (HH:MM)
             "toss_client_id": "",           # 토스 Client ID
             "toss_client_secret": "",       # 토스 Client Secret (암호화 대상)

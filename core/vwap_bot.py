@@ -47,6 +47,8 @@ class VWAPBot:
         self.running = False
         self.thread = None
         self._lock = threading.Lock()
+        self.daily_baseline_asset = 0.0
+        self.last_baseline_date = ""
         
         # 봇 상태 캐시 (웹 대시보드 API 조회용)
         self.status_cache = {
@@ -78,6 +80,8 @@ class VWAPBot:
                 return False
             
             self.running = True
+            self.daily_baseline_asset = 0.0
+            self.last_baseline_date = ""
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
             self.thread.start()
             logger.info("⚡ 트레이딩 봇 백그라운드 엔진이 시작되었습니다.")
@@ -134,7 +138,7 @@ class VWAPBot:
         k_percent = float(config["k_percent"])
         reset_time = config["reset_time"]
         initial_balance = float(config["initial_balance"])
-        max_investment_limit = float(config.get("max_investment_limit", 5000000.0))
+        max_daily_loss_limit = float(config.get("max_daily_loss_limit", 5.0))
 
         # 2. 브로커 초기화 및 스위칭
         # 실거래 브로커는 API 토큰 관리를 위해 1회 생성 유지
@@ -187,6 +191,42 @@ class VWAPBot:
         holding_info = holdings.get(ticker, {"qty": 0.0, "entry_price": 0.0})
         qty = holding_info["qty"]
         entry_price = holding_info["entry_price"]
+
+        # 당일 손실 한도(Panic Stop) 안전장치 검사
+        stock_value = qty * current_price
+        total_asset = cash + stock_value
+        now_date = datetime.now().strftime("%Y-%m-%d")
+
+        # baseline 자산이 미설정되었거나 날짜가 바뀌었을 때 갱신
+        if self.daily_baseline_asset <= 0.0 or self.last_baseline_date != now_date:
+            self.daily_baseline_asset = total_asset
+            self.last_baseline_date = now_date
+            logger.info(f"🎯 당일 기준 자산(Baseline)이 설정되었습니다: {self.daily_baseline_asset:.2f} ({now_date})")
+
+        # 손실 감지 시 강제 청산
+        if self.daily_baseline_asset > 0.0:
+            loss_amount = self.daily_baseline_asset - total_asset
+            loss_rate = (loss_amount / self.daily_baseline_asset) * 100.0
+            
+            if loss_rate >= max_daily_loss_limit:
+                logger.error(f"🚨🚨 [당일 손실 한도 초과] 당일 기준 자산({self.daily_baseline_asset:.2f}) 대비 손실률 {loss_rate:.2f}% 발생! (한도: {max_daily_loss_limit:.2f}%)")
+                logger.error(f"🚨 즉각 모든 미체결 주문 취소 및 보유 주식 전량 시장가 매도(Panic Sell & Stop)를 감행하고 봇을 강제 정지합니다.")
+                
+                # 미체결 주문 전체 취소
+                open_orders = broker.get_open_orders(ticker)
+                for order in open_orders:
+                    broker.cancel_order(order["order_id"])
+                    
+                # 보유 주식 시장가 전량 청산
+                if qty > 0:
+                    if mode == "VIRTUAL":
+                        self.virtual_broker.force_market_stop_loss(ticker, current_price)
+                    else:
+                        broker.place_order(ticker, "SELL", 0.0, qty, "MARKET")
+                
+                self.running = False
+                logger.error("🛑 당일 손실 한도 초과로 인해 봇 백그라운드 엔진이 정지(STOP)되었습니다.")
+                return
 
         # 7. 전략 시그널 도출
         signals = VwapStrategy.get_signals(df, n_percent, m_percent, x_percent, qty, entry_price)
@@ -256,12 +296,7 @@ class VWAPBot:
             # 투자 가능 금액 산출
             invest_cash = cash * (k_percent / 100.0)
             
-            # [안전장치 1] 최대 1회 투자 한도액 제한 적용
-            if invest_cash > max_investment_limit:
-                logger.info(f"🛡️ [안전장치] 가용 자금({invest_cash:.2f})이 최대 한도({max_investment_limit:.2f})를 초과하여 제한 적용합니다.")
-                invest_cash = max_investment_limit
-                
-            # [안전장치 2] 미수/신용 거래 원천 금지 (순수 현금 예수금 이하로만 제한)
+            # [안전장치] 미수/신용 거래 원천 금지 (순수 현금 예수금 이하로만 제한)
             if invest_cash > cash:
                 logger.warning(f"🛡️ [안전장치] 가용 예산({invest_cash:.2f})이 보유 현금({cash:.2f})을 초과하여 보유 잔고로 제한합니다 (미수 방지).")
                 invest_cash = cash

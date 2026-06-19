@@ -158,13 +158,13 @@ def api_config():
     allowed_keys = [
         "mode", "ticker", "market", "interval", "n_percent", 
         "m_percent", "x_percent", "k_percent", "initial_balance", 
-        "reset_time", "toss_client_id"
+        "reset_time", "toss_client_id", "max_daily_loss_limit"
     ]
     
     for key in allowed_keys:
         if key in new_data:
             # 적절한 형변환 수행
-            if key in ["n_percent", "m_percent", "x_percent", "k_percent", "initial_balance"]:
+            if key in ["n_percent", "m_percent", "x_percent", "k_percent", "initial_balance", "max_daily_loss_limit"]:
                 updated_config[key] = float(new_data[key])
             else:
                 updated_config[key] = str(new_data[key])
