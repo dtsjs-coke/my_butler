@@ -21,6 +21,8 @@ from SRT.passenger import Adult, Child, Senior, Disability1To3
 from SRT import SeatType
 
 app = Flask(__name__)
+from api.vwap_api import vwap_bp
+app.register_blueprint(vwap_bp, url_prefix='/vwap')
 discord_client = None
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
 BUTLER_API_TOKEN = os.getenv("BUTLER_API_TOKEN", "butler_v3_secret_2026")
