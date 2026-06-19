@@ -1,10 +1,13 @@
 import os
 import time
+import logging
 from flask import Blueprint, request, jsonify, render_template, make_response
 from functools import wraps
 from core.vwap_config_manager import VwapConfigManager
 from core.vwap_bot import VWAPBot, LOG_PATH
 from utils.vwap_crypto import VwapCrypto
+
+logger = logging.getLogger("vwap_bot")
 
 vwap_bp = Blueprint('vwap', __name__, template_folder='templates')
 
@@ -116,10 +119,12 @@ def api_get_status():
         "recent_trades": trades[-30:] # 최근 30개 거래 내역
     }
     
+    is_mock = vwap_bot.real_broker.mock_mode if vwap_bot.real_broker else True
     return jsonify({
         "status": "success",
         "bot": bot_status,
-        "metrics": metrics
+        "metrics": metrics,
+        "is_mock_mode": is_mock
     })
 
 
@@ -249,3 +254,22 @@ def api_run_backtest():
     except Exception as e:
         logger.error(f"백테스트 연산 실패: {e}")
         return jsonify({"status": "failed", "reason": str(e)})
+
+
+@vwap_bp.route('/api/reset-trades', methods=['POST'])
+@admin_required
+def api_reset_trades():
+    """가상 거래 체결 이력을 초기화하고 봇의 가상 브로커 잔고를 리셋합니다."""
+    try:
+        # 1. vwap_trades.json을 빈 배열로 초기화
+        VwapConfigManager.save_trades([])
+        
+        # 2. 봇의 virtual_broker 잔고 동기화 트리거
+        if vwap_bot.virtual_broker:
+            vwap_bot.virtual_broker._sync_balance_from_trades()
+            
+        logger.info("🗑️ 가상 거래 기록 및 평가 잔고가 성공적으로 초기화되었습니다.")
+        return jsonify({"status": "success", "message": "가상 거래 내역 및 평가 잔고가 초기화되었습니다."})
+    except Exception as e:
+        logger.error(f"거래 기록 초기화 실패: {e}")
+        return jsonify({"status": "failed", "reason": str(e)}), 500
