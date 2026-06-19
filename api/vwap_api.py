@@ -158,14 +158,26 @@ def api_config():
     allowed_keys = [
         "mode", "ticker", "market", "interval", "n_percent", 
         "m_percent", "x_percent", "k_percent", "initial_balance", 
-        "reset_time", "toss_client_id", "max_daily_loss_limit"
+        "reset_time", "toss_client_id", "max_daily_loss_limit",
+        "use_adx_filter", "adx_period", "adx_threshold",
+        "use_rsi_filter", "rsi_period", "rsi_threshold",
+        "use_vwap_band", "vwap_band_sigma"
     ]
     
     for key in allowed_keys:
         if key in new_data:
             # 적절한 형변환 수행
-            if key in ["n_percent", "m_percent", "x_percent", "k_percent", "initial_balance", "max_daily_loss_limit"]:
+            if key in ["n_percent", "m_percent", "x_percent", "k_percent", "initial_balance", "max_daily_loss_limit", "adx_threshold", "rsi_threshold", "vwap_band_sigma"]:
                 updated_config[key] = float(new_data[key])
+            elif key in ["adx_period", "rsi_period"]:
+                updated_config[key] = int(new_data[key])
+            elif key in ["use_adx_filter", "use_rsi_filter", "use_vwap_band"]:
+                # 문자열로 들어오는 경우("true"/"false")와 Boolean 직접 대응
+                val = new_data[key]
+                if isinstance(val, str):
+                    updated_config[key] = val.lower() == "true"
+                else:
+                    updated_config[key] = bool(val)
             else:
                 updated_config[key] = str(new_data[key])
 

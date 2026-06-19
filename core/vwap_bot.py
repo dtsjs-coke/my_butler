@@ -65,7 +65,10 @@ class VWAPBot:
             "cash": 0.0,
             "holdings": {},
             "open_orders": [],
-            "last_updated": ""
+            "last_updated": "",
+            "adx": 0.0,
+            "rsi": 50.0,
+            "vwap_stdev": 0.0
         }
         
         # 브로커 캐시
@@ -139,6 +142,14 @@ class VWAPBot:
         reset_time = config["reset_time"]
         initial_balance = float(config["initial_balance"])
         max_daily_loss_limit = float(config.get("max_daily_loss_limit", 5.0))
+        
+        # 보조 지표 파라미터 로드
+        use_adx_filter = bool(config.get("use_adx_filter", False))
+        adx_threshold = float(config.get("adx_threshold", 25.0))
+        use_rsi_filter = bool(config.get("use_rsi_filter", False))
+        rsi_threshold = float(config.get("rsi_threshold", 30.0))
+        use_vwap_band = bool(config.get("use_vwap_band", False))
+        vwap_band_sigma = float(config.get("vwap_band_sigma", 2.0))
 
         # 2. 브로커 초기화 및 스위칭
         # 실거래 브로커는 API 토큰 관리를 위해 1회 생성 유지
@@ -229,7 +240,15 @@ class VWAPBot:
                 return
 
         # 7. 전략 시그널 도출
-        signals = VwapStrategy.get_signals(df, n_percent, m_percent, x_percent, qty, entry_price)
+        signals = VwapStrategy.get_signals(
+            df, n_percent, m_percent, x_percent, qty, entry_price,
+            use_adx_filter=use_adx_filter,
+            adx_threshold=adx_threshold,
+            use_rsi_filter=use_rsi_filter,
+            rsi_threshold=rsi_threshold,
+            use_vwap_band=use_vwap_band,
+            vwap_band_sigma=vwap_band_sigma
+        )
         signal = signals["signal"]
         vwap = signals["vwap"]
         target_buy_price = signals["target_buy_price"]
@@ -359,7 +378,10 @@ class VWAPBot:
                 "cash": round(cash, 2),
                 "holdings": serializable_holdings,
                 "open_orders": broker.get_open_orders(ticker),
-                "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "adx": signals.get("adx", 0.0),
+                "rsi": signals.get("rsi", 50.0),
+                "vwap_stdev": signals.get("vwap_stdev", 0.0)
             }
             
         logger.info(f"✓ {ticker} 분석 주기 완료.")
