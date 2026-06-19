@@ -778,6 +778,11 @@
         </div>
     </header>
 
+    <!-- Mock 모드 경고 배너 -->
+    <div id="mockWarningBanner" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b; padding: 12px 18px; border-radius: 16px; margin-bottom: 24px; font-size: 13px; font-weight: 500; align-items: center; gap: 8px;">
+        ⚠️ <strong>MOCK 모드 활성화 중</strong>: 토스증권 API 자격증명(Client ID/Secret)이 입력되지 않아, 실제 거래소가 아닌 <strong>가상 난수 시세 및 가상 매칭 체결 모드</strong>로 구동 중입니다. (⚙️ API & 보안 설정에서 키를 등록하면 실제 시세/거래로 전환됩니다.)
+    </div>
+
     <!-- 실시간 자산 평가 현황 헤더 (모든 탭에서 공통 노출) -->
     <div class="metrics-container">
         <div class="metric-card">
@@ -871,7 +876,7 @@
                         </div>
                         <div class="form-group">
                             <label class="tooltip-label">
-                                투자 원금 <span class="tooltip-icon">?</span>
+                                투자 원금 <span id="lblInitialBalanceUnit"></span> <span class="tooltip-icon">?</span>
                                 <span class="tooltip-text">VIRTUAL 및 백테스트 실행 시 성과 추적의 기준점이 될 가상의 초기 예수금입니다.</span>
                             </label>
                             <input type="number" id="cfg_initial_balance" required>
@@ -881,7 +886,7 @@
                     <div class="form-row">
                         <div class="form-group full-width">
                             <label class="tooltip-label">
-                                최대 가용 한도액 (Limit) <span class="tooltip-icon">?</span>
+                                최대 가용 한도액 (Limit) <span id="lblMaxLimitUnit"></span> <span class="tooltip-icon">?</span>
                                 <span class="tooltip-text">보유 잔고가 아무리 많아도 1회 주문당 이 금액 한도 내에서만 현금 매수가 나가며, 미수/신용을 방지합니다.</span>
                             </label>
                             <input type="number" id="cfg_max_investment_limit" required>
@@ -1000,7 +1005,12 @@
         <!-- 하단 레이아웃 (거래이력 & 실시간 봇 로그) -->
         <div class="bottom-layout">
             <div class="panel">
-                <div class="panel-title">체결 거래 이력 (Trade History)</div>
+                <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>체결 거래 이력 (Trade History)</span>
+                    <button class="btn-security-settings" onclick="resetVirtualTrades()" style="padding: 4px 10px; font-size: 11px; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: var(--accent-red); margin-left: auto;">
+                        🗑️ 가상 잔고 초기화
+                    </button>
+                </div>
                 <div class="history-table-container">
                     <table>
                         <thead>
@@ -1238,6 +1248,34 @@
             }
         }
 
+        function updateFormUnits() {
+            const marketSelect = document.getElementById('cfg_market');
+            const market = marketSelect ? marketSelect.value : "US";
+            const unitText = market === "US" ? "($)" : "(₩)";
+            
+            const balanceUnit = document.getElementById('lblInitialBalanceUnit');
+            const limitUnit = document.getElementById('lblMaxLimitUnit');
+            if (balanceUnit) balanceUnit.textContent = unitText;
+            if (limitUnit) limitUnit.textContent = unitText;
+        }
+
+        async function resetVirtualTrades() {
+            if (!confirm("정말로 모든 가상 거래 기록과 누적 평가 잔고를 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.")) {
+                return;
+            }
+            try {
+                const response = await fetch('/vwap/api/reset-trades', { method: 'POST' });
+                if (response.ok) {
+                    alert("가상 거래 내역 및 평가 자산이 초기화되었습니다.");
+                    fetchStatus(); // 상태 즉시 갱신
+                } else {
+                    alert("초기화 실패");
+                }
+            } catch (err) {
+                alert("초기화 오류: " + err);
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", () => {
             loadConfig();
             fetchStatus();
@@ -1250,7 +1288,10 @@
                 tickerInput.addEventListener('input', updateTickerDisplay);
             }
             if (marketSelect) {
-                marketSelect.addEventListener('change', updateTickerDisplay);
+                marketSelect.addEventListener('change', () => {
+                    updateTickerDisplay();
+                    updateFormUnits();
+                });
             }
             
             setInterval(fetchStatus, 2000); // 2초 주기 상태 폴링
@@ -1304,6 +1345,7 @@
 
                     // 종목명 디스플레이 업데이트
                     updateTickerDisplay();
+                    updateFormUnits();
                 }
             } catch (err) {
                 console.error("설정 로드 실패:", err);
@@ -1472,6 +1514,12 @@
             const market = bot.market;
 
             isBotRunning = bot.is_running;
+
+            // Mock 경고 배너 업데이트
+            const mockBanner = document.getElementById('mockWarningBanner');
+            if (mockBanner) {
+                mockBanner.style.display = data.is_mock_mode ? 'flex' : 'none';
+            }
 
             // 모니터링 타이틀에 종목명 표시
             const tickerName = getTickerName(bot.ticker, bot.market);
