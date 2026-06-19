@@ -32,8 +32,6 @@ class VwapStrategy:
         df['price_vol'] = df['close'] * df['volume']
         
         # 각 봉별로 당일 리셋 시점을 기준으로 그룹화(Group)하기 위한 'session_id' 생성
-        # 예: 2026-06-19 22:30:00 가 세션의 시작이면, 그 이전 봉들과 이후 봉들을 구분
-        # 세션 경계(리셋 시간)를 만날 때마다 카운터를 올려 세션 그룹 ID를 부여합니다.
         session_ids = []
         current_session = 0
         
@@ -70,10 +68,72 @@ class VwapStrategy:
         # 누적 거래량이 0인 에러 방지 처리 후 VWAP 계산
         df['vwap'] = np.where(df['cum_vol'] > 0, df['cum_pv'] / df['cum_vol'], df['close'])
         
+        # VWAP 표준편차 (Volume Weighted Standard Deviation) 계산
+        df['price_vwap_diff_sq'] = df['volume'] * ((df['close'] - df['vwap']) ** 2)
+        df['cum_diff_sq'] = df.groupby('session_id')['price_vwap_diff_sq'].cumsum()
+        df['cum_vol_stdev'] = df.groupby('session_id')['volume'].cumsum()
+        df['vwap_stdev'] = np.sqrt(np.where(df['cum_vol_stdev'] > 0, df['cum_diff_sq'] / df['cum_vol_stdev'], 0))
+        
+        # 보조 지표 계산 (RSI & ADX)
+        df['rsi'] = VwapStrategy.calculate_rsi(df, period=14)
+        df['adx'] = VwapStrategy.calculate_adx(df, period=14)
+
         # 임시 컬럼 삭제
-        df.drop(columns=['price_vol', 'session_id', 'cum_pv', 'cum_vol'], inplace=True, errors='ignore')
+        df.drop(columns=[
+            'price_vol', 'session_id', 'cum_pv', 'cum_vol', 
+            'price_vwap_diff_sq', 'cum_diff_sq', 'cum_vol_stdev'
+        ], inplace=True, errors='ignore')
         
         return df
+
+    @staticmethod
+    def calculate_rsi(df: pd.DataFrame, period: int = 14) -> pd.Series:
+        """RSI(상대강도지수)를 웰더스 EMA 기반으로 계산합니다."""
+        if len(df) < period + 1:
+            return pd.Series(50.0, index=df.index)
+        
+        delta = df['close'].diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        
+        avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
+        
+        rs = avg_gain / (avg_loss + 1e-9)
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+
+    @staticmethod
+    def calculate_adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+        """ADX(평균 방향성 지수)를 계산하여 반환합니다."""
+        if len(df) < period * 2:
+            return pd.Series(0.0, index=df.index)
+            
+        high = df['high']
+        low = df['low']
+        close = df['close']
+        
+        tr1 = high - low
+        tr2 = (high - close.shift(1)).abs()
+        tr3 = (low - close.shift(1)).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        
+        up_move = high.diff()
+        down_move = low.shift(1) - low
+        
+        plus_dm = pd.Series(0.0, index=df.index)
+        minus_dm = pd.Series(0.0, index=df.index)
+        
+        plus_dm.loc[(up_move > down_move) & (up_move > 0)] = up_move
+        minus_dm.loc[(down_move > up_move) & (down_move > 0)] = down_move
+        
+        atr = tr.ewm(alpha=1/period, adjust=False).mean()
+        plus_di = 100 * plus_dm.ewm(alpha=1/period, adjust=False).mean() / (atr + 1e-9)
+        minus_di = 100 * minus_dm.ewm(alpha=1/period, adjust=False).mean() / (atr + 1e-9)
+        
+        dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di + 1e-9)
+        adx = dx.ewm(alpha=1/period, adjust=False).mean()
+        return adx
 
     @staticmethod
     def get_signals(df: pd.DataFrame, 
@@ -81,7 +141,13 @@ class VwapStrategy:
                     m_percent: float, 
                     x_percent: float, 
                     position_qty: float, 
-                    entry_price: float) -> dict:
+                    entry_price: float,
+                    use_adx_filter: bool = False,
+                    adx_threshold: float = 25.0,
+                    use_rsi_filter: bool = False,
+                    rsi_threshold: float = 30.0,
+                    use_vwap_band: bool = False,
+                    vwap_band_sigma: float = 2.0) -> dict:
         """
         가장 최신 봉 데이터를 기반으로 진입/청산/손절 조건 및 지정가 타겟 가격을 연산합니다.
         
@@ -92,6 +158,12 @@ class VwapStrategy:
         - x_percent: 손절 비율 (X%)
         - position_qty: 현재 보유 수량 (0이면 무포지션)
         - entry_price: 보유 중일 때의 평균 매수 단가
+        - use_adx_filter: ADX 추세 필터 사용 여부
+        - adx_threshold: ADX 임계값
+        - use_rsi_filter: RSI 과매도 필터 사용 여부
+        - rsi_threshold: RSI 임계값
+        - use_vwap_band: VWAP 표준편차 밴드 사용 여부
+        - vwap_band_sigma: 시그마 배수
         
         Returns dict:
         {
@@ -100,7 +172,10 @@ class VwapStrategy:
             "current_price": 최신 종가,
             "target_buy_price": 매수지정가 타겟,
             "target_sell_price": 매도지정가 타겟,
-            "stop_loss_price": 손절가
+            "stop_loss_price": 손절가,
+            "adx": 최신 ADX 수치,
+            "rsi": 최신 RSI 수치,
+            "vwap_stdev": 최신 표준편차 수치
         }
         """
         if df.empty or 'vwap' not in df.columns:
@@ -110,9 +185,14 @@ class VwapStrategy:
         current_price = float(latest['close'])
         vwap = float(latest['vwap'])
 
-        # 타겟 가격 산출
-        target_buy_price = vwap * (1.0 - n_percent / 100.0)
-        target_sell_price = vwap * (1.0 + m_percent / 100.0)
+        # 타겟 가격 산출 (표준편차 밴드 또는 고정 퍼센트 방식 분기)
+        if use_vwap_band and 'vwap_stdev' in latest:
+            vwap_stdev = float(latest['vwap_stdev'])
+            target_buy_price = vwap - (vwap_band_sigma * vwap_stdev)
+            target_sell_price = vwap + (vwap_band_sigma * vwap_stdev)
+        else:
+            target_buy_price = vwap * (1.0 - n_percent / 100.0)
+            target_sell_price = vwap * (1.0 + m_percent / 100.0)
         
         # 1원/0.01달러 단위 정밀도를 위한 라운딩 (필요시 호출부에서 호가 단위로 보정 가능)
         target_buy_price = round(target_buy_price, 2)
@@ -138,11 +218,25 @@ class VwapStrategy:
             # 포지션이 없는 경우 -> 매수 조건 체크
             # 현재가가 VWAP보다 아래에 위치해 있을 때 매수 조건 감시
             if current_price < vwap:
-                # 실제로 현재가가 타겟 매수가 이하로 떨어졌을 때 진입 (혹은 주문 감시)
-                # 봇 루프에서는 매수 준비를 위해 'Target Buy Price'에 지정가를 계속 배치함.
                 signal = "BUY"
+                
+                # ADX 추세 필터링 (ADX가 높으면 강력한 원웨이 추세장이므로 진입 보류)
+                if use_adx_filter and 'adx' in latest:
+                    adx = float(latest['adx'])
+                    if adx >= adx_threshold:
+                        signal = "WAIT"
+                
+                # RSI 과매도 필터링 (RSI가 threshold 이하로 낮아야만 매수 진입)
+                if use_rsi_filter and 'rsi' in latest:
+                    rsi = float(latest['rsi'])
+                    if rsi > rsi_threshold:
+                        signal = "WAIT"
             else:
                 signal = "WAIT"
+
+        adx_val = float(latest['adx']) if 'adx' in latest else 0.0
+        rsi_val = float(latest['rsi']) if 'rsi' in latest else 50.0
+        stdev_val = float(latest['vwap_stdev']) if 'vwap_stdev' in latest else 0.0
 
         return {
             "signal": signal,
@@ -150,5 +244,8 @@ class VwapStrategy:
             "current_price": current_price,
             "target_buy_price": target_buy_price,
             "target_sell_price": target_sell_price,
-            "stop_loss_price": stop_loss_price
+            "stop_loss_price": stop_loss_price,
+            "adx": round(adx_val, 2),
+            "rsi": round(rsi_val, 2),
+            "vwap_stdev": round(stdev_val, 2)
         }

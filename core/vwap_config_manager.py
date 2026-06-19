@@ -26,6 +26,14 @@ class VwapConfigManager:
             "initial_balance": 10000000.0,  # 가상 투자 초기 자본 (원화 또는 USD 기준)
             "max_daily_loss_limit": 5.0,    # 당일 최대 손실 한도 %
             "reset_time": "22:30",          # VWAP 누적 리셋 시각 (HH:MM)
+            "use_adx_filter": False,        # ADX 추세 필터 사용 여부
+            "adx_period": 14,               # ADX 기간
+            "adx_threshold": 25.0,          # ADX 진입제한 임계값
+            "use_rsi_filter": False,        # RSI 과매도 필터 사용 여부
+            "rsi_period": 14,               # RSI 기간
+            "rsi_threshold": 30.0,          # RSI 진입제한 임계값 (이하일 때만 매수)
+            "use_vwap_band": False,         # VWAP 표준편차 밴드 사용 여부
+            "vwap_band_sigma": 2.0,         # VWAP 밴드 시그마 승수
             "toss_client_id": "",           # 토스 Client ID
             "toss_client_secret": "",       # 토스 Client Secret (암호화 대상)
             "toss_account_seq": "",         # 토스 계좌식별자 (암호화 대상)

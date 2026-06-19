@@ -927,6 +927,72 @@
                         </div>
                     </div>
 
+                    <!-- 보조 지표 및 필터 설정 영역 -->
+                    <div style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                        <div style="font-size: 13px; font-weight: 700; margin-bottom: 12px; color: #a78bfa; display: flex; align-items: center; gap: 6px;">
+                            ⚙️ 보조 필터 & 표준편차 밴드 설정
+                        </div>
+                        
+                        <!-- 1. ADX 필터 -->
+                        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <label class="tooltip-label" style="font-size: 11px; color: var(--text-primary); text-transform: none;">
+                                    ADX 추세 차단 필터 <span class="tooltip-icon">?</span>
+                                    <span class="tooltip-text">ADX가 임계값 이상인 강한 추세장(원웨이)에서는 역추세 매매 손실 방지를 위해 진입을 차단합니다.</span>
+                                </label>
+                                <input type="checkbox" id="cfg_use_adx_filter" style="width: 16px; height: 16px; cursor: pointer;">
+                            </div>
+                            <div class="form-row" style="margin-top: 8px;">
+                                <div class="form-group">
+                                    <label class="tooltip-label" style="font-size: 9px;">ADX 기간 (Period)</label>
+                                    <input type="number" id="cfg_adx_period" min="2" max="100" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="tooltip-label" style="font-size: 9px;">진입차단 임계값</label>
+                                    <input type="number" step="0.1" id="cfg_adx_threshold" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. RSI 필터 -->
+                        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <label class="tooltip-label" style="font-size: 11px; color: var(--text-primary); text-transform: none;">
+                                    RSI 과매도 진입 필터 <span class="tooltip-icon">?</span>
+                                    <span class="tooltip-text">매수 시점에 RSI가 설정치 이하(과매도 구간)일 때만 지정가 주문을 활성화합니다.</span>
+                                </label>
+                                <input type="checkbox" id="cfg_use_rsi_filter" style="width: 16px; height: 16px; cursor: pointer;">
+                            </div>
+                            <div class="form-row" style="margin-top: 8px;">
+                                <div class="form-group">
+                                    <label class="tooltip-label" style="font-size: 9px;">RSI 기간 (Period)</label>
+                                    <input type="number" id="cfg_rsi_period" min="2" max="100" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="tooltip-label" style="font-size: 9px;">과매도 임계값</label>
+                                    <input type="number" step="0.1" id="cfg_rsi_threshold" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. VWAP 표준편차 밴드 -->
+                        <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <label class="tooltip-label" style="font-size: 11px; color: var(--text-primary); text-transform: none;">
+                                    VWAP 표준편차 밴드 사용 <span class="tooltip-icon">?</span>
+                                    <span class="tooltip-text">고정 이격률(N%) 대신 볼린저 밴드처럼 실시간 가격 표준편차(시그마)를 곱해 밴드를 구하고 이를 매수/매도 지정가 타겟으로 씁니다.</span>
+                                </label>
+                                <input type="checkbox" id="cfg_use_vwap_band" style="width: 16px; height: 16px; cursor: pointer;">
+                            </div>
+                            <div class="form-row" style="margin-top: 8px;">
+                                <div class="form-group full-width">
+                                    <label class="tooltip-label" style="font-size: 9px;">시그마 승수 (Sigma Multiplier)</label>
+                                    <input type="number" step="0.05" id="cfg_vwap_band_sigma" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <button type="submit" class="btn-submit-config">매매 파라미터 동적 저장</button>
                 </form>
             </div>
@@ -966,6 +1032,22 @@
                     <div class="status-box" style="border-color: rgba(245, 158, 11, 0.2);">
                         <div class="status-box-title" style="color: var(--accent-yellow);">매도 타겟 (VWAP+M%)</div>
                         <div class="status-box-value" id="valTargetSellPrice" style="color: var(--accent-yellow);">₩0</div>
+                    </div>
+                </div>
+
+                <!-- 실시간 보조 지표 현황판 -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: -10px; margin-bottom: 20px; font-size: 11px; font-weight: 500;">
+                    <div style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; text-align: center;">
+                        <span style="color: var(--text-secondary); display: block; font-size: 10px; margin-bottom: 4px;">RSI 강도</span>
+                        <strong id="valRsi" style="font-size: 14px; color: var(--accent-blue);">50.0</strong>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; text-align: center;">
+                        <span style="color: var(--text-secondary); display: block; font-size: 10px; margin-bottom: 4px;">ADX 추세</span>
+                        <strong id="valAdx" style="font-size: 14px; color: var(--accent-purple);">0.0</strong>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; text-align: center;">
+                        <span style="color: var(--text-secondary); display: block; font-size: 10px; margin-bottom: 4px;">VWAP 편차 (σ)</span>
+                        <strong id="valVwapStdev" style="font-size: 14px; color: var(--accent-yellow);">0.00</strong>
                     </div>
                 </div>
 
@@ -1336,6 +1418,16 @@
                     document.getElementById('cfg_k_percent').value = cfg.k_percent;
                     document.getElementById('cfg_max_daily_loss_limit').value = cfg.max_daily_loss_limit || 5.0;
                     
+                    // 보조 지표 폼 바인딩
+                    document.getElementById('cfg_use_adx_filter').checked = cfg.use_adx_filter;
+                    document.getElementById('cfg_adx_period').value = cfg.adx_period || 14;
+                    document.getElementById('cfg_adx_threshold').value = cfg.adx_threshold || 25.0;
+                    document.getElementById('cfg_use_rsi_filter').checked = cfg.use_rsi_filter;
+                    document.getElementById('cfg_rsi_period').value = cfg.rsi_period || 14;
+                    document.getElementById('cfg_rsi_threshold').value = cfg.rsi_threshold || 30.0;
+                    document.getElementById('cfg_use_vwap_band').checked = cfg.use_vwap_band;
+                    document.getElementById('cfg_vwap_band_sigma').value = cfg.vwap_band_sigma || 2.0;
+
                     // 보안 모달 필드
                     document.getElementById('sec_toss_client_id').value = cfg.toss_client_id;
                     document.getElementById('sec_toss_client_secret').value = cfg.toss_client_secret;
@@ -1365,7 +1457,15 @@
                 m_percent: parseFloat(document.getElementById('cfg_m_percent').value),
                 x_percent: parseFloat(document.getElementById('cfg_x_percent').value),
                 k_percent: parseFloat(document.getElementById('cfg_k_percent').value),
-                max_daily_loss_limit: parseFloat(document.getElementById('cfg_max_daily_loss_limit').value)
+                max_daily_loss_limit: parseFloat(document.getElementById('cfg_max_daily_loss_limit').value),
+                use_adx_filter: document.getElementById('cfg_use_adx_filter').checked,
+                adx_period: parseInt(document.getElementById('cfg_adx_period').value),
+                adx_threshold: parseFloat(document.getElementById('cfg_adx_threshold').value),
+                use_rsi_filter: document.getElementById('cfg_use_rsi_filter').checked,
+                rsi_period: parseInt(document.getElementById('cfg_rsi_period').value),
+                rsi_threshold: parseFloat(document.getElementById('cfg_rsi_threshold').value),
+                use_vwap_band: document.getElementById('cfg_use_vwap_band').checked,
+                vwap_band_sigma: parseFloat(document.getElementById('cfg_vwap_band_sigma').value)
             };
 
             try {
@@ -1593,6 +1693,23 @@
             document.getElementById('valVwap').textContent = formatCurrency(bot.vwap, market);
             document.getElementById('valTargetBuyPrice').textContent = formatCurrency(bot.target_buy_price, market);
             document.getElementById('valTargetSellPrice').textContent = formatCurrency(bot.target_sell_price, market);
+
+            // 실시간 보조 지표 렌더링
+            const rsiEl = document.getElementById('valRsi');
+            const adxEl = document.getElementById('valAdx');
+            const stdevEl = document.getElementById('valVwapStdev');
+            
+            if (rsiEl) {
+                rsiEl.textContent = bot.rsi ? bot.rsi.toFixed(1) : "-";
+                rsiEl.style.color = (bot.rsi <= 30) ? "var(--accent-green)" : "var(--accent-blue)";
+            }
+            if (adxEl) {
+                adxEl.textContent = bot.adx ? bot.adx.toFixed(1) : "-";
+                adxEl.style.color = (bot.adx >= 25) ? "var(--accent-red)" : "var(--accent-purple)";
+            }
+            if (stdevEl) {
+                stdevEl.textContent = bot.vwap_stdev ? formatCurrency(bot.vwap_stdev, market) : "-";
+            }
 
             // 시그널 배지
             const badge = document.getElementById('valSignal');
