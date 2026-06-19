@@ -886,10 +886,10 @@
                     <div class="form-row">
                         <div class="form-group full-width">
                             <label class="tooltip-label">
-                                최대 가용 한도액 (Limit) <span id="lblMaxLimitUnit"></span> <span class="tooltip-icon">?</span>
-                                <span class="tooltip-text">보유 잔고가 아무리 많아도 1회 주문당 이 금액 한도 내에서만 현금 매수가 나가며, 미수/신용을 방지합니다.</span>
+                                당일 최대 손실 한도 (%) <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text">로직 오류나 폭락장 발생 시, 당일 기준 자산 대비 설정된 % 이상의 손실이 나면 봇이 모든 주문을 취소하고 보유 종목을 시장가로 전량 매도 청산(Panic Sell)한 뒤 즉각 강제 정지됩니다.</span>
                             </label>
-                            <input type="number" id="cfg_max_investment_limit" required>
+                            <input type="number" step="0.1" id="cfg_max_daily_loss_limit" required>
                         </div>
                     </div>
 
@@ -1254,9 +1254,7 @@
             const unitText = market === "US" ? "($)" : "(₩)";
             
             const balanceUnit = document.getElementById('lblInitialBalanceUnit');
-            const limitUnit = document.getElementById('lblMaxLimitUnit');
             if (balanceUnit) balanceUnit.textContent = unitText;
-            if (limitUnit) limitUnit.textContent = unitText;
         }
 
         async function resetVirtualTrades() {
@@ -1336,7 +1334,7 @@
                     document.getElementById('cfg_m_percent').value = cfg.m_percent;
                     document.getElementById('cfg_x_percent').value = cfg.x_percent;
                     document.getElementById('cfg_k_percent').value = cfg.k_percent;
-                    document.getElementById('cfg_max_investment_limit').value = cfg.max_investment_limit || 5000000;
+                    document.getElementById('cfg_max_daily_loss_limit').value = cfg.max_daily_loss_limit || 5.0;
                     
                     // 보안 모달 필드
                     document.getElementById('sec_toss_client_id').value = cfg.toss_client_id;
@@ -1367,7 +1365,7 @@
                 m_percent: parseFloat(document.getElementById('cfg_m_percent').value),
                 x_percent: parseFloat(document.getElementById('cfg_x_percent').value),
                 k_percent: parseFloat(document.getElementById('cfg_k_percent').value),
-                max_investment_limit: parseFloat(document.getElementById('cfg_max_investment_limit').value)
+                max_daily_loss_limit: parseFloat(document.getElementById('cfg_max_daily_loss_limit').value)
             };
 
             try {
