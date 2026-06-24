@@ -43,8 +43,8 @@ class VwapConfigManager:
     @classmethod
     def load_config(cls) -> dict:
         """설정을 로드합니다. env -> json 파일 순으로 우선순위 결합 및 복호화."""
-        # .env 강제 로드
-        load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+        # .env 강제 로드 (기존 시스템 환경 변수 덮어쓰기 허용)
+        load_dotenv(os.path.join(PROJECT_ROOT, ".env"), override=True)
 
         config = cls.get_default_config()
 
@@ -75,6 +75,9 @@ class VwapConfigManager:
                 # 파일에 기록된 값으로 덮어씀
                 for k, v in file_config.items():
                     if k in config:
+                        # 이미 환경변수로 채워진 값이 있고 파일의 값이 비어있으면 덮어쓰지 않음
+                        if config[k] and (v == "" or v is None):
+                            continue
                         config[k] = v
 
                 # 민감한 정보는 복호화하여 인메모리에 보관
