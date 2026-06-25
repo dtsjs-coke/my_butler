@@ -318,7 +318,7 @@ class VirtualBroker(Broker):
 
     def _sync_balance_from_trades(self):
         """로컬 vwap_trades.json 이력으로부터 가상 잔고 및 보유 종목 상태를 재구축합니다."""
-        trades = VwapConfigManager.load_trades()
+        trades = VwapConfigManager.load_trades("VIRTUAL")
         self.cash = self.initial_balance
         self.holdings = {}
         
@@ -482,7 +482,7 @@ class VirtualBroker(Broker):
                 "pnl": round(pnl, 2),
                 "roi": round(roi, 2)
             }
-            VwapConfigManager.add_trade(trade_record)
+            VwapConfigManager.add_trade(trade_record, "VIRTUAL")
 
     def force_market_stop_loss(self, ticker: str, current_price: float):
         """손절 시그널 감지 시 즉시 가상 포지션을 시장가로 전량 매도 청산합니다."""
@@ -516,5 +516,5 @@ class VirtualBroker(Broker):
             "pnl": round(pnl, 2),
             "roi": round(roi, 2)
         }
-        VwapConfigManager.add_trade(trade_record)
+        VwapConfigManager.add_trade(trade_record, "VIRTUAL")
         print(f"🚨 [VirtualBroker] 손절 시장가 청산 집행 완료: {ticker} {qty}주 @ {current_price:.2f} (손익: {pnl:+.2f}, 수익률: {roi:+.2f}%)")

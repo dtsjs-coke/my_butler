@@ -8,21 +8,24 @@ from core.vwap_config_manager import VwapConfigManager
 from core.vwap_broker import TossBroker, VirtualBroker
 from core.vwap_strategy import VwapStrategy
 
-# 로그 디렉토리 및 파일 설정
+# 프로젝트 루트 경로
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOG_PATH = os.path.join(PROJECT_ROOT, "trading_bot.log")
+LOG_PATH = os.path.join(PROJECT_ROOT, "trading_bot_virtual.log")
 
-def setup_logger():
+def setup_logger(mode="VIRTUAL"):
     """트레이딩 봇 전용 파일 및 콘솔 로거를 설정합니다."""
-    logger = logging.getLogger("vwap_bot")
+    logger_name = f"vwap_bot_{mode.lower()}"
+    logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
     
     # 중복 추가 방지
     if logger.handlers:
         return logger
 
+    log_path = os.path.join(PROJECT_ROOT, f"trading_bot_{mode.lower()}.log")
+
     # 파일 핸들러 (UTF-8 인코딩)
-    file_handler = logging.FileHandler(LOG_PATH, encoding="utf-8")
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
     file_handler.setLevel(logging.INFO)
     
     # 콘솔 핸들러
@@ -39,21 +42,21 @@ def setup_logger():
     
     return logger
 
-logger = setup_logger()
-
 
 class VWAPBot:
-    def __init__(self):
+    def __init__(self, mode="VIRTUAL"):
+        self.mode = mode.upper()  # "VIRTUAL" 또는 "REAL"
         self.running = False
         self.thread = None
         self._lock = threading.Lock()
         self.daily_baseline_asset = 0.0
         self.last_baseline_date = ""
+        self.logger = setup_logger(self.mode)
         
         # 봇 상태 캐시 (웹 대시보드 API 조회용)
         self.status_cache = {
             "is_running": False,
-            "mode": "VIRTUAL",
+            "mode": self.mode,
             "ticker": "AAPL",
             "market": "US",
             "current_price": 0.0,
@@ -74,12 +77,15 @@ class VWAPBot:
         # 브로커 캐시
         self.real_broker = None
         self.virtual_broker = None
+        
+        # 실거래 주문 체결 감지를 위한 미체결 주문 목록 추적
+        self.tracked_open_orders = {}  # {order_id: {"ticker": ticker, "side": side, "price": price, "qty": qty}}
 
     def start(self):
         """트레이딩 봇 백그라운드 스레드를 시작합니다."""
         with self._lock:
             if self.running:
-                logger.warning("트레이딩 봇이 이미 가동 중입니다.")
+                self.logger.warning(f"[{self.mode} 봇] 이미 가동 중입니다.")
                 return False
             
             self.running = True
@@ -87,18 +93,18 @@ class VWAPBot:
             self.last_baseline_date = ""
             self.thread = threading.Thread(target=self._run_loop, daemon=True)
             self.thread.start()
-            logger.info("⚡ 트레이딩 봇 백그라운드 엔진이 시작되었습니다.")
+            self.logger.info(f"⚡ [{self.mode} 봇] 백그라운드 엔진이 시작되었습니다.")
             return True
 
     def stop(self):
         """트레이딩 봇 백그라운드 스레드를 종료합니다."""
         with self._lock:
             if not self.running:
-                logger.warning("트레이딩 봇이 작동 중이 아닙니다.")
+                self.logger.warning(f"[{self.mode} 봇] 작동 중이 아닙니다.")
                 return False
             
             self.running = False
-            logger.info("🛑 트레이딩 봇 백그라운드 엔진 정지 요청이 접수되었습니다.")
+            self.logger.info(f"🛑 [{self.mode} 봇] 백그라운드 엔진 정지 요청이 접수되었습니다.")
             return True
 
     def get_status(self) -> dict:
@@ -108,51 +114,51 @@ class VWAPBot:
 
     def _run_loop(self):
         """백그라운드 스레드에서 무한 루프로 실행되는 메인 봇 주기 실행부입니다."""
-        logger.info("트레이딩 봇 루프 스레드가 기동되었습니다.")
+        self.logger.info(f"[{self.mode} 봇] 루프 스레드가 기동되었습니다.")
         
         while self.running:
             try:
                 self._loop_step()
             except Exception as e:
-                logger.error(f"❌ 봇 루프 실행 중 에러 발생: {e}")
-                logger.error(traceback.format_exc())
+                self.logger.error(f"❌ [{self.mode} 봇] 루프 실행 중 에러 발생: {e}")
+                self.logger.error(traceback.format_exc())
             
-            # 1분 단위로 주기적 실행 (테스트 및 실시간 반응을 위해 폴링 딜레이)
-            # 사용자가 강제 중지했을 때 즉각 루프를 탈출하기 위해 1초씩 나눠서 슬립 수행
+            # 1분 단위로 주기적 실행
             for _ in range(60):
                 if not self.running:
                     break
                 time.sleep(1)
                 
-        logger.info("트레이딩 봇 루프 스레드가 완전히 종료되었습니다.")
+        self.logger.info(f"[{self.mode} 봇] 루프 스레드가 완전히 종료되었습니다.")
 
     def _loop_step(self):
         """한 주기의 전략 계산 및 주문 정정 작업을 수행합니다."""
         # 1. 설정 실시간 로드
         config = VwapConfigManager.load_config()
         
-        mode = config["mode"]
-        ticker = config["ticker"]
-        market = config["market"]
-        interval = config["interval"]
-        n_percent = float(config["n_percent"])
-        m_percent = float(config["m_percent"])
-        x_percent = float(config["x_percent"])
-        k_percent = float(config["k_percent"])
-        reset_time = config["reset_time"]
-        initial_balance = float(config["initial_balance"])
-        max_daily_loss_limit = float(config.get("max_daily_loss_limit", 5.0))
+        mode = self.mode
+        mode_prefix = mode.lower()
+        
+        ticker = config[f"{mode_prefix}_ticker"]
+        market = config[f"{mode_prefix}_market"]
+        interval = config[f"{mode_prefix}_interval"]
+        n_percent = float(config[f"{mode_prefix}_n_percent"])
+        m_percent = float(config[f"{mode_prefix}_m_percent"])
+        x_percent = float(config[f"{mode_prefix}_x_percent"])
+        k_percent = float(config[f"{mode_prefix}_k_percent"])
+        reset_time = config[f"{mode_prefix}_reset_time"]
+        initial_balance = float(config[f"{mode_prefix}_initial_balance"])
+        max_daily_loss_limit = float(config.get(f"{mode_prefix}_max_daily_loss_limit", 5.0))
         
         # 보조 지표 파라미터 로드
-        use_adx_filter = bool(config.get("use_adx_filter", False))
-        adx_threshold = float(config.get("adx_threshold", 25.0))
-        use_rsi_filter = bool(config.get("use_rsi_filter", False))
-        rsi_threshold = float(config.get("rsi_threshold", 30.0))
-        use_vwap_band = bool(config.get("use_vwap_band", False))
-        vwap_band_sigma = float(config.get("vwap_band_sigma", 2.0))
+        use_adx_filter = bool(config.get(f"{mode_prefix}_use_adx_filter", False))
+        adx_threshold = float(config.get(f"{mode_prefix}_adx_threshold", 25.0))
+        use_rsi_filter = bool(config.get(f"{mode_prefix}_use_rsi_filter", False))
+        rsi_threshold = float(config.get(f"{mode_prefix}_rsi_threshold", 30.0))
+        use_vwap_band = bool(config.get(f"{mode_prefix}_use_vwap_band", False))
+        vwap_band_sigma = float(config.get(f"{mode_prefix}_vwap_band_sigma", 2.0))
 
         # 2. 브로커 초기화 및 스위칭
-        # 실거래 브로커는 API 토큰 관리를 위해 1회 생성 유지
         if (not self.real_broker or 
             self.real_broker.client_id != config["toss_client_id"] or 
             self.real_broker.client_secret != config["toss_client_secret"] or 
@@ -174,12 +180,12 @@ class VWAPBot:
         # 현재 실행 모드에 맞는 브로커 선택
         broker = self.real_broker if mode == "REAL" else self.virtual_broker
 
-        logger.info(f"▶ [{mode} 모드] {ticker} ({market}) 전략 분석 주기 시작...")
+        self.logger.info(f"▶ [{mode} 모드] {ticker} ({market}) 전략 분석 주기 시작...")
 
         # 3. 최신 캔들 수집
         df = broker.get_candles(ticker, interval, 150)
         if df.empty:
-            logger.error(f"[{ticker}] 캔들 데이터를 가져오지 못했습니다. 다음 주기에 재시도합니다.")
+            self.logger.error(f"[{ticker}] 캔들 데이터를 가져오지 못했습니다. 다음 주기에 재시도합니다.")
             return
 
         # 4. 실시간 VWAP 계산
@@ -212,7 +218,7 @@ class VWAPBot:
         if self.daily_baseline_asset <= 0.0 or self.last_baseline_date != now_date:
             self.daily_baseline_asset = total_asset
             self.last_baseline_date = now_date
-            logger.info(f"🎯 당일 기준 자산(Baseline)이 설정되었습니다: {self.daily_baseline_asset:.2f} ({now_date})")
+            self.logger.info(f"🎯 당일 기준 자산(Baseline)이 설정되었습니다: {self.daily_baseline_asset:.2f} ({now_date})")
 
         # 손실 감지 시 강제 청산
         if self.daily_baseline_asset > 0.0:
@@ -220,13 +226,14 @@ class VWAPBot:
             loss_rate = (loss_amount / self.daily_baseline_asset) * 100.0
             
             if loss_rate >= max_daily_loss_limit:
-                logger.error(f"🚨🚨 [당일 손실 한도 초과] 당일 기준 자산({self.daily_baseline_asset:.2f}) 대비 손실률 {loss_rate:.2f}% 발생! (한도: {max_daily_loss_limit:.2f}%)")
-                logger.error(f"🚨 즉각 모든 미체결 주문 취소 및 보유 주식 전량 시장가 매도(Panic Sell & Stop)를 감행하고 봇을 강제 정지합니다.")
+                self.logger.error(f"🚨🚨 [당일 손실 한도 초과] 당일 기준 자산({self.daily_baseline_asset:.2f}) 대비 손실률 {loss_rate:.2f}% 발생! (한도: {max_daily_loss_limit:.2f}%)")
+                self.logger.error(f"🚨 즉각 모든 미체결 주문 취소 및 보유 주식 전량 시장가 매도(Panic Sell & Stop)를 감행하고 봇을 강제 정지합니다.")
                 
                 # 미체결 주문 전체 취소
                 open_orders = broker.get_open_orders(ticker)
                 for order in open_orders:
-                    broker.cancel_order(order["order_id"])
+                    if broker.cancel_order(order["order_id"]):
+                        self.tracked_open_orders.pop(order["order_id"], None)
                     
                 # 보유 주식 시장가 전량 청산
                 if qty > 0:
@@ -236,7 +243,7 @@ class VWAPBot:
                         broker.place_order(ticker, "SELL", 0.0, qty, "MARKET")
                 
                 self.running = False
-                logger.error("🛑 당일 손실 한도 초과로 인해 봇 백그라운드 엔진이 정지(STOP)되었습니다.")
+                self.logger.error("🛑 당일 손실 한도 초과로 인해 봇 백그라운드 엔진이 정지(STOP)되었습니다.")
                 return
 
         # 7. 전략 시그널 도출
@@ -255,108 +262,141 @@ class VWAPBot:
         target_sell_price = signals["target_sell_price"]
         stop_loss_price = signals["stop_loss_price"]
 
-        logger.info(f"현재가: {current_price:.2f} | VWAP: {vwap:.2f} | 시그널: {signal}")
+        self.logger.info(f"현재가: {current_price:.2f} | VWAP: {vwap:.2f} | 시그널: {signal}")
         if qty > 0:
-            logger.info(f"보유량: {qty}주 | 평단가: {entry_price:.2f} | 청산타겟: {target_sell_price:.2f} | 손절가: {stop_loss_price:.2f}")
+            self.logger.info(f"보유량: {qty}주 | 평단가: {entry_price:.2f} | 청산타겟: {target_sell_price:.2f} | 손절가: {stop_loss_price:.2f}")
         else:
-            logger.info(f"진입타겟: {target_buy_price:.2f}")
+            self.logger.info(f"진입타겟: {target_buy_price:.2f}")
 
-        # 8. 미체결 지정가 주문 조회
+        # 8. 미체결 지정가 주문 조회 및 실거래 체결 이력 트래킹
         open_orders = broker.get_open_orders(ticker)
+
+        if mode == "REAL":
+            # 8-1. 현재 오픈 주문 목록을 받아와서 누락된(체결된) 주문 감지
+            current_open_ids = {o["order_id"] for o in open_orders}
+            
+            for prev_id, oinfo in list(self.tracked_open_orders.items()):
+                # 추적 중이던 주문이 미체결 목록에서 사라진 경우 -> 실제 체결로 판정
+                if prev_id not in current_open_ids:
+                    # P&L 계산 (매도 주문 체결 시 매수 평단가 대비 수익 실현 계산)
+                    pnl = 0.0
+                    roi = 0.0
+                    if oinfo["side"] == "SELL" and entry_price > 0:
+                        pnl = (oinfo["price"] - entry_price) * oinfo["qty"]
+                        roi = (pnl / (entry_price * oinfo["qty"])) * 100.0
+                    
+                    trade_record = {
+                        "trade_id": prev_id,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "ticker": oinfo["ticker"],
+                        "side": oinfo["side"],
+                        "price": oinfo["price"],
+                        "qty": oinfo["qty"],
+                        "pnl": round(pnl, 2),
+                        "roi": round(roi, 2)
+                    }
+                    VwapConfigManager.add_trade(trade_record, "REAL")
+                    self.logger.info(f"🎉 [실거래 체결 감지] {oinfo['side']} 체결 완료: {oinfo['ticker']} {oinfo['qty']}주 @ {oinfo['price']:.2f} (손익: {pnl:+.2f})")
+                    self.tracked_open_orders.pop(prev_id, None)
+
+            # 8-2. 현재 오픈 주문 중 추적 리스트에 없는 항목 신규 등록
+            for o in open_orders:
+                if o["order_id"] not in self.tracked_open_orders:
+                    self.tracked_open_orders[o["order_id"]] = {
+                        "ticker": o["ticker"],
+                        "side": o["side"],
+                        "price": o["price"],
+                        "qty": o["qty"]
+                    }
 
         # 9. 주문 집행 및 Cancel & Replace 정정 메커니즘
         
         # 9-1. 손절 조건 판정 (STOP_LOSS)
         if signal == "STOP_LOSS":
-            logger.warning(f"🚨 손절 기준선({stop_loss_price:.2f}) 하향 이탈! 즉시 시장가 청산을 시도합니다.")
-            # 가상 모드 손절
+            self.logger.warning(f"🚨 손절 기준선({stop_loss_price:.2f}) 하향 이탈! 즉시 시장가 청산을 시도합니다.")
             if mode == "VIRTUAL":
                 self.virtual_broker.force_market_stop_loss(ticker, current_price)
-            # 실거래 모드 손절
             else:
                 # 미체결 주문 전체 취소
                 for order in open_orders:
-                    broker.cancel_order(order["order_id"])
+                    if broker.cancel_order(order["order_id"]):
+                        self.tracked_open_orders.pop(order["order_id"], None)
                 # 즉시 시장가 전량 매도 주문 제출
                 order_id = broker.place_order(ticker, "SELL", 0.0, qty, "MARKET")
                 if order_id:
-                    logger.info(f"정상 시장가 손절 주문 제출 성공. (ID: {order_id})")
+                    self.logger.info(f"정상 시장가 손절 주문 제출 성공. (ID: {order_id})")
             return
 
         # 9-2. 매도 청산 시그널 (SELL)
         elif signal == "SELL":
-            # 이미 들어간 매도 주문 검색
             sell_orders = [o for o in open_orders if o["side"] == "SELL"]
             
             if sell_orders:
                 existing_order = sell_orders[0]
-                # 기존 주문 가격과 새로운 타겟 매도가 비교
                 if abs(existing_order["price"] - target_sell_price) > 0.01:
-                    logger.info(f"🔄 VWAP 변동 감지! 매도 주문 정정 수행: {existing_order['price']:.2f} -> {target_sell_price:.2f}")
-                    # Cancel & Replace
+                    self.logger.info(f"🔄 VWAP 변동 감지! 매도 주문 정정 수행: {existing_order['price']:.2f} -> {target_sell_price:.2f}")
                     if broker.cancel_order(existing_order["order_id"]):
+                        self.tracked_open_orders.pop(existing_order["order_id"], None)
                         new_id = broker.place_order(ticker, "SELL", target_sell_price, qty, "LIMIT")
                         if new_id:
-                            logger.info(f"매도 정정 주문 제출 완료. (ID: {new_id})")
+                            self.logger.info(f"매도 정정 주문 제출 완료. (ID: {new_id})")
+                            if mode == "REAL":
+                                self.tracked_open_orders[new_id] = {"ticker": ticker, "side": "SELL", "price": target_sell_price, "qty": qty}
                 else:
-                    logger.info("기존 매도 지정가 주문의 단가가 타겟 가격과 부합하여 유지합니다.")
+                    self.logger.info("기존 매도 지정가 주문의 단가가 타겟 가격과 부합하여 유지합니다.")
             else:
-                # 신규 매도 지정가 주문 제출
-                logger.info(f"📉 청산 조건 충족. 지정가 매도 주문 제출: {target_sell_price:.2f} @ {qty}주")
+                self.logger.info(f"📉 청산 조건 충족. 지정가 매도 주문 제출: {target_sell_price:.2f} @ {qty}주")
                 new_id = broker.place_order(ticker, "SELL", target_sell_price, qty, "LIMIT")
                 if new_id:
-                    logger.info(f"매도 지정가 주문 제출 성공. (ID: {new_id})")
+                    self.logger.info(f"매도 지정가 주문 제출 성공. (ID: {new_id})")
+                    if mode == "REAL":
+                        self.tracked_open_orders[new_id] = {"ticker": ticker, "side": "SELL", "price": target_sell_price, "qty": qty}
 
         # 9-3. 매수 진입 시그널 (BUY)
         elif signal == "BUY":
-            # 이미 들어간 매수 주문 검색
             buy_orders = [o for o in open_orders if o["side"] == "BUY"]
-            
-            # 투자 가능 금액 산출
             invest_cash = cash * (k_percent / 100.0)
             
-            # [안전장치] 미수/신용 거래 원천 금지 (순수 현금 예수금 이하로만 제한)
             if invest_cash > cash:
-                logger.warning(f"🛡️ [안전장치] 가용 예산({invest_cash:.2f})이 보유 현금({cash:.2f})을 초과하여 보유 잔고로 제한합니다 (미수 방지).")
+                self.logger.warning(f"🛡️ [안전장치] 가용 예산({invest_cash:.2f})이 보유 현금({cash:.2f})을 초과하여 보유 잔고로 제한합니다 (미수 방지).")
                 invest_cash = cash
             
-            # 미국 주식은 소수점 거래가 가능하나, 안전 및 소수점 호가 에러 방지를 위해 int단위 1주 단위로 처리
             buy_qty = int(invest_cash / target_buy_price)
             
             if buy_qty > 0:
                 if buy_orders:
                     existing_order = buy_orders[0]
-                    # 기존 주문의 단가 및 수량과 새로운 타겟 조건 비교
                     if abs(existing_order["price"] - target_buy_price) > 0.01 or int(existing_order["qty"]) != buy_qty:
-                        logger.info(f"🔄 VWAP 변동 감지! 매수 주문 정정 수행: {existing_order['price']:.2f} -> {target_buy_price:.2f} (수량: {existing_order['qty']} -> {buy_qty})")
-                        # Cancel & Replace
+                        self.logger.info(f"🔄 VWAP 변동 감지! 매수 주문 정정 수행: {existing_order['price']:.2f} -> {target_buy_price:.2f} (수량: {existing_order['qty']} -> {buy_qty})")
                         if broker.cancel_order(existing_order["order_id"]):
-                            # 취소 후 잔고 재동기화 (VirtualBroker의 경우 취소 즉시 cash 락이 해제됨)
+                            self.tracked_open_orders.pop(existing_order["order_id"], None)
                             new_id = broker.place_order(ticker, "BUY", target_buy_price, buy_qty, "LIMIT")
                             if new_id:
-                                logger.info(f"매수 정정 주문 제출 완료. (ID: {new_id})")
+                                self.logger.info(f"매수 정정 주문 제출 완료. (ID: {new_id})")
+                                if mode == "REAL":
+                                    self.tracked_open_orders[new_id] = {"ticker": ticker, "side": "BUY", "price": target_buy_price, "qty": buy_qty}
                     else:
-                        logger.info("기존 매수 지정가 주문의 단가가 타겟 가격과 부합하여 유지합니다.")
+                        self.logger.info("기존 매수 지정가 주문의 단가가 타겟 가격과 부합하여 유지합니다.")
                 else:
-                    # 신규 매수 지정가 주문 제출
-                    logger.info(f"📈 매수 조건 감시 진입. 지정가 매수 주문 제출: {target_buy_price:.2f} @ {buy_qty}주")
+                    self.logger.info(f"📈 매수 조건 감시 진입. 지정가 매수 주문 제출: {target_buy_price:.2f} @ {buy_qty}주")
                     new_id = broker.place_order(ticker, "BUY", target_buy_price, buy_qty, "LIMIT")
                     if new_id:
-                        logger.info(f"매수 지정가 주문 제출 성공. (ID: {new_id})")
+                        self.logger.info(f"매수 지정가 주문 제출 성공. (ID: {new_id})")
+                        if mode == "REAL":
+                            self.tracked_open_orders[new_id] = {"ticker": ticker, "side": "BUY", "price": target_buy_price, "qty": buy_qty}
             else:
-                logger.warning(f"설정된 투자 비중({k_percent}%)에 따른 예산({invest_cash:.2f})이 최소 1주 가격({target_buy_price:.2f})보다 적어 매수 주문을 보류합니다.")
+                self.logger.warning(f"설정된 투자 비중({k_percent}%)에 따른 예산({invest_cash:.2f})이 최소 1주 가격({target_buy_price:.2f})보다 적어 매수 주문을 보류합니다.")
 
         # 9-4. 대기 및 포지션 유지 (HOLD / WAIT)
         else:
-            # 타겟 영역을 벗어난 쓸모없는 미체결 주문이 남아있다면 정격 취소 처리하여 계좌 잠김 방지
             if open_orders:
-                logger.info("전략 조건 외의 잔여 미체결 주문을 정리합니다.")
+                self.logger.info("전략 조건 외의 잔여 미체결 주문을 정리합니다.")
                 for order in open_orders:
-                    broker.cancel_order(order["order_id"])
+                    if broker.cancel_order(order["order_id"]):
+                        self.tracked_open_orders.pop(order["order_id"], None)
 
         # 10. 웹 대시보드용 상태 캐시 업데이트 (스레드 세이프하게 복사)
         with self._lock:
-            # 보유 주식 정보 직렬화
             serializable_holdings = {}
             for t, val in holdings.items():
                 serializable_holdings[t] = {
@@ -384,4 +424,4 @@ class VWAPBot:
                 "vwap_stdev": signals.get("vwap_stdev", 0.0)
             }
             
-        logger.info(f"✓ {ticker} 분석 주기 완료.")
+        self.logger.info(f"✓ {ticker} 분석 주기 완료.")

@@ -15,29 +15,72 @@ class VwapConfigManager:
     def get_default_config() -> dict:
         """기본 설정 딕셔너리를 반환합니다."""
         return {
-            "mode": "VIRTUAL",              # REAL (실거래) / VIRTUAL (가상 거래)
-            "ticker": "AAPL",               # 기본 거래 대상 (미국 주식 AAPL)
-            "market": "US",                 # US (미국) / KR (한국)
-            "interval": "1m",               # 봉 주기 (1m, 5m, 15m 등)
-            "n_percent": 1.0,               # 매수 진입 하방 이격도 %
-            "m_percent": 1.0,               # 매도 청산 상방 이격도 %
-            "x_percent": 2.0,               # 손절 비율 %
-            "k_percent": 10.0,              # 투자 비중 % (잔고 대비)
-            "initial_balance": 10000000.0,  # 가상 투자 초기 자본 (원화 또는 USD 기준)
-            "max_daily_loss_limit": 5.0,    # 당일 최대 손실 한도 %
-            "reset_time": "22:30",          # VWAP 누적 리셋 시각 (HH:MM)
-            "use_adx_filter": False,        # ADX 추세 필터 사용 여부
-            "adx_period": 14,               # ADX 기간
-            "adx_threshold": 25.0,          # ADX 진입제한 임계값
-            "use_rsi_filter": False,        # RSI 과매도 필터 사용 여부
-            "rsi_period": 14,               # RSI 기간
-            "rsi_threshold": 30.0,          # RSI 진입제한 임계값 (이하일 때만 매수)
-            "use_vwap_band": False,         # VWAP 표준편차 밴드 사용 여부
-            "vwap_band_sigma": 2.0,         # VWAP 밴드 시그마 승수
+            "mode": "VIRTUAL",              # 하위 호환성 유지용
+            "ticker": "AAPL",               # 하위 호환성 유지용
+            "market": "US",                 # 하위 호환성 유지용
+            "interval": "1m",               # 하위 호환성 유지용
+            "n_percent": 1.0,               # 하위 호환성 유지용
+            "m_percent": 1.0,               # 하위 호환성 유지용
+            "x_percent": 2.0,               # 하위 호환성 유지용
+            "k_percent": 10.0,              # 하위 호환성 유지용
+            "initial_balance": 10000000.0,  # 하위 호환성 유지용
+            "max_daily_loss_limit": 5.0,    # 하위 호환성 유지용
+            "reset_time": "22:30",          # 하위 호환성 유지용
+            "use_adx_filter": False,        # 하위 호환성 유지용
+            "adx_period": 14,               # 하위 호환성 유지용
+            "adx_threshold": 25.0,          # 하위 호환성 유지용
+            "use_rsi_filter": False,        # 하위 호환성 유지용
+            "rsi_period": 14,               # 하위 호환성 유지용
+            "rsi_threshold": 30.0,          # 하위 호환성 유지용
+            "use_vwap_band": False,         # 하위 호환성 유지용
+            "vwap_band_sigma": 2.0,         # 하위 호환성 유지용
+
+            "admin_password_hash": "",       # 어드민 비밀번호 해시
             "toss_client_id": "",           # 토스 Client ID
             "toss_client_secret": "",       # 토스 Client Secret (암호화 대상)
             "toss_account_seq": "",         # 토스 계좌식별자 (암호화 대상)
-            "admin_password_hash": ""       # 어드민 비밀번호 해시
+            
+            # 가상 거래(VIRTUAL) 파라미터
+            "virtual_ticker": "AAPL",
+            "virtual_market": "US",
+            "virtual_interval": "1m",
+            "virtual_n_percent": 1.0,
+            "virtual_m_percent": 1.0,
+            "virtual_x_percent": 2.0,
+            "virtual_k_percent": 10.0,
+            "virtual_initial_balance": 10000000.0,
+            "virtual_max_daily_loss_limit": 5.0,
+            "virtual_reset_time": "22:30",
+            "virtual_use_adx_filter": False,
+            "virtual_adx_period": 14,
+            "virtual_adx_threshold": 25.0,
+            "virtual_use_rsi_filter": False,
+            "virtual_rsi_period": 14,
+            "virtual_rsi_threshold": 30.0,
+            "virtual_use_vwap_band": False,
+            "virtual_vwap_band_sigma": 2.0,
+            "virtual_is_running": False,
+
+            # 실제 거래(REAL) 파라미터
+            "real_ticker": "AAPL",
+            "real_market": "US",
+            "real_interval": "1m",
+            "real_n_percent": 1.0,
+            "real_m_percent": 1.0,
+            "real_x_percent": 2.0,
+            "real_k_percent": 10.0,
+            "real_initial_balance": 10000000.0,
+            "real_max_daily_loss_limit": 5.0,
+            "real_reset_time": "22:30",
+            "real_use_adx_filter": False,
+            "real_adx_period": 14,
+            "real_adx_threshold": 25.0,
+            "real_use_rsi_filter": False,
+            "real_rsi_period": 14,
+            "real_rsi_threshold": 30.0,
+            "real_use_vwap_band": False,
+            "real_vwap_band_sigma": 2.0,
+            "real_is_running": False,
         }
 
     @classmethod
@@ -80,6 +123,25 @@ class VwapConfigManager:
                             continue
                         config[k] = v
 
+                # [마이그레이션] 만약 기존 단일 필드 구조라면 새 구조로 복사
+                is_migrated = False
+                legacy_keys = [
+                    "ticker", "market", "interval", "n_percent", "m_percent", 
+                    "x_percent", "k_percent", "initial_balance", "max_daily_loss_limit", 
+                    "reset_time", "use_adx_filter", "adx_period", "adx_threshold", 
+                    "use_rsi_filter", "rsi_period", "rsi_threshold", "use_vwap_band", 
+                    "vwap_band_sigma"
+                ]
+                if "virtual_ticker" not in file_config:
+                    for lk in legacy_keys:
+                        if lk in file_config:
+                            config[f"virtual_{lk}"] = file_config[lk]
+                            config[f"real_{lk}"] = file_config[lk]
+                    is_migrated = True
+                
+                if is_migrated:
+                    cls.save_config(config)
+
                 # 민감한 정보는 복호화하여 인메모리에 보관
                 for key in SENSITIVE_KEYS:
                     if config.get(key):
@@ -117,29 +179,39 @@ class VwapConfigManager:
             print(f"[ConfigManager] Failed to save config: {e}")
 
     @staticmethod
-    def load_trades() -> list:
+    def load_trades(mode: str = "VIRTUAL") -> list:
         """가상/실제 거래 이력을 로드합니다."""
-        if not os.path.exists(TRADES_PATH):
-            return []
+        trades_path = os.path.join(PROJECT_ROOT, f"vwap_trades_{mode.lower()}.json")
+        if not os.path.exists(trades_path):
+            # 하위 호환: 기존 vwap_trades.json이 있고 mode가 VIRTUAL이면 마이그레이션
+            legacy_path = os.path.join(PROJECT_ROOT, "vwap_trades.json")
+            if mode == "VIRTUAL" and os.path.exists(legacy_path):
+                try:
+                    os.rename(legacy_path, trades_path)
+                except Exception:
+                    pass
+            else:
+                return []
         try:
-            with open(TRADES_PATH, "r", encoding="utf-8") as f:
+            with open(trades_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"[ConfigManager] Failed to load trades: {e}")
+            print(f"[ConfigManager] Failed to load trades for {mode}: {e}")
             return []
 
     @classmethod
-    def save_trades(cls, trades: list):
+    def save_trades(cls, trades: list, mode: str = "VIRTUAL"):
         """거래 이력을 저장합니다."""
+        trades_path = os.path.join(PROJECT_ROOT, f"vwap_trades_{mode.lower()}.json")
         try:
-            with open(TRADES_PATH, "w", encoding="utf-8") as f:
+            with open(trades_path, "w", encoding="utf-8") as f:
                 json.dump(trades, f, ensure_ascii=False, indent=4)
         except Exception as e:
-            print(f"[ConfigManager] Failed to save trades: {e}")
+            print(f"[ConfigManager] Failed to save trades for {mode}: {e}")
 
     @classmethod
-    def add_trade(cls, trade_item: dict):
+    def add_trade(cls, trade_item: dict, mode: str = "VIRTUAL"):
         """새로운 거래 이력을 추가합니다."""
-        trades = cls.load_trades()
+        trades = cls.load_trades(mode)
         trades.append(trade_item)
-        cls.save_trades(trades)
+        cls.save_trades(trades, mode)
