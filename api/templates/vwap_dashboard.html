@@ -821,7 +821,7 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>가상 원금</label>
+                            <label id="lbl_v_initial_balance">가상 원금</label>
                             <input type="number" id="cfg_v_initial_balance" required>
                         </div>
                         <div class="form-group">
@@ -1037,7 +1037,7 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>기준 자본금</label>
+                            <label id="lbl_r_initial_balance">기준 자본금</label>
                             <input type="number" id="cfg_r_initial_balance" required>
                         </div>
                         <div class="form-group">
@@ -1459,6 +1459,20 @@
             }
         }
 
+        function updateCurrencyLabels() {
+            const vMarket = document.getElementById('cfg_v_market').value;
+            const vLabel = document.getElementById('lbl_v_initial_balance');
+            if (vLabel) {
+                vLabel.textContent = vMarket === "US" ? "가상 원금 (달러 $)" : "가상 원금 (원 ₩)";
+            }
+
+            const rMarket = document.getElementById('cfg_r_market').value;
+            const rLabel = document.getElementById('lbl_r_initial_balance');
+            if (rLabel) {
+                rLabel.textContent = rMarket === "US" ? "기준 자본금 (달러 $)" : "기준 자본금 (원 ₩)";
+            }
+        }
+
         function updateTickerLabels() {
             const vTicker = document.getElementById('cfg_v_ticker').value;
             const vMarket = document.getElementById('cfg_v_market').value;
@@ -1467,6 +1481,8 @@
             const rTicker = document.getElementById('cfg_r_ticker').value;
             const rMarket = document.getElementById('cfg_r_market').value;
             document.getElementById('r_tickerNameDisplay').textContent = getTickerName(rTicker, rMarket);
+            
+            updateCurrencyLabels();
         }
 
         // 2. 설정 업데이트 전송
