@@ -58,16 +58,15 @@
         </div>
         
         <div class="overflow-x-auto custom-scrollbar">
-            <table class="w-full text-left text-sm border-collapse min-w-[800px]">
+            <table class="w-full text-left text-sm border-collapse min-w-[900px]">
                 <thead>
-                    <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase">
+                    <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase" id="cost-table-header-row">
                         <th class="py-3 px-2 w-[180px]">항목 (가게 이름)</th>
                         <th class="py-3 px-2 w-[140px]">금액 (원)</th>
                         <th class="py-3 px-2 w-[120px]">결제자</th>
                         <th class="py-3 px-2 w-[80px]">참여 인원</th>
                         <th class="py-3 px-2 w-[150px]">비고</th>
-                        <!-- 참석자별 컬럼 동적 추가 -->
-                        <th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center" id="cost-table-users-header" colspan="1">참석자별 금액</th>
+                        <!-- 참석자별 <th> 열들이 동적으로 추가됨 -->
                         <th class="py-3 px-2 w-[50px] text-center">삭제</th>
                     </tr>
                 </thead>
@@ -75,15 +74,8 @@
                     <!-- JavaScript에서 동적으로 추가 -->
                 </tbody>
                 <tfoot>
-                    <tr class="font-bold border-t-2 border-gray-200 dark:border-dark-border bg-gray-50/50 dark:bg-dark-card/30">
-                        <td class="py-3 px-2">[개인별 합계]</td>
-                        <td class="py-3 px-2 text-blue-600 dark:text-blue-400" id="total-amount-sum">0</td>
-                        <td class="py-3 px-2" colspan="3"></td>
-                        <!-- 참석자별 합계 동적 추가 -->
-                        <td id="cost-table-totals" colspan="1" class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30">
-                            <div class="flex text-center justify-around w-full" id="cost-totals-container"></div>
-                        </td>
-                        <td></td>
+                    <tr class="font-bold border-t-2 border-gray-200 dark:border-dark-border bg-gray-50/50 dark:bg-dark-card/30" id="cost-table-footer-row">
+                        <!-- JavaScript에서 동적으로 footer 열 추가 -->
                     </tr>
                 </tfoot>
             </table>
@@ -148,16 +140,15 @@
         </div>
         
         <div class="overflow-x-auto custom-scrollbar">
-            <table class="w-full text-left text-sm border-collapse min-w-[800px]">
+            <table class="w-full text-left text-sm border-collapse min-w-[900px]">
                 <thead>
-                    <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase">
+                    <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase" id="ratio-table-header-row">
                         <th class="py-3 px-2 w-[180px]">항목 (가게 이름)</th>
                         <th class="py-3 px-2 w-[140px]">금액 (원)</th>
                         <th class="py-3 px-2 w-[120px]">결제자</th>
                         <th class="py-3 px-2 w-[80px]">참여 인원</th>
                         <th class="py-3 px-2 w-[150px]">비고</th>
-                        <!-- 참석자별 비율 컬럼 동적 추가 -->
-                        <th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center" id="ratio-table-users-header" colspan="1">참석자별 비율</th>
+                        <!-- 참석자별 비율 <th> 열들이 동적으로 추가됨 -->
                     </tr>
                 </thead>
                 <tbody id="ratio-table-body">
@@ -183,7 +174,6 @@
     function initRatios(item) {
         participants.forEach(p => {
             if (item.ratios[p] === undefined) {
-                // 3차 숙성회136 재승 1, 은비 0.8 / 4차 청담오뎅바 은비 0, 재승 1, 나머지는 1 기본값 (초기 데이터 엑셀 매칭용)
                 if (item.name === "중앙쭈꾸미" || item.name === "주상낙원") {
                     item.ratios[p] = (p === "은비") ? 0.8 : (p === "재승") ? 0 : 1;
                 } else if (item.name === "숙성회136") {
@@ -328,11 +318,37 @@
 
     // 테이블 UI 그리기
     function renderTables() {
-        // 테이블 헤더 열 개수(colspan) 맞추기
-        document.getElementById('cost-table-users-header').colSpan = participants.length;
-        document.getElementById('ratio-table-users-header').colSpan = participants.length;
+        // --- 1. 테이블 헤더 재구성 (참석자 1인당 1개 열 할당) ---
+        // (금액 테이블 헤더)
+        const costHeaderRow = document.getElementById('cost-table-header-row');
+        let costHeaderHtml = `
+            <th class="py-3 px-2 w-[180px]">항목 (가게 이름)</th>
+            <th class="py-3 px-2 w-[140px]">금액 (원)</th>
+            <th class="py-3 px-2 w-[120px]">결제자</th>
+            <th class="py-3 px-2 w-[80px]">참여 인원</th>
+            <th class="py-3 px-2 w-[150px]">비고</th>
+        `;
+        participants.forEach(p => {
+            costHeaderHtml += `<th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center font-bold text-gray-700 dark:text-gray-200 min-w-[100px]">${p}</th>`;
+        });
+        costHeaderHtml += `<th class="py-3 px-2 w-[50px] text-center">삭제</th>`;
+        costHeaderRow.innerHTML = costHeaderHtml;
 
-        // 1. 차수별 정산 테이블 바디 그리기
+        // (비율 테이블 헤더)
+        const ratioHeaderRow = document.getElementById('ratio-table-header-row');
+        let ratioHeaderHtml = `
+            <th class="py-3 px-2 w-[180px]">항목 (가게 이름)</th>
+            <th class="py-3 px-2 w-[140px]">금액 (원)</th>
+            <th class="py-3 px-2 w-[120px]">결제자</th>
+            <th class="py-3 px-2 w-[80px]">참여 인원</th>
+            <th class="py-3 px-2 w-[150px]">비고</th>
+        `;
+        participants.forEach(p => {
+            ratioHeaderHtml += `<th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center font-bold text-gray-700 dark:text-gray-200 min-w-[100px]">${p}</th>`;
+        });
+        ratioHeaderRow.innerHTML = ratioHeaderHtml;
+
+        // --- 2. 차수별 정산 테이블 바디 그리기 ---
         const costBody = document.getElementById('cost-table-body');
         costBody.innerHTML = '';
         
@@ -342,10 +358,10 @@
             let tr = document.createElement('tr');
             tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
             
-            // 결제자 선택지 생성
             let optionsHtml = participants.map(p => `<option value="${p}" ${item.payer === p ? 'selected' : ''}>${p}</option>`).join('');
 
-            let html = `
+            // 기본 열들 생성
+            let rowHtml = `
                 <td class="py-2.5 px-2">
                     <input type="text" value="${item.name}" onchange="updateItemField('${item.id}', 'name', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none font-medium">
                 </td>
@@ -361,35 +377,48 @@
                 <td class="py-2.5 px-2">
                     <input type="text" value="${item.note || ''}" placeholder="-" onchange="updateItemField('${item.id}', 'note', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none text-xs">
                 </td>
-                <td class="py-2.5 px-2 border-l border-gray-100 dark:border-dark-border/30" colspan="${participants.length}">
-                    <div class="flex text-center justify-around w-full">
-                        ${participants.map(p => `
-                            <span class="w-full text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                ${(calculatedAmounts[item.id][p] || 0).toLocaleString()}
-                            </span>
-                        `).join('')}
-                    </div>
-                </td>
+            `;
+
+            // 참석자별 개인 분담금 개별 <td> 열 생성
+            participants.forEach(p => {
+                rowHtml += `
+                    <td class="py-2.5 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 min-w-[100px]">
+                        ${(calculatedAmounts[item.id][p] || 0).toLocaleString()}
+                    </td>
+                `;
+            });
+
+            // 마지막 삭제 버튼 열 생성
+            rowHtml += `
                 <td class="py-2.5 px-2 text-center">
                     <button onclick="deleteRow('${item.id}')" class="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </td>
             `;
-            tr.innerHTML = html;
+            
+            tr.innerHTML = rowHtml;
             costBody.appendChild(tr);
         });
 
-        // 1-1. 개인별 합계 영역 그리기
-        document.getElementById('total-amount-sum').innerText = totalAmount.toLocaleString();
-        const costTotalsContainer = document.getElementById('cost-totals-container');
-        costTotalsContainer.innerHTML = participants.map(p => `
-            <span class="w-full text-xs text-blue-600 dark:text-blue-400 font-bold">
-                ${(participantTotals[p] || 0).toLocaleString()}
-            </span>
-        `).join('');
+        // --- 3. 개인별 합계 푸터 영역 그리기 ---
+        const costFooterRow = document.getElementById('cost-table-footer-row');
+        let costFooterHtml = `
+            <td class="py-3 px-2">[개인별 합계]</td>
+            <td class="py-3 px-2 text-blue-600 dark:text-blue-400">${totalAmount.toLocaleString()}</td>
+            <td class="py-3 px-2" colspan="3"></td>
+        `;
+        participants.forEach(p => {
+            costFooterHtml += `
+                <td class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center text-xs text-blue-600 dark:text-blue-400 font-bold min-w-[100px]">
+                    ${(participantTotals[p] || 0).toLocaleString()}
+                </td>
+            `;
+        });
+        costFooterHtml += `<td></td>`;
+        costFooterRow.innerHTML = costFooterHtml;
 
-        // 2. 정산 요약 테이블 바디 그리기
+        // --- 4. 정산 요약 테이블 바디 그리기 ---
         const summaryBody = document.getElementById('summary-table-body');
         summaryBody.innerHTML = '';
         participants.forEach(p => {
@@ -408,7 +437,7 @@
             summaryBody.appendChild(tr);
         });
 
-        // 3. 최적 송금 가이드 목록 그리기
+        // --- 5. 최적 송금 가이드 목록 그리기 ---
         const guideList = document.getElementById('transfer-guide-list');
         guideList.innerHTML = '';
         if (transfers.length === 0) {
@@ -429,29 +458,34 @@
             });
         }
 
-        // 4. 차수별 참석 비율(가중치) 테이블 바디 그리기
+        // --- 6. 차수별 참석 비율(가중치) 테이블 바디 그리기 ---
         const ratioBody = document.getElementById('ratio-table-body');
         ratioBody.innerHTML = '';
         items.forEach(item => {
             let pCount = getParticipantCount(item);
             let tr = document.createElement('tr');
             tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
-            tr.innerHTML = `
+            
+            let rowHtml = `
                 <td class="py-2.5 px-2 font-medium text-gray-700 dark:text-gray-300">${item.name}</td>
                 <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${(parseFloat(item.amount) || 0).toLocaleString()}</td>
                 <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${item.payer}</td>
                 <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${pCount}</td>
                 <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400 text-xs">${item.note || '-'}</td>
-                <td class="py-2 px-2 border-l border-gray-100 dark:border-dark-border/30" colspan="${participants.length}">
-                    <div class="flex justify-around w-full gap-1">
-                        ${participants.map(p => `
-                            <input type="number" step="0.1" min="0" value="${item.ratios[p] !== undefined ? item.ratios[p] : 1}" 
-                                   onchange="updateRatio('${item.id}', '${p}', this.value)" 
-                                   class="w-full text-center py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-purple-500">
-                        `).join('')}
-                    </div>
-                </td>
             `;
+
+            // 각 참석자별 비율 입력 <td> 생성 (고정 min-width 설정하여 찌그러짐 방지)
+            participants.forEach(p => {
+                rowHtml += `
+                    <td class="py-2 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center min-w-[100px]">
+                        <input type="number" step="0.1" min="0" value="${item.ratios[p] !== undefined ? item.ratios[p] : 1}" 
+                               onchange="updateRatio('${item.id}', '${p}', this.value)" 
+                               class="w-full text-center py-1.5 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-purple-500">
+                    </td>
+                `;
+            });
+
+            tr.innerHTML = rowHtml;
             ratioBody.appendChild(tr);
         });
 
@@ -521,12 +555,10 @@
 
         // 기존 차수 데이터들에 신규 유저 및 빠진 비율 재정리
         items.forEach(item => {
-            // 결제자가 새 참석자 목록에 존재하지 않으면 첫번째 사람으로 재할당
             if (!participants.includes(item.payer)) {
                 item.payer = participants[0] || "";
             }
             
-            // 기존 비율 값 중 제거된 유저 정리 및 신규 유저 추가
             let newRatios = {};
             participants.forEach(p => {
                 newRatios[p] = (item.ratios[p] !== undefined) ? item.ratios[p] : 1;
@@ -765,26 +797,21 @@
         ];
         
         // 숫자 서식 지정 (금액 필드에 콤마 포맷 적용)
-        // AOA 행 번호를 돌며 서식을 세팅
-        // (금액 테이블 데이터 영역과 정산 요약 데이터 영역 및 비율 테이블 데이터 영역)
         let totalRows = aoa.length;
         for (let r = 0; r < totalRows; r++) {
             let row = aoa[r];
             if (!row) continue;
             
-            // 금액 테이블 영역 셀 서식 설정
-            if (r > 0 && r <= items.length + 1) { // 데이터 행 + 합계 행
+            if (r > 0 && r <= items.length + 1) { 
                 let cellRefAmt = XLSX.utils.encode_cell({r: r, c: 1});
                 if (ws[cellRefAmt]) ws[cellRefAmt].z = '#,##0';
                 
-                // 참석자 개별 금액 열들 서식 적용
                 for (let col = 5; col < 5 + participants.length; col++) {
                     let cellRefUserAmt = XLSX.utils.encode_cell({r: r, c: col});
                     if (ws[cellRefUserAmt]) ws[cellRefUserAmt].z = '#,##0';
                 }
             }
             
-            // 정산 요약 영역 셀 서식 설정
             let summaryStart = items.length + 5;
             if (r >= summaryStart && r < summaryStart + participants.length) {
                 for (let col = 1; col <= 3; col++) {
@@ -793,7 +820,6 @@
                 }
             }
             
-            // 비율 테이블 영역 금액 컬럼 서식 설정
             let ratioStart = summaryStart + participants.length + 3;
             if (r >= ratioStart && r < ratioStart + items.length) {
                 let cellRefRatioAmt = XLSX.utils.encode_cell({r: r, c: 1});
@@ -814,12 +840,10 @@
 
     // 페이지 진입 시 최초 연산 및 초기 리스트 호출
     window.addEventListener('DOMContentLoaded', () => {
-        // 기존 4차 데이터 비율 채우기
         items.forEach(initRatios);
         recalculate();
         loadSavedList();
         
-        // base.html의 TOC 기능 업데이트 방지
         const tocContainer = document.getElementById('toc-container');
         if (tocContainer) {
             tocContainer.setAttribute('data-custom', 'true');
