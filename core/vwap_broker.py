@@ -67,6 +67,84 @@ class TossBroker(Broker):
         if self.mock_mode:
             print("[TossBroker] API Key 누락으로 인해 시세 조회용 가상 Mock 모드로 작동합니다.")
 
+    def _fetch_yahoo_candles(self, ticker: str, interval: str, limit: int = 100) -> pd.DataFrame:
+        """야후 파이낸스 차트 API로부터 무료 실시간/지연 분봉 데이터를 수집합니다."""
+        ticker_clean = ticker.upper().strip()
+        
+        # 한국 주식 포맷팅 (6자리 숫자)
+        if ticker_clean.isdigit() and len(ticker_clean) == 6:
+            yahoo_ticker = f"{ticker_clean}.KS"
+            market = "KR"
+        else:
+            yahoo_ticker = ticker_clean
+            market = "US"
+            
+        # interval에 맞는 적절한 range 탐색
+        range_map = {
+            "1m": "2d",
+            "5m": "5d",
+            "15m": "5d"
+        }
+        y_range = range_map.get(interval, "2d")
+        
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_ticker}?interval={interval}&range={y_range}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        
+        try:
+            res = requests.get(url, headers=headers, timeout=5)
+            # 한국 주식인데 코스피(.KS)로 실패한 경우 코스닥(.KQ)으로 재시도
+            if res.status_code != 200 and market == "KR" and yahoo_ticker.endswith(".KS"):
+                yahoo_ticker = f"{ticker_clean}.KQ"
+                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_ticker}?interval={interval}&range={y_range}"
+                res = requests.get(url, headers=headers, timeout=5)
+                
+            if res.status_code == 200:
+                res_data = res.json()
+                chart_data = res_data.get("chart", {}).get("result", [])
+                if not chart_data:
+                    return pd.DataFrame()
+                
+                result = chart_data[0]
+                timestamps = result.get("timestamp", [])
+                indicators = result.get("indicators", {}).get("quote", [{}])[0]
+                
+                opens = indicators.get("open", [])
+                highs = indicators.get("high", [])
+                lows = indicators.get("low", [])
+                closes = indicators.get("close", [])
+                volumes = indicators.get("volume", [])
+                
+                candle_list = []
+                for i in range(len(timestamps)):
+                    # None 값이 끼어있는 경우가 있으므로 필터링
+                    if (i >= len(opens) or i >= len(highs) or i >= len(lows) or 
+                        i >= len(closes) or i >= len(volumes) or
+                        opens[i] is None or highs[i] is None or 
+                        lows[i] is None or closes[i] is None or 
+                        volumes[i] is None):
+                        continue
+                    
+                    candle_list.append({
+                        "time": pd.to_datetime(timestamps[i], unit='s', utc=True).tz_convert('Asia/Seoul').tz_localize(None),
+                        "open": float(opens[i]),
+                        "high": float(highs[i]),
+                        "low": float(lows[i]),
+                        "close": float(closes[i]),
+                        "volume": float(volumes[i])
+                    })
+                    
+                df = pd.DataFrame(candle_list)
+                if not df.empty:
+                    return df.tail(limit).reset_index(drop=True)
+            else:
+                print(f"[TossBroker Yahoo fallback] API Error (HTTP {res.status_code}): {res.text}")
+        except Exception as e:
+            print(f"[TossBroker Yahoo fallback] Exception: {e}")
+            
+        return pd.DataFrame()
+
     def _ensure_token(self):
         """액세스 토큰의 유효성을 검사하고 만료 5분 전이면 재발급받습니다."""
         if self.mock_mode:
@@ -140,8 +218,12 @@ class TossBroker(Broker):
         self._ensure_token()
         
         if self.mock_mode:
-            # API 키가 없거나 실패한 경우, 실시간 테스트를 위해 임의의 분봉 난수 데이터 생성
-            # (시간은 현재 시간 기준 1분 단위 역산)
+            # 야후 파이낸스 차트 API로부터 실제 시세를 조회합니다.
+            df = self._fetch_yahoo_candles(ticker, interval, limit)
+            if not df.empty:
+                return df
+                
+            # 만약 야후 API 호출에 실패한 경우, 기존의 난수 데이터 생성 로직으로 백업 폴백 처리합니다.
             now = datetime.now()
             times = [now - pd.Timedelta(minutes=i) for i in range(limit)]
             times.reverse()
@@ -150,7 +232,6 @@ class TossBroker(Broker):
             base_price = 80000.0 if ticker.isdigit() else 180.0
             prices = []
             curr = base_price
-            np_random = pd.Series(0.0, index=range(limit))
             for i in range(limit):
                 import random
                 change = random.uniform(-0.002, 0.002)
