@@ -127,7 +127,7 @@ class TossBroker(Broker):
                         continue
                     
                     candle_list.append({
-                        "time": pd.to_datetime(timestamps[i], unit='s', utc=True).tz_convert('Asia/Seoul').tz_localize(None),
+                        "time": pd.to_datetime(timestamps[i], unit='s') + pd.Timedelta(hours=9),
                         "open": float(opens[i]),
                         "high": float(highs[i]),
                         "low": float(lows[i]),
