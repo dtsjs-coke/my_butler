@@ -160,16 +160,22 @@ class VwapConfigManager:
 
         # 민감 데이터 암호화
         for key in SENSITIVE_KEYS:
-            if save_data.get(key):
-                # 이미 암호화된 값인지 확인하여 이중 암호화 방지
-                # 복호화를 시도했을 때 성공하면 아직 평문이라는 의미
-                decrypted = VwapCrypto.decrypt(save_data[key])
-                if decrypted:
-                    # 복호화된 평문이 있으면, 원본 평문을 암호화
-                    save_data[key] = VwapCrypto.encrypt(decrypted)
-                else:
-                    # 복호화가 안 되면 현재 값이 평문이므로 그대로 암호화
-                    save_data[key] = VwapCrypto.encrypt(save_data[key])
+            val = save_data.get(key)
+            if val:
+                # 이미 암호화된 Fernet 토큰 형식인지 체크하여 이중 암호화 및 복호화 실패 시 데이터 오염 방지
+                is_already_encrypted = False
+                if isinstance(val, str) and val.startswith("gAAAAA") and len(val) >= 50:
+                    try:
+                        # 복호화가 성공하면 이미 올바르게 암호화된 값임
+                        dec = VwapCrypto.decrypt(val)
+                        if dec:
+                            is_already_encrypted = True
+                    except Exception:
+                        pass
+                
+                if not is_already_encrypted:
+                    # 평문일 때만 새로 암호화하여 저장
+                    save_data[key] = VwapCrypto.encrypt(val)
 
         # 패스워드 해시는 파일에 굳이 안 써도 되나, 대시보드 저장 시 유지
         try:

@@ -280,7 +280,7 @@ def api_config():
     # 민감 정보 필드는 마스킹이 아닌 새로 입력된 평문인 경우에만 덮어씀
     for key in ["toss_client_secret", "toss_account_seq"]:
         val = new_data.get(key, "")
-        if val and "*" not in val:
+        if val and not ("****" in val or val.count("*") >= 4):
             updated_config[key] = val
 
     # Admin 패스워드 직접 변경 요청 처리
