@@ -190,24 +190,43 @@ class TossBroker(Broker):
             "Content-Type": "application/json"
         }
         
+        # 현재 실거래 종목 설정을 통해 통화 결정
+        try:
+            config = VwapConfigManager.load_config()
+            real_ticker = config.get("real_ticker", "AAPL").strip()
+            is_kr = real_ticker.isdigit() and len(real_ticker) == 6
+            currency = "KRW" if is_kr else "USD"
+        except Exception:
+            currency = "USD"
+            
         try:
             # 1. 예수금 조회
             cash = 0.0
-            power_res = requests.get(f"{self.base_url}/v1/orders/buying-power", headers=headers, timeout=5)
+            power_res = requests.get(
+                f"{self.base_url}/api/v1/buying-power",
+                headers=headers,
+                params={"currency": currency},
+                timeout=5
+            )
             if power_res.status_code == 200:
-                cash = float(power_res.json().get("buyingPower", 0.0))
+                cash = float(power_res.json().get("result", {}).get("cashBuyingPower", 0.0))
+            else:
+                print(f"[TossBroker] get_balance (buying-power) API 에러 (HTTP {power_res.status_code}): {power_res.text}")
             
             # 2. 보유 종목 조회
             holdings = {}
-            holdings_res = requests.get(f"{self.base_url}/v1/accounts/holdings", headers=headers, timeout=5)
+            holdings_res = requests.get(f"{self.base_url}/api/v1/holdings", headers=headers, timeout=5)
             if holdings_res.status_code == 200:
-                # API 스펙에 맞춰 파싱 (예: holdings 리스트 파싱)
-                for item in holdings_res.json().get("holdings", []):
-                    ticker = item.get("stockCode")
+                res_json = holdings_res.json()
+                items = res_json.get("result", {}).get("items", [])
+                for item in items:
+                    ticker = item.get("symbol")
                     qty = float(item.get("quantity", 0.0))
-                    entry_price = float(item.get("averagePrice", 0.0))
+                    entry_price = float(item.get("averagePurchasePrice", 0.0))
                     if qty > 0:
                         holdings[ticker] = {"qty": qty, "entry_price": entry_price}
+            else:
+                print(f"[TossBroker] get_balance (holdings) API 에러 (HTTP {holdings_res.status_code}): {holdings_res.text}")
                         
             return {"cash": cash, "holdings": holdings}
         except Exception as e:
@@ -217,72 +236,82 @@ class TossBroker(Broker):
     def get_candles(self, ticker: str, interval: str = "1m", limit: int = 100) -> pd.DataFrame:
         self._ensure_token()
         
-        if self.mock_mode:
-            # 야후 파이낸스 차트 API로부터 실제 시세를 조회합니다.
+        # 1. 5분봉/15분봉이거나 mock_mode 인 경우에는 야후 파이낸스로 스위칭(토스 API는 1m/1d만 지원)
+        is_unsupported_interval = interval not in ["1m", "1d"]
+        if self.mock_mode or is_unsupported_interval:
             df = self._fetch_yahoo_candles(ticker, interval, limit)
             if not df.empty:
                 return df
-                
-            # 만약 야후 API 호출에 실패한 경우, 기존의 난수 데이터 생성 로직으로 백업 폴백 처리합니다.
-            now = datetime.now()
-            times = [now - pd.Timedelta(minutes=i) for i in range(limit)]
-            times.reverse()
             
-            # 삼성전자 혹은 애플의 임시 가격대 기준 생성
-            base_price = 80000.0 if ticker.isdigit() else 180.0
-            prices = []
-            curr = base_price
-            for i in range(limit):
-                import random
-                change = random.uniform(-0.002, 0.002)
-                curr = curr * (1 + change)
-                prices.append(curr)
+            # 가상 모드인데 야후 API도 실패하면 난수 폴백 처리
+            if self.mock_mode:
+                now = datetime.now()
+                times = [now - pd.Timedelta(minutes=i) for i in range(limit)]
+                times.reverse()
                 
-            data = {
-                "time": times,
-                "open": [p * 0.999 for p in prices],
-                "high": [p * 1.002 for p in prices],
-                "low": [p * 0.998 for p in prices],
-                "close": prices,
-                "volume": [float(int(1000 * (1 + i % 5))) for i in range(limit)]
-            }
-            return pd.DataFrame(data)
+                base_price = 80000.0 if ticker.isdigit() else 180.0
+                prices = []
+                curr = base_price
+                for i in range(limit):
+                    import random
+                    change = random.uniform(-0.002, 0.002)
+                    curr = curr * (1 + change)
+                    prices.append(curr)
+                    
+                data = {
+                    "time": times,
+                    "open": [p * 0.999 for p in prices],
+                    "high": [p * 1.002 for p in prices],
+                    "low": [p * 0.998 for p in prices],
+                    "close": prices,
+                    "volume": [float(int(1000 * (1 + i % 5))) for i in range(limit)]
+                }
+                return pd.DataFrame(data)
 
+        # 2. 실거래 모드 & 1m/1d인 경우에는 토스 공식 실시간 API 호출
         headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json"
         }
         params = {
-            "stockCode": ticker,
+            "symbol": ticker,
             "interval": interval,
-            "limit": limit
+            "count": min(limit, 200) # 최대 200개 제한
         }
         
         try:
-            res = requests.get(f"{self.base_url}/v1/market/candles", headers=headers, params=params, timeout=5)
+            res = requests.get(f"{self.base_url}/api/v1/candles", headers=headers, params=params, timeout=5)
             if res.status_code == 200:
-                raw_candles = res.json().get("candles", [])
+                raw_candles = res.json().get("result", {}).get("candles", [])
                 
-                # API 스펙에 맞춰 정적 키 맵핑
-                # 만약 키 이름이 다른 경우(ex: time -> time, close -> close)에 유연하게 변환
-                # raw_candles 구조 예시: [{"time": "2026-06-19T13:40:00Z", "open": 180.5, ...}]
                 candle_list = []
                 for c in raw_candles:
                     candle_list.append({
-                        "time": pd.to_datetime(c.get("time")),
-                        "open": float(c.get("open")),
-                        "high": float(c.get("high")),
-                        "low": float(c.get("low")),
-                        "close": float(c.get("close")),
+                        "time": pd.to_datetime(c.get("timestamp")),
+                        "open": float(c.get("openPrice")),
+                        "high": float(c.get("highPrice")),
+                        "low": float(c.get("lowPrice")),
+                        "close": float(c.get("closePrice")),
                         "volume": float(c.get("volume"))
                     })
                 df = pd.DataFrame(candle_list)
+                # 시간 순서가 안 맞을 경우 오름차순 정렬
+                if not df.empty and "time" in df.columns:
+                    df = df.sort_values(by="time").reset_index(drop=True)
                 return df
             else:
                 print(f"[TossBroker] get_candles API 에러 (HTTP {res.status_code}): {res.text}")
+                # 실거래 모드에서도 토스 API 에러 시 최종 폴백으로 야후 파이낸스 한번 더 시도
+                df = self._fetch_yahoo_candles(ticker, interval, limit)
+                if not df.empty:
+                    return df
                 return pd.DataFrame()
         except Exception as e:
             print(f"[TossBroker] get_candles 예외 발생: {e}")
+            # 예외 시 야후 파이낸스 폴백
+            df = self._fetch_yahoo_candles(ticker, interval, limit)
+            if not df.empty:
+                return df
             return pd.DataFrame()
 
     def place_order(self, ticker: str, side: str, price: float, qty: float, order_type: str = "LIMIT") -> str:
@@ -296,17 +325,23 @@ class TossBroker(Broker):
             "X-Tossinvest-Account": self.account_seq,
             "Content-Type": "application/json"
         }
+        
+        # 공식 OpenAPI에서는 symbol, orderType 필드명을 사용하며
+        # MARKET 주문일 경우 price가 전달되면 안 됨
         data = {
-            "stockCode": ticker,
-            "side": side,  # BUY or SELL
-            "price": price,
+            "symbol": ticker,
+            "side": side,
             "quantity": qty,
-            "type": order_type  # LIMIT or MARKET
+            "orderType": order_type,
+            "clientOrderId": str(uuid.uuid4())  # 멱등성 보장 키
         }
+        if order_type == "LIMIT":
+            data["price"] = price
+            
         try:
-            res = requests.post(f"{self.base_url}/v1/orders", headers=headers, json=data, timeout=5)
+            res = requests.post(f"{self.base_url}/api/v1/orders", headers=headers, json=data, timeout=5)
             if res.status_code == 200 or res.status_code == 201:
-                return res.json().get("orderId")
+                return res.json().get("result", {}).get("orderId", "")
             else:
                 print(f"[TossBroker] place_order 주문 실패 (HTTP {res.status_code}): {res.text}")
                 return ""
@@ -326,7 +361,8 @@ class TossBroker(Broker):
             "Content-Type": "application/json"
         }
         try:
-            res = requests.delete(f"{self.base_url}/v1/orders/{order_id}", headers=headers, timeout=5)
+            # 공식 API는 DELETE가 아닌 POST /api/v1/orders/{orderId}/cancel 이며 빈 JSON body 필요
+            res = requests.post(f"{self.base_url}/api/v1/orders/{order_id}/cancel", headers=headers, json={}, timeout=5)
             return res.status_code == 200 or res.status_code == 204
         except Exception as e:
             print(f"[TossBroker] cancel_order 예외 발생: {e}")
@@ -342,18 +378,20 @@ class TossBroker(Broker):
             "X-Tossinvest-Account": self.account_seq,
             "Content-Type": "application/json"
         }
-        params = {"stockCode": ticker, "status": "OPEN"}
+        params = {"symbol": ticker, "status": "OPEN"}
         try:
-            res = requests.get(f"{self.base_url}/v1/orders", headers=headers, params=params, timeout=5)
+            res = requests.get(f"{self.base_url}/api/v1/orders", headers=headers, params=params, timeout=5)
             if res.status_code == 200:
                 orders = []
-                for o in res.json().get("orders", []):
+                res_json = res.json()
+                raw_orders = res_json.get("result", {}).get("orders", [])
+                for o in raw_orders:
                     orders.append({
                         "order_id": o.get("orderId"),
-                        "ticker": o.get("stockCode"),
+                        "ticker": o.get("symbol"),
                         "side": o.get("side"),
-                        "price": float(o.get("price")),
-                        "qty": float(o.get("quantity")),
+                        "price": float(o.get("price")) if o.get("price") is not None else 0.0,
+                        "qty": float(o.get("quantity")) if o.get("quantity") is not None else 0.0,
                         "created_at": time.time()  # 표준화
                     })
                 return orders
@@ -365,7 +403,7 @@ class TossBroker(Broker):
     def get_current_price(self, ticker: str) -> float:
         self._ensure_token()
         if self.mock_mode:
-            # Mock 데이터를 활용해 최근 캔들의 마지막 종가 반환
+            # 야후 파이낸스 최신 1분봉의 종가를 활용
             df = self.get_candles(ticker, "1m", 1)
             return float(df.iloc[-1]['close']) if not df.empty else 0.0
 
@@ -374,12 +412,24 @@ class TossBroker(Broker):
             "Content-Type": "application/json"
         }
         try:
-            res = requests.get(f"{self.base_url}/v1/market/price?stockCode={ticker}", headers=headers, timeout=5)
+            res = requests.get(f"{self.base_url}/api/v1/prices", headers=headers, params={"symbols": ticker}, timeout=5)
             if res.status_code == 200:
-                return float(res.json().get("price", 0.0))
-            return 0.0
-        except Exception:
-            return 0.0
+                results = res.json().get("result", [])
+                if results:
+                    return float(results[0].get("lastPrice", 0.0))
+            else:
+                print(f"[TossBroker] get_current_price API 에러 (HTTP {res.status_code}): {res.text}")
+            
+            # API 호출 실패 시 get_candles(야후 파이낸스 포함)의 최신 종가로 폴백
+            df = self.get_candles(ticker, "1m", 1)
+            return float(df.iloc[-1]['close']) if not df.empty else 0.0
+        except Exception as e:
+            print(f"[TossBroker] get_current_price 예외 발생: {e}")
+            try:
+                df = self.get_candles(ticker, "1m", 1)
+                return float(df.iloc[-1]['close']) if not df.empty else 0.0
+            except Exception:
+                return 0.0
 
 
 class VirtualBroker(Broker):
