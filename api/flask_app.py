@@ -367,6 +367,118 @@ def manage_keywords():
         save_keywords(keywords)
         return jsonify({"status": "success"}), 200
 
+@app.route('/settlement')
+def settlement_page():
+    return render_template('settlement.html', api_token=BUTLER_API_TOKEN)
+
+def cleanup_old_settlements():
+    settlement_file = os.path.join(PROJECT_ROOT, "data", "settlements.json")
+    if not os.path.exists(settlement_file):
+        return []
+    try:
+        with open(settlement_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            settlements = data.get("settlements", [])
+    except:
+        return []
+
+    now = datetime.now()
+    valid_settlements = []
+    changed = False
+    for s in settlements:
+        try:
+            created_at = datetime.strptime(s.get("created_at"), "%Y-%m-%d %H:%M:%S")
+            if now - created_at < timedelta(days=7):
+                valid_settlements.append(s)
+            else:
+                changed = True
+        except Exception as e:
+            valid_settlements.append(s)
+    
+    if changed:
+        try:
+            os.makedirs(os.path.dirname(settlement_file), exist_ok=True)
+            with open(settlement_file, "w", encoding="utf-8") as f:
+                json.dump({"settlements": valid_settlements}, f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            print(f"[Settlement Cleanup Error] {e}")
+            
+    return valid_settlements
+
+@app.route('/api/settlements', methods=['GET', 'POST', 'DELETE'])
+@token_required
+def manage_settlements():
+    settlement_file = os.path.join(PROJECT_ROOT, "data", "settlements.json")
+    
+    if request.method == 'GET':
+        valid_list = cleanup_old_settlements()
+        return jsonify({"status": "success", "settlements": valid_list})
+        
+    elif request.method == 'POST':
+        data = request.get_json()
+        s_id = data.get('id')
+        title = data.get('title', '새 정산')
+        participants = data.get('participants', [])
+        items = data.get('items', [])
+        
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        valid_list = cleanup_old_settlements()
+        
+        if s_id:
+            found = False
+            for s in valid_list:
+                if s['id'] == s_id:
+                    s['title'] = title
+                    s['participants'] = participants
+                    s['items'] = items
+                    s['created_at'] = now_str  # Update timestamp to refresh retention duration
+                    found = True
+                    break
+            if not found:
+                s_id = str(int(time.time() * 1000))
+                valid_list.append({
+                    "id": s_id,
+                    "title": title,
+                    "participants": participants,
+                    "items": items,
+                    "created_at": now_str
+                })
+        else:
+            s_id = str(int(time.time() * 1000))
+            valid_list.append({
+                "id": s_id,
+                "title": title,
+                "participants": participants,
+                "items": items,
+                "created_at": now_str
+            })
+            
+        try:
+            os.makedirs(os.path.dirname(settlement_file), exist_ok=True)
+            with open(settlement_file, "w", encoding="utf-8") as f:
+                json.dump({"settlements": valid_list}, f, ensure_ascii=False, indent=4)
+            return jsonify({"status": "success", "id": s_id}), 200
+        except Exception as e:
+            return jsonify({"status": "failed", "reason": str(e)}), 500
+            
+    elif request.method == 'DELETE':
+        data = request.get_json()
+        s_id = data.get('id')
+        if not s_id:
+            return jsonify({"status": "failed", "reason": "missing_id"}), 400
+            
+        valid_list = cleanup_old_settlements()
+        new_list = [s for s in valid_list if s['id'] != s_id]
+        
+        try:
+            os.makedirs(os.path.dirname(settlement_file), exist_ok=True)
+            with open(settlement_file, "w", encoding="utf-8") as f:
+                json.dump({"settlements": new_list}, f, ensure_ascii=False, indent=4)
+            return jsonify({"status": "success"}), 200
+        except Exception as e:
+            return jsonify({"status": "failed", "reason": str(e)}), 500
+
 @app.route('/subscriptions/all', methods=['GET'])
 @token_required
 def get_all_subscriptions():
@@ -471,3 +583,7 @@ def run_flask(client):
     discord_client = client
     # threaded=True를 명시하여 동시 요청 처리 능력 향상
     app.run(host='0.0.0.0', port=5000, threaded=True)
+
+if __name__ == '__main__':
+    # Standalone execution for testing purposes
+    app.run(host='127.0.0.1', port=5000, debug=True)

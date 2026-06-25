@@ -1,0 +1,830 @@
+{% extends 'base.html' %}
+
+{% block page_title %}정산 대시보드{% endblock %}
+
+{% block content %}
+<!-- XLSX 라이브러리 추가 (엑셀 다운로드용) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<div class="space-y-8" id="settlement-app">
+    <!-- 1. 참석자 & 모임 설정 카드 -->
+    <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div>
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i data-lucide="users" class="w-5 h-5 text-blue-500"></i>
+                    모임 및 참석자 설정
+                </h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">참석자 명단을 쉼표(,)로 구분하여 입력하세요.</p>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="settlement-title" placeholder="모임 이름 (예: 버틀러 회식)" class="px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none w-48 md:w-64">
+                <button onclick="saveSettlement()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl flex items-center gap-1.5 transition-colors">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    저장하기
+                </button>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <input type="text" id="participants-input" value="유진, 은진, 애수, 지혜, 은비, 재승" class="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            <button onclick="updateParticipants()" class="px-5 py-2.5 bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 dark:hover:bg-gray-600 text-white text-sm font-bold rounded-xl transition-colors">
+                명단 적용
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. 저장 목록 패널 -->
+    <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+        <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <i data-lucide="history" class="w-4 h-4"></i>
+            최근 7일간 저장된 정산 내역
+        </h3>
+        <div id="saved-list" class="flex flex-wrap gap-2">
+            <p class="text-xs italic text-gray-400">저장된 정산 내역이 없습니다.</p>
+        </div>
+    </div>
+
+    <!-- 3. 차수별 금액 입력 테이블 -->
+    <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold flex items-center gap-2">
+                <i data-lucide="krw-sign" class="w-5 h-5 text-green-500"></i>
+                차수별 금액 및 결제 정보
+            </h3>
+            <button onclick="addNewRow()" class="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition-colors">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                차수 추가
+            </button>
+        </div>
+        
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-sm border-collapse min-w-[800px]">
+                <thead>
+                    <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase">
+                        <th class="py-3 px-2 w-[180px]">항목 (가게 이름)</th>
+                        <th class="py-3 px-2 w-[140px]">금액 (원)</th>
+                        <th class="py-3 px-2 w-[120px]">결제자</th>
+                        <th class="py-3 px-2 w-[80px]">참여 인원</th>
+                        <th class="py-3 px-2 w-[150px]">비고</th>
+                        <!-- 참석자별 컬럼 동적 추가 -->
+                        <th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center" id="cost-table-users-header" colspan="1">참석자별 금액</th>
+                        <th class="py-3 px-2 w-[50px] text-center">삭제</th>
+                    </tr>
+                </thead>
+                <tbody id="cost-table-body">
+                    <!-- JavaScript에서 동적으로 추가 -->
+                </tbody>
+                <tfoot>
+                    <tr class="font-bold border-t-2 border-gray-200 dark:border-dark-border bg-gray-50/50 dark:bg-dark-card/30">
+                        <td class="py-3 px-2">[개인별 합계]</td>
+                        <td class="py-3 px-2 text-blue-600 dark:text-blue-400" id="total-amount-sum">0</td>
+                        <td class="py-3 px-2" colspan="3"></td>
+                        <!-- 참석자별 합계 동적 추가 -->
+                        <td id="cost-table-totals" colspan="1" class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30">
+                            <div class="flex text-center justify-around w-full" id="cost-totals-container"></div>
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- 4. 정산 요약 및 최적 송금안 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 정산 요약 테이블 -->
+        <div class="lg:col-span-2 bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm overflow-hidden">
+            <h3 class="text-lg font-bold flex items-center gap-2 mb-4">
+                <i data-lucide="file-text" class="w-5 h-5 text-amber-500"></i>
+                정산 요약
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase">
+                            <th class="py-3 px-2">이름</th>
+                            <th class="py-3 px-2">본인 부담액</th>
+                            <th class="py-3 px-2">실제 지출액</th>
+                            <th class="py-3 px-2">정산 결과 (차액)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summary-table-body">
+                        <!-- JavaScript에서 동적으로 추가 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 최적 송금 계산 결과 -->
+        <div class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-6 rounded-2xl shadow-lg flex flex-col justify-between">
+            <div>
+                <h3 class="text-lg font-bold flex items-center gap-2 mb-3">
+                    <i data-lucide="send" class="w-5 h-5"></i>
+                    최적 송금 가이드
+                </h3>
+                <p class="text-xs text-blue-100 mb-6">송금 횟수를 최소화한 최적의 이체 경로입니다.</p>
+                <div id="transfer-guide-list" class="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                    <!-- 송금 경로 목록 -->
+                </div>
+            </div>
+            
+            <div class="mt-6 pt-4 border-t border-white/20 flex gap-2">
+                <button onclick="downloadExcel()" class="w-full py-2.5 bg-white text-blue-600 hover:bg-blue-50 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors shadow-md">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                    엑셀(Excel) 다운로드
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. 차수별 참석자 비율(가중치) 설정 테이블 -->
+    <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div>
+            <h3 class="text-lg font-bold flex items-center gap-2 mb-1">
+                <i data-lucide="sliders" class="w-5 h-5 text-purple-500"></i>
+                차수별 참석자 비율(가중치) 입력
+            </h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">참석 시 `1`, 불참 시 `0`을 입력하고, 부담을 달리할 경우 원하는 배율(예: `0.8`, `0.5`)을 입력하세요.</p>
+        </div>
+        
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-sm border-collapse min-w-[800px]">
+                <thead>
+                    <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase">
+                        <th class="py-3 px-2 w-[180px]">항목 (가게 이름)</th>
+                        <th class="py-3 px-2 w-[140px]">금액 (원)</th>
+                        <th class="py-3 px-2 w-[120px]">결제자</th>
+                        <th class="py-3 px-2 w-[80px]">참여 인원</th>
+                        <th class="py-3 px-2 w-[150px]">비고</th>
+                        <!-- 참석자별 비율 컬럼 동적 추가 -->
+                        <th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center" id="ratio-table-users-header" colspan="1">참석자별 비율</th>
+                    </tr>
+                </thead>
+                <tbody id="ratio-table-body">
+                    <!-- JavaScript에서 동적으로 추가 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 상태값 정의
+    let participants = ["유진", "은진", "애수", "지혜", "은비", "재승"];
+    let items = [
+        { id: "1", name: "중앙쭈꾸미", amount: 144400, payer: "유진", ratios: {}, note: "" },
+        { id: "2", name: "주상낙원", amount: 55300, payer: "유진", ratios: {}, note: "" },
+        { id: "3", name: "숙성회136", amount: 92500, payer: "유진", ratios: {}, note: "" },
+        { id: "4", name: "청담오뎅바", amount: 47000, payer: "유진", ratios: {}, note: "" }
+    ];
+    let activeId = null; // 수정 시 보관할 ID
+
+    // 초기 가중치(1) 세팅 함수
+    function initRatios(item) {
+        participants.forEach(p => {
+            if (item.ratios[p] === undefined) {
+                // 3차 숙성회136 재승 1, 은비 0.8 / 4차 청담오뎅바 은비 0, 재승 1, 나머지는 1 기본값 (초기 데이터 엑셀 매칭용)
+                if (item.name === "중앙쭈꾸미" || item.name === "주상낙원") {
+                    item.ratios[p] = (p === "은비") ? 0.8 : (p === "재승") ? 0 : 1;
+                } else if (item.name === "숙성회136") {
+                    item.ratios[p] = (p === "은비") ? 0.8 : 1;
+                } else if (item.name === "청담오뎅바") {
+                    item.ratios[p] = (p === "은비") ? 0 : 1;
+                } else {
+                    item.ratios[p] = 1;
+                }
+            }
+        });
+    }
+
+    // 전역 연산 결과 저장용 객체
+    let calculatedAmounts = {}; // item.id -> { participant: amount }
+    let participantTotals = {};  // participant -> total_burden
+    let participantPayerTotals = {}; // participant -> total_spend
+    let diffs = {}; // participant -> diff
+    let transfers = []; // [{from, to, amount}]
+    let totalAmount = 0;
+
+    // 참여 인원 수 구하기 (비율이 0보다 큰 경우)
+    function getParticipantCount(item) {
+        let count = 0;
+        participants.forEach(p => {
+            let r = parseFloat(item.ratios[p]) || 0;
+            if (r > 0) count++;
+        });
+        return count;
+    }
+
+    // 메인 계산 연산
+    function recalculate() {
+        calculatedAmounts = {};
+        participantTotals = {};
+        participantPayerTotals = {};
+        diffs = {};
+        totalAmount = 0;
+
+        // 초기화
+        participants.forEach(p => {
+            participantTotals[p] = 0;
+            participantPayerTotals[p] = 0;
+            diffs[p] = 0;
+        });
+
+        // 1. 차수별 분담금 연산
+        items.forEach(item => {
+            calculatedAmounts[item.id] = {};
+            let amount = parseFloat(item.amount) || 0;
+            totalAmount += amount;
+
+            // 실제 결제자 지출 합산
+            if (participantPayerTotals[item.payer] !== undefined) {
+                participantPayerTotals[item.payer] += amount;
+            }
+
+            // 비율 총합 구하기
+            let ratioSum = 0;
+            participants.forEach(p => {
+                ratioSum += parseFloat(item.ratios[p]) || 0;
+            });
+
+            if (ratioSum > 0) {
+                let tempSum = 0;
+                let allocated = {};
+                
+                // 가중치 비례 소수점 반올림 배분
+                participants.forEach(p => {
+                    let r = parseFloat(item.ratios[p]) || 0;
+                    let share = Math.round(amount * (r / ratioSum));
+                    allocated[p] = share;
+                    tempSum += share;
+                });
+
+                // 1원 단위 반올림 오차 보정 -> 결제자가 부담하도록 설정
+                let diffErr = amount - tempSum;
+                if (diffErr !== 0 && allocated[item.payer] !== undefined) {
+                    allocated[item.payer] += diffErr;
+                }
+
+                // 결과 대입 및 개인별 합계 누적
+                participants.forEach(p => {
+                    calculatedAmounts[item.id][p] = allocated[p];
+                    participantTotals[p] += allocated[p];
+                });
+            } else {
+                participants.forEach(p => {
+                    calculatedAmounts[item.id][p] = 0;
+                });
+            }
+        });
+
+        // 2. 개별 차액 연산
+        participants.forEach(p => {
+            diffs[p] = participantPayerTotals[p] - participantTotals[p];
+        });
+
+        // 3. 최적 송금 관계 계산 (Greedy Cash Flow Minimization)
+        transfers = [];
+        let debtors = []; // 돈을 내야 하는 사람들 (diffs < 0)
+        let creditors = []; // 돈을 받아야 하는 사람들 (diffs > 0)
+
+        participants.forEach(p => {
+            let val = diffs[p];
+            if (val < -0.1) {
+                debtors.push({ name: p, amount: -val });
+            } else if (val > 0.1) {
+                creditors.push({ name: p, amount: val });
+            }
+        });
+
+        // 최적화를 위해 큰 금액 단위로 내림차순 정렬
+        debtors.sort((a, b) => b.amount - a.amount);
+        creditors.sort((a, b) => b.amount - a.amount);
+
+        let d_idx = 0;
+        let c_idx = 0;
+
+        while (d_idx < debtors.length && c_idx < creditors.length) {
+            let debtor = debtors[d_idx];
+            let creditor = creditors[c_idx];
+            
+            let transferAmount = Math.min(debtor.amount, creditor.amount);
+            if (transferAmount > 0.1) {
+                transfers.push({
+                    from: debtor.name,
+                    to: creditor.name,
+                    amount: Math.round(transferAmount)
+                });
+                debtor.amount -= transferAmount;
+                creditor.amount -= transferAmount;
+            }
+
+            if (debtor.amount < 0.9) d_idx++;
+            if (creditor.amount < 0.9) c_idx++;
+        }
+
+        // DOM 렌더링 호출
+        renderTables();
+    }
+
+    // 테이블 UI 그리기
+    function renderTables() {
+        // 테이블 헤더 열 개수(colspan) 맞추기
+        document.getElementById('cost-table-users-header').colSpan = participants.length;
+        document.getElementById('ratio-table-users-header').colSpan = participants.length;
+
+        // 1. 차수별 정산 테이블 바디 그리기
+        const costBody = document.getElementById('cost-table-body');
+        costBody.innerHTML = '';
+        
+        items.forEach((item, idx) => {
+            initRatios(item);
+            let pCount = getParticipantCount(item);
+            let tr = document.createElement('tr');
+            tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
+            
+            // 결제자 선택지 생성
+            let optionsHtml = participants.map(p => `<option value="${p}" ${item.payer === p ? 'selected' : ''}>${p}</option>`).join('');
+
+            let html = `
+                <td class="py-2.5 px-2">
+                    <input type="text" value="${item.name}" onchange="updateItemField('${item.id}', 'name', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none font-medium">
+                </td>
+                <td class="py-2.5 px-2">
+                    <input type="number" value="${item.amount}" onchange="updateItemField('${item.id}', 'amount', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none">
+                </td>
+                <td class="py-2.5 px-2">
+                    <select onchange="updateItemField('${item.id}', 'payer', this.value)" class="px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none outline-none cursor-pointer">
+                        ${optionsHtml}
+                    </select>
+                </td>
+                <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${pCount}</td>
+                <td class="py-2.5 px-2">
+                    <input type="text" value="${item.note || ''}" placeholder="-" onchange="updateItemField('${item.id}', 'note', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none text-xs">
+                </td>
+                <td class="py-2.5 px-2 border-l border-gray-100 dark:border-dark-border/30" colspan="${participants.length}">
+                    <div class="flex text-center justify-around w-full">
+                        ${participants.map(p => `
+                            <span class="w-full text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                ${(calculatedAmounts[item.id][p] || 0).toLocaleString()}
+                            </span>
+                        `).join('')}
+                    </div>
+                </td>
+                <td class="py-2.5 px-2 text-center">
+                    <button onclick="deleteRow('${item.id}')" class="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </td>
+            `;
+            tr.innerHTML = html;
+            costBody.appendChild(tr);
+        });
+
+        // 1-1. 개인별 합계 영역 그리기
+        document.getElementById('total-amount-sum').innerText = totalAmount.toLocaleString();
+        const costTotalsContainer = document.getElementById('cost-totals-container');
+        costTotalsContainer.innerHTML = participants.map(p => `
+            <span class="w-full text-xs text-blue-600 dark:text-blue-400 font-bold">
+                ${(participantTotals[p] || 0).toLocaleString()}
+            </span>
+        `).join('');
+
+        // 2. 정산 요약 테이블 바디 그리기
+        const summaryBody = document.getElementById('summary-table-body');
+        summaryBody.innerHTML = '';
+        participants.forEach(p => {
+            let diff = diffs[p] || 0;
+            let diffClass = diff > 0.1 ? 'text-green-600 dark:text-green-400 font-bold' : diff < -0.1 ? 'text-red-500' : 'text-gray-400';
+            let diffText = diff > 0.1 ? `+${diff.toLocaleString()}` : diff.toLocaleString();
+
+            let tr = document.createElement('tr');
+            tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
+            tr.innerHTML = `
+                <td class="py-3 px-2 font-medium">${p}</td>
+                <td class="py-3 px-2">${(participantTotals[p] || 0).toLocaleString()}</td>
+                <td class="py-3 px-2">${(participantPayerTotals[p] || 0).toLocaleString()}</td>
+                <td class="py-3 px-2 ${diffClass}">${diffText}</td>
+            `;
+            summaryBody.appendChild(tr);
+        });
+
+        // 3. 최적 송금 가이드 목록 그리기
+        const guideList = document.getElementById('transfer-guide-list');
+        guideList.innerHTML = '';
+        if (transfers.length === 0) {
+            guideList.innerHTML = `<p class="text-sm text-blue-100 italic">완벽하게 정산되었습니다!</p>`;
+        } else {
+            transfers.forEach(t => {
+                let card = document.createElement('div');
+                card.className = "flex items-center justify-between bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/10";
+                card.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm">${t.from}</span>
+                        <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-blue-200"></i>
+                        <span class="font-bold text-sm">${t.to}</span>
+                    </div>
+                    <span class="font-extrabold text-sm text-amber-200">${t.amount.toLocaleString()}원</span>
+                `;
+                guideList.appendChild(card);
+            });
+        }
+
+        // 4. 차수별 참석 비율(가중치) 테이블 바디 그리기
+        const ratioBody = document.getElementById('ratio-table-body');
+        ratioBody.innerHTML = '';
+        items.forEach(item => {
+            let pCount = getParticipantCount(item);
+            let tr = document.createElement('tr');
+            tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
+            tr.innerHTML = `
+                <td class="py-2.5 px-2 font-medium text-gray-700 dark:text-gray-300">${item.name}</td>
+                <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${(parseFloat(item.amount) || 0).toLocaleString()}</td>
+                <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${item.payer}</td>
+                <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${pCount}</td>
+                <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400 text-xs">${item.note || '-'}</td>
+                <td class="py-2 px-2 border-l border-gray-100 dark:border-dark-border/30" colspan="${participants.length}">
+                    <div class="flex justify-around w-full gap-1">
+                        ${participants.map(p => `
+                            <input type="number" step="0.1" min="0" value="${item.ratios[p] !== undefined ? item.ratios[p] : 1}" 
+                                   onchange="updateRatio('${item.id}', '${p}', this.value)" 
+                                   class="w-full text-center py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-purple-500">
+                        `).join('')}
+                    </div>
+                </td>
+            `;
+            ratioBody.appendChild(tr);
+        });
+
+        // Lucide 아이콘 갱신
+        if (window.lucide) lucide.createIcons();
+    }
+
+    // 각 필드 변경 처리
+    function updateItemField(itemId, field, value) {
+        let item = items.find(i => i.id === itemId);
+        if (item) {
+            if (field === 'amount') {
+                item[field] = parseFloat(value) || 0;
+            } else {
+                item[field] = value;
+            }
+            recalculate();
+        }
+    }
+
+    // 비율 변경 처리
+    function updateRatio(itemId, participant, value) {
+        let item = items.find(i => i.id === itemId);
+        if (item) {
+            item.ratios[participant] = parseFloat(value) || 0;
+            recalculate();
+        }
+    }
+
+    // 차수 삭제 처리
+    function deleteRow(itemId) {
+        items = items.filter(i => i.id !== itemId);
+        recalculate();
+    }
+
+    // 차수 추가 처리
+    function addNewRow() {
+        let newId = Date.now().toString();
+        let newItem = {
+            id: newId,
+            name: `${items.length + 1}차`,
+            amount: 0,
+            payer: participants[0] || "",
+            ratios: {},
+            note: ""
+        };
+        initRatios(newItem);
+        items.push(newItem);
+        recalculate();
+    }
+
+    // 참석자 명단 업데이트 처리
+    function updateParticipants() {
+        const inputStr = document.getElementById('participants-input').value.trim();
+        if (!inputStr) {
+            alert("참석자는 최소 1명 이상 필요합니다.");
+            return;
+        }
+
+        let newParts = inputStr.split(',').map(s => s.trim()).filter(s => s !== "");
+        if (newParts.length === 0) {
+            alert("유효한 참석자 이름을 입력하세요.");
+            return;
+        }
+
+        participants = newParts;
+
+        // 기존 차수 데이터들에 신규 유저 및 빠진 비율 재정리
+        items.forEach(item => {
+            // 결제자가 새 참석자 목록에 존재하지 않으면 첫번째 사람으로 재할당
+            if (!participants.includes(item.payer)) {
+                item.payer = participants[0] || "";
+            }
+            
+            // 기존 비율 값 중 제거된 유저 정리 및 신규 유저 추가
+            let newRatios = {};
+            participants.forEach(p => {
+                newRatios[p] = (item.ratios[p] !== undefined) ? item.ratios[p] : 1;
+            });
+            item.ratios = newRatios;
+        });
+
+        recalculate();
+    }
+
+    // 서버와 연동하여 정산 목록 불러오기
+    async function loadSavedList() {
+        try {
+            const res = await fetch('/api/settlements', {
+                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                const listDiv = document.getElementById('saved-list');
+                listDiv.innerHTML = '';
+                
+                if (!data.settlements || data.settlements.length === 0) {
+                    listDiv.innerHTML = `<p class="text-xs italic text-gray-400">저장된 정산 내역이 없습니다.</p>`;
+                    return;
+                }
+                
+                data.settlements.forEach(s => {
+                    let pill = document.createElement('div');
+                    pill.className = "flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-dark-card hover:bg-gray-200 dark:hover:bg-dark-border rounded-xl text-xs transition-colors cursor-pointer group";
+                    pill.innerHTML = `
+                        <span class="font-medium" onclick="applySaved('${s.id}')">${s.title} (${s.created_at.slice(5, 16)})</span>
+                        <button onclick="deleteSaved('${s.id}')" class="text-gray-400 hover:text-red-500 transition-colors">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
+                    `;
+                    listDiv.appendChild(pill);
+                });
+                
+                if (window.lucide) lucide.createIcons();
+            }
+        } catch (e) {
+            console.error("저장 목록 호출 실패", e);
+        }
+    }
+
+    // 특정 정산 내역 적용하기
+    async function applySaved(id) {
+        try {
+            const res = await fetch('/api/settlements', {
+                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                let matched = data.settlements.find(s => s.id === id);
+                if (matched) {
+                    activeId = matched.id;
+                    document.getElementById('settlement-title').value = matched.title;
+                    participants = matched.participants;
+                    document.getElementById('participants-input').value = participants.join(', ');
+                    items = matched.items;
+                    recalculate();
+                }
+            }
+        } catch (e) {
+            alert("정산을 불러오지 못했습니다.");
+        }
+    }
+
+    // 특정 저장내역 삭제
+    async function deleteSaved(id) {
+        event.stopPropagation();
+        if (!confirm("이 정산 내역을 삭제하시겠습니까?")) return;
+        
+        try {
+            const res = await fetch('/api/settlements', {
+                method: 'DELETE',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Butler-Token': BUTLER_API_TOKEN 
+                },
+                body: JSON.stringify({ id })
+            });
+            let result = await res.json();
+            if (result.status === 'success') {
+                if (activeId === id) {
+                    activeId = null;
+                    document.getElementById('settlement-title').value = '';
+                }
+                loadSavedList();
+            } else {
+                alert("삭제 실패");
+            }
+        } catch (e) {
+            alert("서버 연결 실패");
+        }
+    }
+
+    // 현재 상태 저장
+    async function saveSettlement() {
+        let title = document.getElementById('settlement-title').value.trim();
+        if (!title) {
+            alert("모임 이름을 입력하세요.");
+            return;
+        }
+
+        let bodyData = {
+            id: activeId,
+            title: title,
+            participants: participants,
+            items: items
+        };
+
+        try {
+            const res = await fetch('/api/settlements', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Butler-Token': BUTLER_API_TOKEN
+                },
+                body: JSON.stringify(bodyData)
+            });
+            let result = await res.json();
+            if (result.status === 'success') {
+                activeId = result.id;
+                alert("정산이 안전하게 저장되었습니다.");
+                loadSavedList();
+            } else {
+                alert("저장 실패: " + result.reason);
+            }
+        } catch (e) {
+            alert("서버 연동 오류");
+        }
+    }
+
+    // 엑셀 다운로드 기능 구현
+    function downloadExcel() {
+        let wb = XLSX.utils.book_new();
+        let aoa = [];
+        
+        // 1. 금액 테이블 작성
+        let header1 = ["항목", "금액", "결제자", "참여 인원", "비고"];
+        participants.forEach(p => header1.push(p));
+        aoa.push(header1);
+        
+        items.forEach(item => {
+            let row = [
+                item.name,
+                parseFloat(item.amount) || 0,
+                item.payer,
+                getParticipantCount(item),
+                item.note || ""
+            ];
+            participants.forEach(p => {
+                row.push(calculatedAmounts[item.id][p] || 0);
+            });
+            aoa.push(row);
+        });
+        
+        // 개인별 합계 행
+        let totalRow = ["[개인별 합계]", totalAmount, "", "", ""];
+        participants.forEach(p => {
+            totalRow.push(participantTotals[p] || 0);
+        });
+        aoa.push(totalRow);
+        
+        // 빈 행 2개
+        aoa.push([]);
+        aoa.push([]);
+        
+        // 2. 정산 요약 테이블 작성
+        aoa.push(["[정산 요약]"]);
+        aoa.push(["이름", "본인 부담액", "실제 지출액", "정산 결과", "비고"]);
+        
+        participants.forEach(p => {
+            let diff = diffs[p] || 0;
+            let noteStr = "";
+            if (diff < -0.1) {
+                let targetTransfers = transfers.filter(t => t.from === p);
+                noteStr = targetTransfers.map(t => `${t.to}에게 ${t.amount.toLocaleString()}원 송금`).join(', ');
+            } else if (diff > 0.1) {
+                noteStr = "정산 대상자(입금 받음)";
+            } else {
+                noteStr = "완료";
+            }
+            aoa.push([
+                p,
+                participantTotals[p] || 0,
+                participantPayerTotals[p] || 0,
+                diff,
+                noteStr
+            ]);
+        });
+        
+        // 빈 행 2개
+        aoa.push([]);
+        aoa.push([]);
+        
+        // 3. 비율 테이블 작성
+        let header2 = ["항목", "금액", "결제자", "참여 인원", "비고"];
+        participants.forEach(p => header2.push(p));
+        aoa.push(header2);
+        
+        items.forEach(item => {
+            let row = [
+                item.name,
+                parseFloat(item.amount) || 0,
+                item.payer,
+                getParticipantCount(item),
+                item.note || ""
+            ];
+            participants.forEach(p => {
+                row.push(item.ratios[p] !== undefined ? item.ratios[p] : 1);
+            });
+            aoa.push(row);
+        });
+        
+        let ws = XLSX.utils.aoa_to_sheet(aoa);
+        
+        // 셀 너비 셋팅
+        let wscols = [
+            {wch: 15}, // 항목
+            {wch: 12}, // 금액
+            {wch: 10}, // 결제자
+            {wch: 10}, // 참여 인원
+            {wch: 35}  // 비고 / 송금요약
+        ];
+        participants.forEach(() => {
+            wscols.push({wch: 10}); // 각 인원 컬럼 폭
+        });
+        ws['!cols'] = wscols;
+        
+        // 정산 요약 제목 행 셀 병합 (A열 ~ E열 병합)
+        let summaryHeaderRowIdx = items.length + 4; // 0-based
+        ws['!merges'] = [
+            { s: { r: summaryHeaderRowIdx, c: 0 }, e: { r: summaryHeaderRowIdx, c: 4 } }
+        ];
+        
+        // 숫자 서식 지정 (금액 필드에 콤마 포맷 적용)
+        // AOA 행 번호를 돌며 서식을 세팅
+        // (금액 테이블 데이터 영역과 정산 요약 데이터 영역 및 비율 테이블 데이터 영역)
+        let totalRows = aoa.length;
+        for (let r = 0; r < totalRows; r++) {
+            let row = aoa[r];
+            if (!row) continue;
+            
+            // 금액 테이블 영역 셀 서식 설정
+            if (r > 0 && r <= items.length + 1) { // 데이터 행 + 합계 행
+                let cellRefAmt = XLSX.utils.encode_cell({r: r, c: 1});
+                if (ws[cellRefAmt]) ws[cellRefAmt].z = '#,##0';
+                
+                // 참석자 개별 금액 열들 서식 적용
+                for (let col = 5; col < 5 + participants.length; col++) {
+                    let cellRefUserAmt = XLSX.utils.encode_cell({r: r, c: col});
+                    if (ws[cellRefUserAmt]) ws[cellRefUserAmt].z = '#,##0';
+                }
+            }
+            
+            // 정산 요약 영역 셀 서식 설정
+            let summaryStart = items.length + 5;
+            if (r >= summaryStart && r < summaryStart + participants.length) {
+                for (let col = 1; col <= 3; col++) {
+                    let cellRefSummary = XLSX.utils.encode_cell({r: r, c: col});
+                    if (ws[cellRefSummary]) ws[cellRefSummary].z = '#,##0';
+                }
+            }
+            
+            // 비율 테이블 영역 금액 컬럼 서식 설정
+            let ratioStart = summaryStart + participants.length + 3;
+            if (r >= ratioStart && r < ratioStart + items.length) {
+                let cellRefRatioAmt = XLSX.utils.encode_cell({r: r, c: 1});
+                if (ws[cellRefRatioAmt]) ws[cellRefRatioAmt].z = '#,##0';
+            }
+        }
+        
+        XLSX.utils.book_append_sheet(wb, ws, "정산내역");
+        
+        // 파일 다운로드 실행
+        let filename = "정산내역";
+        let titleInput = document.getElementById('settlement-title').value.trim();
+        if (titleInput) {
+            filename = titleInput.replace(/[/\\?%*:|"<>]/g, '-');
+        }
+        XLSX.writeFile(wb, `${filename}_정산결과.xlsx`);
+    }
+
+    // 페이지 진입 시 최초 연산 및 초기 리스트 호출
+    window.addEventListener('DOMContentLoaded', () => {
+        // 기존 4차 데이터 비율 채우기
+        items.forEach(initRatios);
+        recalculate();
+        loadSavedList();
+        
+        // base.html의 TOC 기능 업데이트 방지
+        const tocContainer = document.getElementById('toc-container');
+        if (tocContainer) {
+            tocContainer.setAttribute('data-custom', 'true');
+            tocContainer.innerHTML = '<p class="text-xs text-gray-400">정산 계산이 실시간으로 이 웹 화면과 연동되어 연산됩니다.</p>';
+        }
+    });
+</script>
+{% endblock %}
