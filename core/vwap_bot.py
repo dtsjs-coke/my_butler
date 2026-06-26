@@ -109,8 +109,69 @@ class VWAPBot:
 
     def get_status(self) -> dict:
         """현재 봇 상태 캐시를 반환합니다."""
-        self.status_cache["is_running"] = self.running
-        return self.status_cache
+        with self._lock:
+            self.status_cache["is_running"] = self.running
+            if not self.running:
+                try:
+                    config = VwapConfigManager.load_config()
+                    mode = self.mode
+                    if mode == "VIRTUAL":
+                        mode = "VIRTUAL_1"
+                    mode_prefix = mode.lower()
+                    
+                    ticker = config.get(f"{mode_prefix}_ticker", "AAPL")
+                    market = config.get(f"{mode_prefix}_market", "US")
+                    interval = config.get(f"{mode_prefix}_interval", "1m")
+                    initial_balance = float(config.get(f"{mode_prefix}_initial_balance", 10000000.0))
+                    
+                    self.status_cache["ticker"] = ticker
+                    self.status_cache["market"] = market
+                    self.status_cache["interval"] = interval
+                    
+                    if self.mode.startswith("VIRTUAL"):
+                        trades = VwapConfigManager.load_trades(self.mode)
+                        cash = initial_balance
+                        holdings = {}
+                        for trade in trades:
+                            t_ticker = trade.get("ticker")
+                            t_side = trade.get("side")
+                            t_price = trade.get("price", 0.0)
+                            t_qty = trade.get("qty", 0.0)
+                            
+                            if t_side == "BUY":
+                                cash -= (t_price * t_qty)
+                                if t_ticker not in holdings:
+                                    holdings[t_ticker] = {"qty": t_qty, "entry_price": t_price}
+                                else:
+                                    curr = holdings[t_ticker]
+                                    total_qty = curr["qty"] + t_qty
+                                    weighted_price = (curr["qty"] * curr["entry_price"] + t_qty * t_price) / total_qty
+                                    holdings[t_ticker] = {"qty": total_qty, "entry_price": weighted_price}
+                            elif t_side in ["SELL", "STOP_LOSS"]:
+                                cash += (t_price * t_qty)
+                                if t_ticker in holdings:
+                                    curr = holdings[t_ticker]
+                                    rem_qty = curr["qty"] - t_qty
+                                    if rem_qty <= 0:
+                                        holdings.pop(t_ticker, None)
+                                    else:
+                                        holdings[t_ticker]["qty"] = rem_qty
+                                        
+                        self.status_cache["cash"] = round(cash, 2)
+                        self.status_cache["holdings"] = holdings
+                        
+                        if ticker in holdings:
+                            if self.status_cache.get("current_price", 0.0) == 0.0:
+                                self.status_cache["current_price"] = holdings[ticker]["entry_price"]
+                        else:
+                            self.status_cache["current_price"] = 0.0
+                    else:
+                        self.status_cache["cash"] = initial_balance
+                        self.status_cache["holdings"] = {}
+                        self.status_cache["current_price"] = 0.0
+                except Exception as e:
+                    pass
+            return self.status_cache
 
     def _run_loop(self):
         """백그라운드 스레드에서 무한 루프로 실행되는 메인 봇 주기 실행부입니다."""
