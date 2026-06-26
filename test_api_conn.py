@@ -28,7 +28,12 @@ try:
     balance = broker.get_balance()
     print("API Access Result: SUCCESS")
     print("Balance Cash:", balance.get("cash"))
-    print("Balance Holdings:", list(balance.get("holdings", {}).keys()))
+    holdings_keys = list(balance.get("holdings", {}).keys())
+    print("Balance Holdings:", holdings_keys)
+    if holdings_keys:
+        print("Batch Fetching Prices for Holdings...")
+        prices = broker.get_current_prices(holdings_keys)
+        print("Batch Fetch Result:", prices)
 except Exception as e:
     print("API Access Result: FAILED")
     print("Error:", e)

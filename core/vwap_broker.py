@@ -52,6 +52,14 @@ class Broker(ABC):
         """현재가를 반환합니다."""
         pass
 
+    @abstractmethod
+    def get_current_prices(self, tickers: list) -> dict:
+        """여러 종목의 현재가를 일괄 조회하여 반환합니다.
+        Returns:
+            {ticker: price}
+        """
+        pass
+
 
 class TossBroker(Broker):
     def __init__(self, client_id: str, client_secret: str, account_seq: str):
@@ -431,6 +439,51 @@ class TossBroker(Broker):
             except Exception:
                 return 0.0
 
+    def get_current_prices(self, tickers: list) -> dict:
+        if not tickers:
+            return {}
+            
+        self._ensure_token()
+        
+        # Mock 모드일 경우 각 ticker별 get_current_price 순회
+        if self.mock_mode:
+            return {t: self.get_current_price(t) for t in tickers}
+            
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json"
+        }
+        
+        # 콤마로 연결
+        symbols_str = ",".join(tickers)
+        try:
+            res = requests.get(f"{self.base_url}/api/v1/prices", headers=headers, params={"symbols": symbols_str}, timeout=5)
+            if res.status_code == 200:
+                results = res.json().get("result", [])
+                prices_map = {}
+                for idx, item in enumerate(results):
+                    # symbol 필드로 우선 매핑
+                    sym = item.get("symbol")
+                    price = float(item.get("lastPrice", 0.0))
+                    if sym:
+                        prices_map[sym] = price
+                    elif idx < len(tickers):
+                        # 만약 symbol 필드가 없으면 순서대로 매핑
+                        prices_map[tickers[idx]] = price
+                
+                # 혹시 조회 누락된 종목이 있다면 개별 폴백 처리
+                for t in tickers:
+                    if t not in prices_map or prices_map[t] <= 0:
+                        prices_map[t] = self.get_current_price(t)
+                return prices_map
+            else:
+                print(f"[TossBroker] get_current_prices API 에러 (HTTP {res.status_code}): {res.text}")
+        except Exception as e:
+            print(f"[TossBroker] get_current_prices 예외 발생: {e}")
+            
+        # 실패 시 개별 폴백
+        return {t: self.get_current_price(t) for t in tickers}
+
 
 class VirtualBroker(Broker):
     def __init__(self, initial_balance: float, ticker_source_broker: Broker, mode: str = "VIRTUAL"):
@@ -491,6 +544,9 @@ class VirtualBroker(Broker):
 
     def get_current_price(self, ticker: str) -> float:
         return self.source_broker.get_current_price(ticker)
+
+    def get_current_prices(self, tickers: list) -> dict:
+        return self.source_broker.get_current_prices(tickers)
 
     def place_order(self, ticker: str, side: str, price: float, qty: float, order_type: str = "LIMIT") -> str:
         order_id = f"v_order_{uuid.uuid4().hex[:8]}"
