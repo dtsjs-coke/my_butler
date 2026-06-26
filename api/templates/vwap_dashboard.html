@@ -784,6 +784,47 @@
          [TAB 2] 가상 자동매매 (Virtual Trading)
     -------------------------- -->
     <div class="tab-content" id="tab-virtual_bot">
+        <!-- 📊 가상거래 종합 잔고 현황 (Summary) -->
+        <div class="panel" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%); border: 1px solid rgba(59, 130, 246, 0.2);">
+            <div class="panel-title" style="color: var(--accent-blue); display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 800; font-size: 15px;">📊 가상거래 종합 잔고 현황 (Virtual Portfolio Summary)</span>
+                <span style="font-size: 11px; color: var(--text-secondary); font-weight: normal;">* 3개 가상 봇의 실시간 평가 자산 합산</span>
+            </div>
+            <div class="status-grid" style="grid-template-columns: repeat(6, 1fr); margin-top: 12px; gap: 10px;">
+                <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
+                    <div class="status-box-title" style="font-size: 10px;">총 평가 자산</div>
+                    <div class="status-box-value" id="v_sum_total_asset" style="color: #60a5fa; font-size: 14px; font-weight: bold;">$0</div>
+                </div>
+                <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
+                    <div class="status-box-title" style="font-size: 10px;">총 시작 원금</div>
+                    <div class="status-box-value" id="v_sum_initial_balance" style="font-size: 14px; font-weight: bold;">$0</div>
+                </div>
+                <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
+                    <div class="status-box-title" style="font-size: 10px;">가용 현금 합계</div>
+                    <div class="status-box-value" id="v_sum_cash" style="color: var(--text-secondary); font-size: 14px;">$0</div>
+                </div>
+                <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
+                    <div class="status-box-title" style="font-size: 10px;">주식 평가금 합계</div>
+                    <div class="status-box-value" id="v_sum_stock_value" style="color: var(--text-secondary); font-size: 14px;">$0</div>
+                </div>
+                <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
+                    <div class="status-box-title" style="font-size: 10px;">합산 누적 수익률</div>
+                    <div class="status-box-value" id="v_sum_roi" style="font-size: 14px; font-weight: bold;">0.00%</div>
+                </div>
+                <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
+                    <div class="status-box-title" style="font-size: 10px;">합산 승률 (체결수)</div>
+                    <div class="status-box-value" id="v_sum_win_rate" style="font-size: 13px; font-weight: bold;">0% (0회)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🤖 가상 봇 1, 2, 3 전환 서브 탭 단추 -->
+        <div class="nav-tabs" style="margin-bottom: 20px; justify-content: flex-start; background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); width: fit-content; padding: 3px; border-radius: 8px;">
+            <button class="nav-tab-btn sub-tab active" id="subtab-VIRTUAL_1" onclick="switchSubTab('VIRTUAL_1', this)" style="padding: 6px 16px; font-size: 12px; border-radius: 6px;">🤖 가상 봇 1 (V1)</button>
+            <button class="nav-tab-btn sub-tab" id="subtab-VIRTUAL_2" onclick="switchSubTab('VIRTUAL_2', this)" style="padding: 6px 16px; font-size: 12px; border-radius: 6px;">🤖 가상 봇 2 (V2)</button>
+            <button class="nav-tab-btn sub-tab" id="subtab-VIRTUAL_3" onclick="switchSubTab('VIRTUAL_3', this)" style="padding: 6px 16px; font-size: 12px; border-radius: 6px;">🤖 가상 봇 3 (V3)</button>
+        </div>
+
         <div class="bot-layout">
             <!-- 좌측: 설정 입력 폼 -->
             <div class="panel">
@@ -1422,24 +1463,52 @@
             document.getElementById('securityModal').style.display = 'none';
         }
 
+        let activeVirtualTab = 'VIRTUAL_1';
+        let cachedConfig = null;
+
+        function switchSubTab(vMode, btnEl) {
+            activeVirtualTab = vMode;
+            document.querySelectorAll('.sub-tab').forEach(btn => btn.classList.remove('active'));
+            btnEl.classList.add('active');
+            
+            // UI 바인딩 및 즉시 갱신
+            applyConfigForActiveVirtualBot();
+            fetchStatus();
+            fetchLogs();
+        }
+
+        function applyConfigForActiveVirtualBot() {
+            if (!cachedConfig) return;
+            const cfg = cachedConfig;
+            const p = activeVirtualTab.toLowerCase();  // "virtual_1", "virtual_2", "virtual_3"
+            
+            document.getElementById('cfg_v_market').value = cfg[`${p}_market`] || "US";
+            document.getElementById('cfg_v_ticker').value = cfg[`${p}_ticker`] || "AAPL";
+            document.getElementById('cfg_v_interval').value = cfg[`${p}_interval`] || "1m";
+            document.getElementById('cfg_v_reset_time').value = cfg[`${p}_reset_time`] || "22:30";
+            document.getElementById('cfg_v_start_time').value = cfg[`${p}_start_time`] || "";
+            document.getElementById('cfg_v_initial_balance').value = cfg[`${p}_initial_balance`] || 10000000;
+            document.getElementById('cfg_v_k_percent').value = cfg[`${p}_k_percent`] || 10;
+            document.getElementById('cfg_v_n_percent').value = cfg[`${p}_n_percent`] || 1.0;
+            document.getElementById('cfg_v_m_percent').value = cfg[`${p}_m_percent`] || 1.0;
+            document.getElementById('cfg_v_x_percent').value = cfg[`${p}_x_percent`] || 2.0;
+            document.getElementById('cfg_v_max_daily_loss').value = cfg[`${p}_max_daily_loss_limit`] || 5.0;
+            
+            document.getElementById('cfg_v_use_adx').checked = cfg[`${p}_use_adx_filter`] || false;
+            document.getElementById('cfg_v_use_rsi').checked = cfg[`${p}_use_rsi_filter`] || false;
+            document.getElementById('cfg_v_use_band').checked = cfg[`${p}_use_vwap_band`] || false;
+            document.getElementById('cfg_v_adx_th').value = cfg[`${p}_adx_threshold`] || 25.0;
+            document.getElementById('cfg_v_rsi_th').value = cfg[`${p}_rsi_threshold`] || 30.0;
+            
+            updateTickerLabels();
+        }
+
         // 1. 설정 정보 조회
         async function loadConfig() {
             try {
                 const response = await fetch('/vwap/api/config');
                 if (response.ok) {
                     const data = await response.json();
-                    const cfg = data.config;
-                    
-                    // 가상 설정 바인딩
-                    document.getElementById('cfg_v_market').value = cfg.virtual_market || "US";
-                    document.getElementById('cfg_v_ticker').value = cfg.virtual_ticker || "AAPL";
-                    document.getElementById('cfg_v_interval').value = cfg.virtual_interval || "1m";
-                    document.getElementById('cfg_v_reset_time').value = cfg.virtual_reset_time || "22:30";
-                    document.getElementById('cfg_v_start_time').value = cfg.virtual_start_time || "";
-                    document.getElementById('cfg_v_initial_balance').value = cfg.virtual_initial_balance || 10000000;
-                    document.getElementById('cfg_v_k_percent').value = cfg.virtual_k_percent || 10;
-                    document.getElementById('cfg_v_n_percent').value = cfg.virtual_n_percent || 1.0;
-                    document.getElementById('cfg_v_m_percent').value = cfg.virtual_m_percent || 1.0;
                     document.getElementById('cfg_v_x_percent').value = cfg.virtual_x_percent || 2.0;
                     document.getElementById('cfg_v_max_daily_loss').value = cfg.virtual_max_daily_loss_limit || 5.0;
                     
@@ -1511,7 +1580,7 @@
         async function saveConfig(event, mode) {
             event.preventDefault();
             const prefix = mode === "VIRTUAL" ? "v" : "r";
-            const modeLower = mode.toLowerCase();
+            const modeLower = mode === "VIRTUAL" ? activeVirtualTab.toLowerCase() : "real";
             
             const payload = {};
             payload[`${modeLower}_market`] = document.getElementById(`cfg_${prefix}_market`).value;
@@ -1546,7 +1615,7 @@
                 });
                 
                 if (response.ok) {
-                    alert(`${mode} 매매 파라미터가 임시 저장 및 동적 반영되었습니다.`);
+                    alert(`${mode === "VIRTUAL" ? activeVirtualTab : mode} 매매 파라미터가 임시 저장 및 동적 반영되었습니다.`);
                     loadConfig();
                     fetchStatus();
                 } else {
@@ -1667,35 +1736,63 @@
         }
 
         function updateDOM(data) {
-            const vBot = data.virtual_bot;
+            const vBot = data.virtual_bot;  // 하위 호환용 (VIRTUAL_1)
+            const vBots = data.virtual_bots;
             const rBot = data.real_bot;
             const metrics = data.metrics;
 
-            v_is_running = vBot.is_running;
+            // 활성화된 가상 봇 참조
+            const activeVBot = vBots[activeVirtualTab];
+            const activeVIdx = activeVirtualTab.toLowerCase();
+            const activeVMetrics = metrics[activeVIdx];
+
+            v_is_running = activeVBot.is_running;
             r_is_running = rBot.is_running;
 
-            // 상단 상태 배지
+            // 상단 상태 배지 (가상 봇 1~3 기동 현황 포함)
+            const v1_run = vBots["VIRTUAL_1"].is_running;
+            const v2_run = vBots["VIRTUAL_2"].is_running;
+            const v3_run = vBots["VIRTUAL_3"].is_running;
+            
             const activeStatus = document.getElementById('botActiveStatus');
-            activeStatus.innerHTML = `VIRTUAL: <span style="color:${v_is_running ? 'var(--accent-green)' : 'var(--text-secondary)'};">${v_is_running ? 'RUNNING' : 'OFFLINE'}</span> | 
-                                      REAL: <span style="color:${r_is_running ? 'var(--accent-green)' : 'var(--text-secondary)'};">${r_is_running ? 'RUNNING' : 'OFFLINE'}</span>`;
+            activeStatus.innerHTML = `VIRTUAL (V1: <span style="color:${v1_run ? 'var(--accent-green)' : 'var(--text-secondary)'}; font-weight:bold;">${v1_run ? 'ON' : 'OFF'}</span> | 
+                                      V2: <span style="color:${v2_run ? 'var(--accent-green)' : 'var(--text-secondary)'}; font-weight:bold;">${v2_run ? 'ON' : 'OFF'}</span> | 
+                                      V3: <span style="color:${v3_run ? 'var(--accent-green)' : 'var(--text-secondary)'}; font-weight:bold;">${v3_run ? 'ON' : 'OFF'}</span>) | 
+                                      REAL: <span style="color:${r_is_running ? 'var(--accent-green)' : 'var(--text-secondary)'}; font-weight:bold;">${r_is_running ? 'RUNNING' : 'OFFLINE'}</span>`;
+
+            // --------------------------
+            // [가상거래 종합 잔고 업데이트]
+            // --------------------------
+            const vSum = metrics.virtual_summary;
+            // 종합 화폐 단위는 가상 봇 1의 화폐 단위를 참고하여 적용
+            document.getElementById('v_sum_total_asset').textContent = formatCurrency(vSum.total_asset, activeVBot.market);
+            document.getElementById('v_sum_initial_balance').textContent = formatCurrency(vSum.initial_balance, activeVBot.market);
+            document.getElementById('v_sum_cash').textContent = formatCurrency(vSum.cash, activeVBot.market);
+            document.getElementById('v_sum_stock_value').textContent = formatCurrency(vSum.stock_value, activeVBot.market);
+            
+            const vSumRoiEl = document.getElementById('v_sum_roi');
+            vSumRoiEl.textContent = (vSum.roi >= 0 ? "+" : "") + vSum.roi.toFixed(2) + "%";
+            vSumRoiEl.className = vSum.roi >= 0 ? "up-trend" : "down-trend";
+            document.getElementById('v_sum_win_rate').textContent = `${vSum.win_rate.toFixed(1)}% (${vSum.total_trades}회)`;
 
             // --------------------------
             // [종합 현황 탭 업데이트]
             // --------------------------
-            document.getElementById('ov_v_total_asset').textContent = formatCurrency(metrics.virtual.total_asset, vBot.market);
-            document.getElementById('ov_v_cash').textContent = formatCurrency(metrics.virtual.cash, vBot.market);
-            document.getElementById('ov_v_stock').textContent = formatCurrency(metrics.virtual.stock_value, vBot.market);
+            // 하위 호환을 위해 종합 탭에는 여전히 VIRTUAL_1(기본 가상 봇) 메트릭스를 표기
+            document.getElementById('ov_v_total_asset').textContent = formatCurrency(metrics_virtual.total_asset, vBot.market);
+            document.getElementById('ov_v_cash').textContent = formatCurrency(metrics_virtual.cash, vBot.market);
+            document.getElementById('ov_v_stock').textContent = formatCurrency(metrics_virtual.stock_value, vBot.market);
             
-            const vRatio = metrics.virtual.total_asset > 0 ? Math.round((metrics.virtual.stock_value / metrics.virtual.total_asset) * 100) : 0;
+            const vRatio = metrics_virtual.total_asset > 0 ? Math.round((metrics_virtual.stock_value / metrics_virtual.total_asset) * 100) : 0;
             document.getElementById('ov_v_ratio_fill').style.width = vRatio + "%";
             document.getElementById('ov_v_ratio_txt').textContent = vRatio + "%";
             
             const vRoiEl = document.getElementById('ov_v_roi');
-            vRoiEl.textContent = (metrics.virtual.roi >= 0 ? "+" : "") + metrics.virtual.roi.toFixed(2) + "%";
-            vRoiEl.className = metrics.virtual.roi >= 0 ? "up-trend" : "down-trend";
-            document.getElementById('ov_v_trades').textContent = metrics.virtual.total_trades + "회";
+            vRoiEl.textContent = (metrics_virtual.roi >= 0 ? "+" : "") + metrics_virtual.roi.toFixed(2) + "%";
+            vRoiEl.className = metrics_virtual.roi >= 0 ? "up-trend" : "down-trend";
+            document.getElementById('ov_v_trades').textContent = metrics_virtual.total_trades + "회";
 
-            // 가상 보유 종목 바인딩
+            // 가상 보유 종목 바인딩 (VIRTUAL_1)
             const vHoldingsBody = document.getElementById('ov_v_holdings_body');
             if (Object.keys(vBot.holdings).length > 0) {
                 vHoldingsBody.innerHTML = Object.entries(vBot.holdings).map(([t, info]) => `
@@ -1760,33 +1857,33 @@
             // [가상 자동매매 탭 업데이트]
             // --------------------------
             if (activeTab === 'virtual_bot') {
-                updateTradingViewWidget("VIRTUAL", vBot.ticker, vBot.market, vBot.interval);
-                document.getElementById('v_monitoring_ticker').textContent = `[${getTickerName(vBot.ticker, vBot.market)}]`;
-                document.getElementById('v_last_updated').textContent = "마지막 갱신: " + (vBot.last_updated || "-");
+                updateTradingViewWidget("VIRTUAL", activeVBot.ticker, activeVBot.market, activeVBot.interval);
+                document.getElementById('v_monitoring_ticker').textContent = `[${activeVirtualTab} - ${getTickerName(activeVBot.ticker, activeVBot.market)}]`;
+                document.getElementById('v_last_updated').textContent = "마지막 갱신: " + (activeVBot.last_updated || "-");
                 
                 const vControl = document.getElementById('btnVBotControl');
                 vControl.textContent = v_is_running ? "가상 봇 중지 (STOP)" : "가상 봇 가동 (START)";
                 vControl.className = "bot-toggle-btn " + (v_is_running ? "btn-stop" : "btn-start");
 
                 const vSig = document.getElementById('v_signal');
-                vSig.textContent = vBot.signal;
-                vSig.className = "signal-badge " + vBot.signal;
+                vSig.textContent = activeVBot.signal;
+                vSig.className = "signal-badge " + activeVBot.signal;
 
-                document.getElementById('v_cur_price').textContent = formatCurrency(vBot.current_price, vBot.market);
-                document.getElementById('v_vwap').textContent = formatCurrency(vBot.vwap, vBot.market);
-                document.getElementById('v_buy_target').textContent = formatCurrency(vBot.target_buy_price, vBot.market);
-                document.getElementById('v_sell_target').textContent = formatCurrency(vBot.target_sell_price, vBot.market);
+                document.getElementById('v_cur_price').textContent = formatCurrency(activeVBot.current_price, activeVBot.market);
+                document.getElementById('v_vwap').textContent = formatCurrency(activeVBot.vwap, activeVBot.market);
+                document.getElementById('v_buy_target').textContent = formatCurrency(activeVBot.target_buy_price, activeVBot.market);
+                document.getElementById('v_sell_target').textContent = formatCurrency(activeVBot.target_sell_price, activeVBot.market);
 
                 // 가상 미체결
                 const vOpenBody = document.getElementById('v_open_orders_body');
-                if (vBot.open_orders && vBot.open_orders.length > 0) {
-                    vOpenBody.innerHTML = vBot.open_orders.map(o => `
+                if (activeVBot.open_orders && activeVBot.open_orders.length > 0) {
+                    vOpenBody.innerHTML = activeVBot.open_orders.map(o => `
                         <tr>
                             <td>${o.order_id}</td>
                             <td class="${o.side === 'BUY' ? 'up-trend' : 'down-trend'}">${o.side}</td>
-                            <td>${formatCurrency(o.price, vBot.market)}</td>
+                            <td>${formatCurrency(o.price, activeVBot.market)}</td>
                             <td>${o.qty}주</td>
-                            <td>${formatCurrency(o.price * o.qty, vBot.market)}</td>
+                            <td>${formatCurrency(o.price * o.qty, activeVBot.market)}</td>
                         </tr>
                     `).join('');
                 } else {
@@ -1795,8 +1892,8 @@
 
                 // 가상 이력
                 const vHistBody = document.getElementById('v_history_body');
-                if (metrics.virtual.recent_trades && metrics.virtual.recent_trades.length > 0) {
-                    const rev = [...metrics.virtual.recent_trades].reverse();
+                if (activeVMetrics.recent_trades && activeVMetrics.recent_trades.length > 0) {
+                    const rev = [...activeVMetrics.recent_trades].reverse();
                     vHistBody.innerHTML = rev.map(t => {
                         const isWin = t.pnl > 0;
                         const pnlClass = t.side === "BUY" ? "neutral-trend" : (isWin ? "up-trend" : "down-trend");
@@ -1804,9 +1901,9 @@
                             <tr>
                                 <td>${t.timestamp}</td>
                                 <td class="${t.side === 'BUY' ? 'up-trend' : 'down-trend'}">${t.side}</td>
-                                <td>${formatCurrency(t.price, vBot.market)}</td>
+                                <td>${formatCurrency(t.price, activeVBot.market)}</td>
                                 <td>${t.qty}주</td>
-                                <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.pnl >= 0 ? '+' : '') + formatCurrency(t.pnl, vBot.market)}</td>
+                                <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.pnl >= 0 ? '+' : '') + formatCurrency(t.pnl, activeVBot.market)}</td>
                                 <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.roi >= 0 ? '+' : '') + t.roi.toFixed(2) + '%'}</td>
                             </tr>
                         `;
@@ -1815,6 +1912,7 @@
                     vHistBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">거래 내역이 없습니다.</td></tr>`;
                 }
             }
+
 
             // --------------------------
             // [실제 자동매매 탭 업데이트]
@@ -1879,19 +1977,20 @@
 
         // 5. 봇 시작/정지 제어
         async function toggleBot(mode) {
-            const isRunning = mode === "REAL" ? r_is_running : v_is_running;
+            const mappedMode = mode === "VIRTUAL" ? activeVirtualTab : mode;
+            const isRunning = mappedMode === "REAL" ? r_is_running : v_is_running;
             const action = isRunning ? "stop" : "start";
             try {
                 const response = await fetch('/vwap/api/control', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action, mode })
+                    body: JSON.stringify({ action, mode: mappedMode })
                 });
                 
                 if (response.ok) {
                     fetchStatus();
                 } else {
-                    alert(`${mode} 봇 제어 명령 실패`);
+                    alert(`${mappedMode} 봇 제어 명령 실패`);
                 }
             } catch (err) {
                 alert("명령 전송 네트워크 에러: " + err);
@@ -1901,7 +2000,7 @@
         // 6. 실시간 로그 읽기
         async function fetchLogs() {
             if (activeTab !== 'virtual_bot' && activeTab !== 'real_bot') return;
-            const mode = activeTab === 'virtual_bot' ? 'VIRTUAL' : 'REAL';
+            const mode = activeTab === 'virtual_bot' ? activeVirtualTab : 'REAL';
             const termId = activeTab === 'virtual_bot' ? 'v_log_terminal' : 'r_log_terminal';
             
             try {
@@ -1921,15 +2020,16 @@
 
         // 7. 거래 이력 리셋
         async function resetTrades(mode) {
-            if (!confirm(`정말로 모든 ${mode} 거래 기록과 누적 평가 잔고를 초기화하시겠습니까?`)) return;
+            const mappedMode = mode === "VIRTUAL" ? activeVirtualTab : mode;
+            if (!confirm(`정말로 모든 ${mappedMode} 거래 기록과 누적 평가 잔고를 초기화하시겠습니까?`)) return;
             try {
                 const response = await fetch('/vwap/api/reset-trades', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mode })
+                    body: JSON.stringify({ mode: mappedMode })
                 });
                 if (response.ok) {
-                    alert(`${mode} 거래 내역 및 평가 자산이 초기화되었습니다.`);
+                    alert(`${mappedMode} 거래 내역 및 평가 자산이 초기화되었습니다.`);
                     fetchStatus();
                 } else {
                     alert("초기화 실패");

@@ -137,6 +137,8 @@ class VWAPBot:
         config = VwapConfigManager.load_config()
         
         mode = self.mode
+        if mode == "VIRTUAL":
+            mode = "VIRTUAL_1"
         mode_prefix = mode.lower()
         
         ticker = config[f"{mode_prefix}_ticker"]
@@ -175,7 +177,8 @@ class VWAPBot:
         if not self.virtual_broker or self.virtual_broker.initial_balance != initial_balance:
             self.virtual_broker = VirtualBroker(
                 initial_balance=initial_balance,
-                ticker_source_broker=self.real_broker
+                ticker_source_broker=self.real_broker,
+                mode=mode
             )
 
         # 현재 실행 모드에 맞는 브로커 선택
