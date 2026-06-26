@@ -714,24 +714,46 @@
                         <h3 style="font-size: 15px; font-weight: bold; color: var(--accent-purple);">TOSS 실거래 연동 자산</h3>
                         <span class="up-trend" id="ov_r_active_badge" style="font-size: 10px; font-weight: bold;">API CONNECTED</span>
                     </div>
-                    <div>
-                        <div class="metric-title">실제 총 자산 평가액</div>
-                        <div class="metric-value" id="ov_r_total_asset">₩0</div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 12px; color: var(--text-secondary);">
-                        <div>실제 예수금: <span id="ov_r_cash" style="color: white; font-weight: bold;">₩0</span></div>
-                        <div>실제 주식금액: <span id="ov_r_stock" style="color: white; font-weight: bold;">₩0</span></div>
-                    </div>
-                    <div class="asset-progress-container">
-                        <div style="font-size: 10px; min-width: 45px; font-weight: bold;">주식 비중</div>
-                        <div class="progress-ring-bar">
-                            <div class="progress-ring-fill" id="ov_r_ratio_fill" style="width: 0%; background: linear-gradient(90deg, var(--accent-purple), var(--accent-red));"></div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <!-- 왼쪽: 계좌 전체 현황 -->
+                        <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px;">
+                            <h4 style="font-size: 11px; color: var(--accent-purple); font-weight: bold; margin-bottom: 8px;">🏦 TOSS 계좌 전체</h4>
+                            <div class="metric-title" style="margin-bottom: 2px;">계좌 평가 자산</div>
+                            <div class="metric-value" id="ov_r_total_asset" style="font-size: 18px; margin-bottom: 6px;">₩0</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 3px;">
+                                <div>예수금: <span id="ov_r_cash" style="color: white; font-weight: bold;">₩0</span></div>
+                                <div>주식잔고: <span id="ov_r_stock" style="color: white; font-weight: bold;">₩0</span></div>
+                                <div style="margin-top: 4px; border-top: 1px solid var(--border-color); padding-top: 4px;">
+                                    계좌 수익률: <strong id="ov_r_roi" class="neutral-trend">+0.00%</strong>
+                                </div>
+                            </div>
                         </div>
-                        <div style="font-size: 10px; font-weight: bold;" id="ov_r_ratio_txt">0%</div>
+                        
+                        <!-- 오른쪽: VWAP 봇 전용 성과 -->
+                        <div style="background: rgba(139, 92, 246, 0.04); border: 1px solid rgba(139, 92, 246, 0.15); border-radius: 12px; padding: 14px;">
+                            <h4 style="font-size: 11px; color: #a78bfa; font-weight: bold; margin-bottom: 8px;">🤖 VWAP 봇 성과</h4>
+                            <div class="metric-title" style="margin-bottom: 2px;">봇 누적 손익</div>
+                            <div class="metric-value" id="ov_r_bot_pnl" style="font-size: 18px; margin-bottom: 6px;">₩0</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 3px;">
+                                <div>실현 손익: <span id="ov_r_bot_realized_pnl" style="color: white; font-weight: bold;">₩0</span></div>
+                                <div>평가 손익: <span id="ov_r_bot_unrealized_pnl" style="color: white; font-weight: bold;">₩0</span></div>
+                                <div style="margin-top: 4px; border-top: 1px solid rgba(139, 92, 246, 0.15); padding-top: 4px;">
+                                    봇 전용 ROI: <strong id="ov_r_bot_roi" class="neutral-trend">+0.00%</strong>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; justify-content: space-between; font-size: 12px;">
-                        <span>실거래 기준 수익률: <strong id="ov_r_roi" class="neutral-trend">+0.00%</strong></span>
-                        <span>실거래 횟수: <strong id="ov_r_trades" style="color:white;">0회</strong></span>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        <div style="display: flex; align-items: center; gap: 8px; width: 65%;">
+                            <span style="font-weight: bold; min-width: 45px;">주식 비중</span>
+                            <div class="progress-ring-bar" style="margin: 0; flex-grow: 1;">
+                                <div class="progress-ring-fill" id="ov_r_ratio_fill" style="width: 0%; background: linear-gradient(90deg, var(--accent-purple), var(--accent-red));"></div>
+                            </div>
+                            <span id="ov_r_ratio_txt" style="font-weight: bold;">0%</span>
+                        </div>
+                        <div>실거래 횟수: <strong id="ov_r_trades" style="color:white;">0회</strong></div>
                     </div>
                 </div>
             </div>
@@ -1369,6 +1391,10 @@
                     <ul style="padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 6px;">
                         <li><strong>가상거래 종합 잔고 현황</strong>: 3개 가상 봇의 가용 현금과 주식 평가금액을 합산하여 전체 가상 총 자산, 누적 수익률(ROI), 합산 승률 및 거래 횟수를 실시간으로 요약 표기합니다.</li>
                         <li><strong>서브 탭 스위칭</strong>: 대시보드의 <strong style="color:var(--accent-blue);">🤖 가상 봇 1 ~ 3</strong> 버튼을 누르면 설정값, 차트, 로그, 매매이력이 해당 봇의 정보로 즉각 자동 전환됩니다.</li>
+                        <li><strong>실거래 듀얼 수익률 표기</strong>: 실거래 대시보드는 <strong>TOSS 계좌 전체</strong> 현황과 <strong>VWAP 봇 전용</strong> 성과를 듀얼 모드로 동시 제공합니다.
+                            <br>- <em>TOSS 계좌 전체</em>: 계좌 내의 모든 주식 평가금과 예수금을 합산하여 '기준 자본금' 대비 ROI를 보여줍니다.
+                            <br>- <em>VWAP 봇 전용</em>: 봇의 실제 주문 체결 이력(<code style="color:var(--accent-purple); background:rgba(139,92,246,0.1); padding:2px 4px; border-radius:4px;">vwap_trades_real.json</code>)의 누적 실현 손익과 봇 가동 종목의 평가 손익만을 취합하여 '기준 자본금' 대비 ROI를 독립적으로 산출하며, 개인 거래 건은 봇 수익률에서 자동 배제됩니다.
+                        </li>
                     </ul>
                 </div>
 
@@ -1396,7 +1422,7 @@
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);"><strong>기준 자본금 (원/달러)</strong></td>
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">실제 자동매매(`REAL`) 구동 시 성과 요약 및 일 최대 손실 한도 계산의 분모가 되는 자본금입니다.</td>
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">마켓 구분별 통화 기준<br>- 미국: <span class="signal-badge BUY" style="padding:2px 6px;">달러 ($)</span><br>- 한국: <span class="signal-badge BUY" style="padding:2px 6px;">원 (₩)</span></td>
-                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">실제 예수금 규모와 별도로 투자자가 임의로 지정하여 봇이 사용할 기준 자금 규모를 명시합니다.</td>
+                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">실제 예수금 규모와 별도로 투자자가 임의로 지정하여 봇이 사용할 기준 자금 규모를 명시합니다. 대시보드의 'TOSS 실거래 연동 자산' 카드에서는 TOSS 계좌 전체 현황과 🤖 VWAP 봇 성과가 듀얼로 분리 표기됩니다. 봇 전용 ROI는 <code>(봇 누적 실현 손익 + 봇 현재 평가 손익) / 기준 자본금 * 100</code> 공식으로 정밀 산출되므로, 수동 매매 종목이 계좌에 섞여 있더라도 봇의 순수 알고리즘 성과만 격리하여 분석할 수 있습니다.</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);"><strong>매수 이격률 (N %)</strong></td>
@@ -1959,6 +1985,19 @@
                 const rRoiEl = document.getElementById('ov_r_roi');
                 rRoiEl.textContent = (metrics.real.roi >= 0 ? "+" : "") + metrics.real.roi.toFixed(2) + "%";
                 rRoiEl.className = metrics.real.roi >= 0 ? "up-trend" : "down-trend";
+
+                // VWAP 봇 전용 성과 바인딩
+                const botPnlEl = document.getElementById('ov_r_bot_pnl');
+                botPnlEl.textContent = (metrics.real.bot_pnl >= 0 ? "+" : "") + formatCurrency(metrics.real.bot_pnl, rBot.market);
+                botPnlEl.className = "metric-value " + (metrics.real.bot_pnl >= 0 ? "up-trend" : "down-trend");
+
+                document.getElementById('ov_r_bot_realized_pnl').textContent = formatCurrency(metrics.real.bot_realized_pnl, rBot.market);
+                document.getElementById('ov_r_bot_unrealized_pnl').textContent = formatCurrency(metrics.real.bot_unrealized_pnl, rBot.market);
+
+                const rBotRoiEl = document.getElementById('ov_r_bot_roi');
+                rBotRoiEl.textContent = (metrics.real.bot_roi >= 0 ? "+" : "") + metrics.real.bot_roi.toFixed(2) + "%";
+                rBotRoiEl.className = metrics.real.bot_roi >= 0 ? "up-trend" : "down-trend";
+
                 document.getElementById('ov_r_trades').textContent = metrics.real.total_trades + "회";
 
                 // 실제 보유 종목 바인딩

@@ -182,9 +182,12 @@ def api_get_status():
                 balance = broker.get_balance()
                 r_cash = balance["cash"]
                 
-                # 실제 보유 종목들의 시세를 받아와 평가금액 계산
+                # 실제 보유 종목들의 시세를 일괄적으로 받아와 평가금액 계산
+                tickers = list(balance["holdings"].keys())
+                prices_map = broker.get_current_prices(tickers)
+                
                 for ticker, info in balance["holdings"].items():
-                    current_price = broker.get_current_price(ticker)
+                    current_price = prices_map.get(ticker, 0.0)
                     if current_price <= 0 and r_status["ticker"] == ticker:
                         current_price = r_status["current_price"]
                     
@@ -222,6 +225,38 @@ def api_get_status():
     r_total_asset = r_cash + r_stock_val
     r_roi = ((r_total_asset - r_initial) / r_initial) * 100.0 if r_initial > 0 else 0.0
     
+    # 봇 전용 성과 연산 (REAL)
+    r_bot_realized_pnl = sum(float(t.get("pnl", 0.0)) for t in r_trades)
+    r_bot_unrealized_pnl = 0.0
+    bot_ticker = config.get("real_ticker", "AAPL")
+    
+    bot_qty = 0.0
+    bot_entry = 0.0
+    bot_curr = r_status.get("current_price", 0.0)
+    
+    if api_active and 'broker' in locals() and broker and not broker.mock_mode:
+        try:
+            live_holdings = broker.get_balance().get("holdings", {})
+            if bot_ticker in live_holdings:
+                bot_qty = float(live_holdings[bot_ticker].get("qty", 0.0))
+                bot_entry = float(live_holdings[bot_ticker].get("entry_price", 0.0))
+                price_temp = broker.get_current_price(bot_ticker)
+                if price_temp > 0:
+                    bot_curr = price_temp
+        except Exception:
+            pass
+            
+    if bot_qty <= 0 and bot_ticker in r_status.get("holdings", {}):
+        h_info = r_status["holdings"][bot_ticker]
+        bot_qty = float(h_info.get("qty", 0.0))
+        bot_entry = float(h_info.get("entry_price", 0.0))
+        
+    if bot_qty > 0 and bot_entry > 0:
+        r_bot_unrealized_pnl = (bot_curr - bot_entry) * bot_qty
+        
+    r_bot_pnl = r_bot_realized_pnl + r_bot_unrealized_pnl
+    r_bot_roi = (r_bot_pnl / r_initial) * 100.0 if r_initial > 0 else 0.0
+
     r_total_trades = len(r_trades)
     r_win_trades = [t for t in r_trades if t.get("pnl", 0.0) > 0]
     r_win_rate = (len(r_win_trades) / r_total_trades * 100.0) if r_total_trades > 0 else 0.0
@@ -237,7 +272,11 @@ def api_get_status():
         "total_trades": r_total_trades,
         "recent_trades": r_trades[-30:],
         "api_active": api_active and not (real_bot.real_broker and real_bot.real_broker.mock_mode),
-        "holdings": r_holdings
+        "holdings": r_holdings,
+        "bot_pnl": round(r_bot_pnl, 2),
+        "bot_roi": round(r_bot_roi, 2),
+        "bot_realized_pnl": round(r_bot_realized_pnl, 2),
+        "bot_unrealized_pnl": round(r_bot_unrealized_pnl, 2)
     }
 
     return jsonify({
