@@ -12,8 +12,13 @@ logger = logging.getLogger("vwap_bot")
 
 vwap_bp = Blueprint('vwap', __name__, template_folder='templates')
 
-# 전역 트레이딩 봇 인스턴스 생성 (가상 봇, 실제 봇 이중화)
-virtual_bot = VWAPBot("VIRTUAL")
+# 전역 트레이딩 봇 인스턴스 생성 (가상 봇 3개 다중화, 실제 봇 이중화)
+virtual_bots = {
+    "VIRTUAL_1": VWAPBot("VIRTUAL_1"),
+    "VIRTUAL_2": VWAPBot("VIRTUAL_2"),
+    "VIRTUAL_3": VWAPBot("VIRTUAL_3")
+}
+virtual_bot = virtual_bots["VIRTUAL_1"]  # 하위 호환용 매핑
 real_bot = VWAPBot("REAL")
 
 def admin_required(f):
@@ -77,41 +82,75 @@ def api_get_status():
     """가상/실제 봇의 실시간 상태 캐시 및 성과 지표(ROI 등)를 계산하여 반환합니다."""
     config = VwapConfigManager.load_config()
     
-    # 1. 가상 자산 메트릭스 산출
-    v_status = virtual_bot.get_status()
-    v_trades = VwapConfigManager.load_trades("VIRTUAL")
-    v_initial = float(config.get("virtual_initial_balance", 10000000.0))
+    # 1. 가상 자산 메트릭스 산출 (3개 가상 봇 개별 계산 및 요약 합산)
+    metrics_v_all = {}
+    v_total_initial = 0.0
+    v_total_asset_sum = 0.0
+    v_total_cash_sum = 0.0
+    v_total_stock_sum = 0.0
+    v_total_trades_sum = 0
+    v_total_win_trades_sum = 0
     
-    v_cash = v_status["cash"]
-    v_holdings = v_status["holdings"]
-    v_ticker = v_status["ticker"]
-    
-    v_stock_val = 0.0
-    v_holding_info = v_holdings.get(v_ticker)
-    if v_holding_info:
-        v_stock_val = float(v_holding_info["qty"]) * v_status["current_price"]
+    for v_mode in ["VIRTUAL_1", "VIRTUAL_2", "VIRTUAL_3"]:
+        v_idx = v_mode.lower()  # "virtual_1", "virtual_2", "virtual_3"
+        v_bot = virtual_bots[v_mode]
+        v_status = v_bot.get_status()
+        v_trades = VwapConfigManager.load_trades(v_mode)
+        v_initial = float(config.get(f"{v_idx}_initial_balance", 10000000.0))
         
-    v_total_asset = v_cash + v_stock_val
-    v_roi = ((v_total_asset - v_initial) / v_initial) * 100.0 if v_initial > 0 else 0.0
-    v_unrealized_pnl = 0.0
-    if v_holding_info:
-        v_unrealized_pnl = (v_status["current_price"] - float(v_holding_info["entry_price"])) * float(v_holding_info["qty"])
+        v_cash = v_status["cash"]
+        v_holdings = v_status["holdings"]
+        v_ticker = v_status["ticker"]
         
-    v_total_trades = len(v_trades)
-    v_win_trades = [t for t in v_trades if t.get("pnl", 0.0) > 0]
-    v_win_rate = (len(v_win_trades) / v_total_trades * 100.0) if v_total_trades > 0 else 0.0
-    
-    metrics_virtual = {
-        "initial_balance": round(v_initial, 2),
-        "total_asset": round(v_total_asset, 2),
-        "cash": round(v_cash, 2),
-        "stock_value": round(v_stock_val, 2),
-        "unrealized_pnl": round(v_unrealized_pnl, 2),
-        "roi": round(v_roi, 2),
-        "win_rate": round(v_win_rate, 2),
-        "total_trades": v_total_trades,
-        "recent_trades": v_trades[-30:]
+        v_stock_val = 0.0
+        v_holding_info = v_holdings.get(v_ticker)
+        if v_holding_info:
+            v_stock_val = float(v_holding_info["qty"]) * v_status["current_price"]
+            
+        v_total_asset = v_cash + v_stock_val
+        v_roi = ((v_total_asset - v_initial) / v_initial) * 100.0 if v_initial > 0 else 0.0
+        v_unrealized_pnl = 0.0
+        if v_holding_info:
+            v_unrealized_pnl = (v_status["current_price"] - float(v_holding_info["entry_price"])) * float(v_holding_info["qty"])
+            
+        v_total_trades = len(v_trades)
+        v_win_trades = [t for t in v_trades if t.get("pnl", 0.0) > 0]
+        v_win_rate = (len(v_win_trades) / v_total_trades * 100.0) if v_total_trades > 0 else 0.0
+        
+        metrics_v_all[v_idx] = {
+            "initial_balance": round(v_initial, 2),
+            "total_asset": round(v_total_asset, 2),
+            "cash": round(v_cash, 2),
+            "stock_value": round(v_stock_val, 2),
+            "unrealized_pnl": round(v_unrealized_pnl, 2),
+            "roi": round(v_roi, 2),
+            "win_rate": round(v_win_rate, 2),
+            "total_trades": v_total_trades,
+            "recent_trades": v_trades[-30:]
+        }
+        
+        v_total_initial += v_initial
+        v_total_asset_sum += v_total_asset
+        v_total_cash_sum += v_cash
+        v_total_stock_sum += v_stock_val
+        v_total_trades_sum += v_total_trades
+        v_total_win_trades_sum += len(v_win_trades)
+
+    # 종합 가상 잔고 메트릭스
+    v_total_roi = ((v_total_asset_sum - v_total_initial) / v_total_initial) * 100.0 if v_total_initial > 0 else 0.0
+    v_total_win_rate = (v_total_win_trades_sum / v_total_trades_sum * 100.0) if v_total_trades_sum > 0 else 0.0
+    metrics_v_summary = {
+        "initial_balance": round(v_total_initial, 2),
+        "total_asset": round(v_total_asset_sum, 2),
+        "cash": round(v_total_cash_sum, 2),
+        "stock_value": round(v_total_stock_sum, 2),
+        "roi": round(v_total_roi, 2),
+        "win_rate": round(v_total_win_rate, 2),
+        "total_trades": v_total_trades_sum
     }
+
+    # 하위 호환을 위해 virtual 필드는 VIRTUAL_1 데이터를 매핑
+    metrics_virtual = metrics_v_all["virtual_1"]
 
     # 2. 실제 자산 메트릭스 산출 (Toss API 실시간 연동)
     r_status = real_bot.get_status()
@@ -203,10 +242,19 @@ def api_get_status():
 
     return jsonify({
         "status": "success",
-        "virtual_bot": v_status,
+        "virtual_bot": virtual_bots["VIRTUAL_1"].get_status(),  # 하위 호환용
+        "virtual_bots": {
+            "VIRTUAL_1": virtual_bots["VIRTUAL_1"].get_status(),
+            "VIRTUAL_2": virtual_bots["VIRTUAL_2"].get_status(),
+            "VIRTUAL_3": virtual_bots["VIRTUAL_3"].get_status()
+        },
         "real_bot": r_status,
         "metrics": {
             "virtual": metrics_virtual,
+            "virtual_1": metrics_v_all["virtual_1"],
+            "virtual_2": metrics_v_all["virtual_2"],
+            "virtual_3": metrics_v_all["virtual_3"],
+            "virtual_summary": metrics_v_summary,
             "real": metrics_real
         }
     })
@@ -244,13 +292,37 @@ def api_config():
         # 공통
         "toss_client_id", "max_daily_loss_limit",
         
-        # 가상(VIRTUAL)용 키
+        # 가상(VIRTUAL)용 키 - 하위 호환용
         "virtual_ticker", "virtual_market", "virtual_interval", "virtual_n_percent", 
         "virtual_m_percent", "virtual_x_percent", "virtual_k_percent", "virtual_initial_balance", 
         "virtual_max_daily_loss_limit", "virtual_reset_time", "virtual_start_time", "virtual_use_adx_filter", 
         "virtual_adx_period", "virtual_adx_threshold", "virtual_use_rsi_filter", 
         "virtual_rsi_period", "virtual_rsi_threshold", "virtual_use_vwap_band", 
         "virtual_vwap_band_sigma",
+        
+        # 가상 1(VIRTUAL_1)용 키
+        "virtual_1_ticker", "virtual_1_market", "virtual_1_interval", "virtual_1_n_percent", 
+        "virtual_1_m_percent", "virtual_1_x_percent", "virtual_1_k_percent", "virtual_1_initial_balance", 
+        "virtual_1_max_daily_loss_limit", "virtual_1_reset_time", "virtual_1_start_time", "virtual_1_use_adx_filter", 
+        "virtual_1_adx_period", "virtual_1_adx_threshold", "virtual_1_use_rsi_filter", 
+        "virtual_1_rsi_period", "virtual_1_rsi_threshold", "virtual_1_use_vwap_band", 
+        "virtual_1_vwap_band_sigma",
+
+        # 가상 2(VIRTUAL_2)용 키
+        "virtual_2_ticker", "virtual_2_market", "virtual_2_interval", "virtual_2_n_percent", 
+        "virtual_2_m_percent", "virtual_2_x_percent", "virtual_2_k_percent", "virtual_2_initial_balance", 
+        "virtual_2_max_daily_loss_limit", "virtual_2_reset_time", "virtual_2_start_time", "virtual_2_use_adx_filter", 
+        "virtual_2_adx_period", "virtual_2_adx_threshold", "virtual_2_use_rsi_filter", 
+        "virtual_2_rsi_period", "virtual_2_rsi_threshold", "virtual_2_use_vwap_band", 
+        "virtual_2_vwap_band_sigma",
+
+        # 가상 3(VIRTUAL_3)용 키
+        "virtual_3_ticker", "virtual_3_market", "virtual_3_interval", "virtual_3_n_percent", 
+        "virtual_3_m_percent", "virtual_3_x_percent", "virtual_3_k_percent", "virtual_3_initial_balance", 
+        "virtual_3_max_daily_loss_limit", "virtual_3_reset_time", "virtual_3_start_time", "virtual_3_use_adx_filter", 
+        "virtual_3_adx_period", "virtual_3_adx_threshold", "virtual_3_use_rsi_filter", 
+        "virtual_3_rsi_period", "virtual_3_rsi_threshold", "virtual_3_use_vwap_band", 
+        "virtual_3_vwap_band_sigma",
         
         # 실제(REAL)용 키
         "real_ticker", "real_market", "real_interval", "real_n_percent", 
@@ -299,9 +371,16 @@ def api_control():
     """백그라운드 봇을 시작하거나 정지시킵니다."""
     data = request.get_json() or {}
     action = data.get('action', '')
-    mode = data.get('mode', 'VIRTUAL').upper()
+    mode = data.get('mode', 'VIRTUAL_1').upper()
+    if mode == "VIRTUAL":
+        mode = "VIRTUAL_1"
     
-    target_bot = real_bot if mode == "REAL" else virtual_bot
+    if mode == "REAL":
+        target_bot = real_bot
+    elif mode in virtual_bots:
+        target_bot = virtual_bots[mode]
+    else:
+        return jsonify({"status": "failed", "reason": "invalid_mode"}), 400
     
     if action == 'start':
         success = target_bot.start()
@@ -320,7 +399,9 @@ def api_control():
 @admin_required
 def api_get_logs():
     """선택한 모드의 트레이딩 봇 로그 파일의 최근 100줄을 스트리밍 형태로 반환합니다."""
-    mode = request.args.get('mode', 'VIRTUAL').upper()
+    mode = request.args.get('mode', 'VIRTUAL_1').upper()
+    if mode == "VIRTUAL":
+        mode = "VIRTUAL_1"
     log_path = os.path.join(PROJECT_ROOT, f"trading_bot_{mode.lower()}.log")
     
     if not os.path.exists(log_path):
@@ -374,14 +455,18 @@ def api_run_backtest():
 def api_reset_trades():
     """선택한 모드의 거래 체결 이력을 초기화하고 봇의 가상 브로커 잔고를 리셋합니다."""
     data = request.get_json() or {}
-    mode = data.get('mode', 'VIRTUAL').upper()
+    mode = data.get('mode', 'VIRTUAL_1').upper()
+    if mode == "VIRTUAL":
+        mode = "VIRTUAL_1"
     
     try:
         VwapConfigManager.save_trades([], mode)
         
-        # 가상 거래 기록 초기화인 경우 봇의 virtual_broker 잔고 동기화 트리거
-        if mode == "VIRTUAL" and virtual_bot.virtual_broker:
-            virtual_bot.virtual_broker._sync_balance_from_trades()
+        # 가상 거래 기록 초기화인 경우 해당 봇의 virtual_broker 잔고 동기화 트리거
+        if mode in virtual_bots:
+            v_bot = virtual_bots[mode]
+            if v_bot.virtual_broker:
+                v_bot.virtual_broker._sync_balance_from_trades()
             
         logger.info(f"🗑️ {mode} 거래 기록 및 평가 잔고가 성공적으로 초기화되었습니다.")
         return jsonify({"status": "success", "message": f"{mode} 거래 내역 및 평가 잔고가 초기화되었습니다."})

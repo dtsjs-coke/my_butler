@@ -40,7 +40,7 @@ class VwapConfigManager:
             "toss_client_secret": "",       # 토스 Client Secret (암호화 대상)
             "toss_account_seq": "",         # 토스 계좌식별자 (암호화 대상)
             
-            # 가상 거래(VIRTUAL) 파라미터
+            # 가상 거래(VIRTUAL) 파라미터 - 하위 호환용
             "virtual_ticker": "AAPL",
             "virtual_market": "US",
             "virtual_interval": "1m",
@@ -61,6 +61,72 @@ class VwapConfigManager:
             "virtual_use_vwap_band": False,
             "virtual_vwap_band_sigma": 2.0,
             "virtual_is_running": False,
+
+            # 가상 거래 1(VIRTUAL_1) 파라미터
+            "virtual_1_ticker": "AAPL",
+            "virtual_1_market": "US",
+            "virtual_1_interval": "1m",
+            "virtual_1_n_percent": 1.0,
+            "virtual_1_m_percent": 1.0,
+            "virtual_1_x_percent": 2.0,
+            "virtual_1_k_percent": 10.0,
+            "virtual_1_initial_balance": 10000000.0,
+            "virtual_1_max_daily_loss_limit": 5.0,
+            "virtual_1_reset_time": "22:30",
+            "virtual_1_start_time": "",
+            "virtual_1_use_adx_filter": False,
+            "virtual_1_adx_period": 14,
+            "virtual_1_adx_threshold": 25.0,
+            "virtual_1_use_rsi_filter": False,
+            "virtual_1_rsi_period": 14,
+            "virtual_1_rsi_threshold": 30.0,
+            "virtual_1_use_vwap_band": False,
+            "virtual_1_vwap_band_sigma": 2.0,
+            "virtual_1_is_running": False,
+
+            # 가상 거래 2(VIRTUAL_2) 파라미터
+            "virtual_2_ticker": "TSLA",
+            "virtual_2_market": "US",
+            "virtual_2_interval": "1m",
+            "virtual_2_n_percent": 1.0,
+            "virtual_2_m_percent": 1.0,
+            "virtual_2_x_percent": 2.0,
+            "virtual_2_k_percent": 10.0,
+            "virtual_2_initial_balance": 10000000.0,
+            "virtual_2_max_daily_loss_limit": 5.0,
+            "virtual_2_reset_time": "22:30",
+            "virtual_2_start_time": "",
+            "virtual_2_use_adx_filter": False,
+            "virtual_2_adx_period": 14,
+            "virtual_2_adx_threshold": 25.0,
+            "virtual_2_use_rsi_filter": False,
+            "virtual_2_rsi_period": 14,
+            "virtual_2_rsi_threshold": 30.0,
+            "virtual_2_use_vwap_band": False,
+            "virtual_2_vwap_band_sigma": 2.0,
+            "virtual_2_is_running": False,
+
+            # 가상 거래 3(VIRTUAL_3) 파라미터
+            "virtual_3_ticker": "NVDA",
+            "virtual_3_market": "US",
+            "virtual_3_interval": "1m",
+            "virtual_3_n_percent": 1.0,
+            "virtual_3_m_percent": 1.0,
+            "virtual_3_x_percent": 2.0,
+            "virtual_3_k_percent": 10.0,
+            "virtual_3_initial_balance": 10000000.0,
+            "virtual_3_max_daily_loss_limit": 5.0,
+            "virtual_3_reset_time": "22:30",
+            "virtual_3_start_time": "",
+            "virtual_3_use_adx_filter": False,
+            "virtual_3_adx_period": 14,
+            "virtual_3_adx_threshold": 25.0,
+            "virtual_3_use_rsi_filter": False,
+            "virtual_3_rsi_period": 14,
+            "virtual_3_rsi_threshold": 30.0,
+            "virtual_3_use_vwap_band": False,
+            "virtual_3_vwap_band_sigma": 2.0,
+            "virtual_3_is_running": False,
 
             # 실제 거래(REAL) 파라미터
             "real_ticker": "AAPL",
@@ -142,6 +208,27 @@ class VwapConfigManager:
                     is_migrated = True
                 
                 if is_migrated:
+                    cls.save_config(config)
+
+                # [마이그레이션 2] 단일 가상 설정을 가상_1 설정으로 복사
+                is_migrated_v1 = False
+                if "virtual_1_ticker" not in file_config:
+                    v_keys = [
+                        "ticker", "market", "interval", "n_percent", "m_percent", 
+                        "x_percent", "k_percent", "initial_balance", "max_daily_loss_limit", 
+                        "reset_time", "start_time", "use_adx_filter", "adx_period", "adx_threshold", 
+                        "use_rsi_filter", "rsi_period", "rsi_threshold", "use_vwap_band", 
+                        "vwap_band_sigma", "is_running"
+                    ]
+                    for vk in v_keys:
+                        old_key = f"virtual_{vk}"
+                        if old_key in file_config:
+                            config[f"virtual_1_{vk}"] = file_config[old_key]
+                        elif old_key in config:
+                            config[f"virtual_1_{vk}"] = config[old_key]
+                    is_migrated_v1 = True
+                
+                if is_migrated_v1:
                     cls.save_config(config)
 
                 # 민감한 정보는 복호화하여 인메모리에 보관

@@ -433,13 +433,14 @@ class TossBroker(Broker):
 
 
 class VirtualBroker(Broker):
-    def __init__(self, initial_balance: float, ticker_source_broker: Broker):
+    def __init__(self, initial_balance: float, ticker_source_broker: Broker, mode: str = "VIRTUAL"):
         """
         가상 거래를 위해 인메모리 장부를 구동하는 브로커 클래스입니다.
         시세(Candles, Price) 조회를 위해 실제 TossBroker(혹은 Mock 모드)를 내부에서 레퍼런스합니다.
         """
         self.source_broker = ticker_source_broker
         self.initial_balance = initial_balance
+        self.mode = mode.upper()
         self.cash = initial_balance
         self.holdings = {}       # {ticker: {"qty": float, "entry_price": float}}
         self.open_orders = []    # [{"order_id": str, "ticker": str, "side": str, "price": float, "qty": float, "created_at": float}]
@@ -449,7 +450,7 @@ class VirtualBroker(Broker):
 
     def _sync_balance_from_trades(self):
         """로컬 vwap_trades.json 이력으로부터 가상 잔고 및 보유 종목 상태를 재구축합니다."""
-        trades = VwapConfigManager.load_trades("VIRTUAL")
+        trades = VwapConfigManager.load_trades(self.mode)
         self.cash = self.initial_balance
         self.holdings = {}
         
@@ -613,7 +614,7 @@ class VirtualBroker(Broker):
                 "pnl": round(pnl, 2),
                 "roi": round(roi, 2)
             }
-            VwapConfigManager.add_trade(trade_record, "VIRTUAL")
+            VwapConfigManager.add_trade(trade_record, self.mode)
 
     def force_market_stop_loss(self, ticker: str, current_price: float):
         """손절 시그널 감지 시 즉시 가상 포지션을 시장가로 전량 매도 청산합니다."""
@@ -647,5 +648,5 @@ class VirtualBroker(Broker):
             "pnl": round(pnl, 2),
             "roi": round(roi, 2)
         }
-        VwapConfigManager.add_trade(trade_record, "VIRTUAL")
+        VwapConfigManager.add_trade(trade_record, self.mode)
         print(f"🚨 [VirtualBroker] 손절 시장가 청산 집행 완료: {ticker} {qty}주 @ {current_price:.2f} (손익: {pnl:+.2f}, 수익률: {roi:+.2f}%)")
