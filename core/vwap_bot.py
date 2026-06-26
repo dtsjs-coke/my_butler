@@ -147,6 +147,7 @@ class VWAPBot:
         x_percent = float(config[f"{mode_prefix}_x_percent"])
         k_percent = float(config[f"{mode_prefix}_k_percent"])
         reset_time = config[f"{mode_prefix}_reset_time"]
+        start_time = config.get(f"{mode_prefix}_start_time", "")
         initial_balance = float(config[f"{mode_prefix}_initial_balance"])
         max_daily_loss_limit = float(config.get(f"{mode_prefix}_max_daily_loss_limit", 5.0))
         
@@ -261,6 +262,46 @@ class VWAPBot:
         target_buy_price = signals["target_buy_price"]
         target_sell_price = signals["target_sell_price"]
         stop_loss_price = signals["stop_loss_price"]
+
+        # 7-1. 거래 시작 시간(Start Time) 체크를 통한 대기 로직 적용
+        is_waiting_for_start = False
+        if start_time and start_time != reset_time:
+            try:
+                from datetime import timedelta
+                # HH:MM 형식 검증 및 파싱
+                reset_h, reset_m = map(int, reset_time.split(':'))
+                start_h, start_m = map(int, start_time.split(':'))
+                
+                dt_now = datetime.now()
+                # 오늘 기준 리셋 시각
+                dt_reset_today = dt_now.replace(hour=reset_h, minute=reset_m, second=0, microsecond=0)
+                
+                # 최근 리셋 시각 (T_reset)
+                if dt_now >= dt_reset_today:
+                    t_reset = dt_reset_today
+                else:
+                    t_reset = dt_reset_today - timedelta(days=1)
+                
+                # 최근 리셋 시각에 대응하는 거래 시작 시각 (T_start)
+                t_start_temp = t_reset.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+                if t_start_temp >= t_reset:
+                    t_start = t_start_temp
+                else:
+                    t_start = t_start_temp + timedelta(days=1)
+                
+                # 현재 시각이 대기 시간 범위 [T_reset, T_start)에 있는 경우 대기 활성화
+                if t_reset <= dt_now < t_start:
+                    is_waiting_for_start = True
+                    self.logger.info(
+                        f"⏳ [거래 시작 대기] 현재 시각({dt_now.strftime('%H:%M:%S')})이 거래 시작 설정 시각({start_time}) 이전입니다. "
+                        f"(최근 리셋: {t_reset.strftime('%m-%d %H:%M')}, 시작 예정: {t_start.strftime('%m-%d %H:%M')})"
+                    )
+            except Exception as ex:
+                self.logger.error(f"❌ 거래 시작 시간 검증 중 에러 발생 (설정값: {start_time}): {ex}")
+
+        if is_waiting_for_start:
+            signal = "WAIT"
+            self.logger.info(f"⏳ 대기 시간대이므로 전략 시그널을 WAIT로 강제하고 신규 매매를 보류합니다.")
 
         self.logger.info(f"현재가: {current_price:.2f} | VWAP: {vwap:.2f} | 시그널: {signal}")
         if qty > 0:

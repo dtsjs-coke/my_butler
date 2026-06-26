@@ -821,6 +821,16 @@
 
                     <div class="form-row">
                         <div class="form-group">
+                            <label>거래 시작 시각 (대기 설정)</label>
+                            <input type="text" id="cfg_v_start_time" placeholder="ex: 23:50 (미입력 시 즉시)">
+                        </div>
+                        <div class="form-group">
+                            <!-- 우측 빈칸으로 균형 유지 -->
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
                             <label id="lbl_v_initial_balance">가상 원금</label>
                             <input type="number" id="cfg_v_initial_balance" required>
                         </div>
@@ -1032,6 +1042,16 @@
                         <div class="form-group">
                             <label>VWAP 리셋 시각</label>
                             <input type="text" id="cfg_r_reset_time" placeholder="ex: 22:30" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>거래 시작 시각 (대기 설정)</label>
+                            <input type="text" id="cfg_r_start_time" placeholder="ex: 23:50 (미입력 시 즉시)">
+                        </div>
+                        <div class="form-group">
+                            <!-- 우측 빈칸으로 균형 유지 -->
                         </div>
                     </div>
 
@@ -1415,6 +1435,7 @@
                     document.getElementById('cfg_v_ticker').value = cfg.virtual_ticker || "AAPL";
                     document.getElementById('cfg_v_interval').value = cfg.virtual_interval || "1m";
                     document.getElementById('cfg_v_reset_time').value = cfg.virtual_reset_time || "22:30";
+                    document.getElementById('cfg_v_start_time').value = cfg.virtual_start_time || "";
                     document.getElementById('cfg_v_initial_balance').value = cfg.virtual_initial_balance || 10000000;
                     document.getElementById('cfg_v_k_percent').value = cfg.virtual_k_percent || 10;
                     document.getElementById('cfg_v_n_percent').value = cfg.virtual_n_percent || 1.0;
@@ -1433,6 +1454,7 @@
                     document.getElementById('cfg_r_ticker').value = cfg.real_ticker || "AAPL";
                     document.getElementById('cfg_r_interval').value = cfg.real_interval || "1m";
                     document.getElementById('cfg_r_reset_time').value = cfg.real_reset_time || "22:30";
+                    document.getElementById('cfg_r_start_time').value = cfg.real_start_time || "";
                     document.getElementById('cfg_r_initial_balance').value = cfg.real_initial_balance || 10000000;
                     document.getElementById('cfg_r_k_percent').value = cfg.real_k_percent || 10;
                     document.getElementById('cfg_r_n_percent').value = cfg.real_n_percent || 1.0;
@@ -1496,6 +1518,7 @@
             payload[`${modeLower}_ticker`] = document.getElementById(`cfg_${prefix}_ticker`).value.toUpperCase().trim();
             payload[`${modeLower}_interval`] = document.getElementById(`cfg_${prefix}_interval`).value;
             payload[`${modeLower}_reset_time`] = document.getElementById(`cfg_${prefix}_reset_time`).value;
+            payload[`${modeLower}_start_time`] = document.getElementById(`cfg_${prefix}_start_time`).value.trim();
             payload[`${modeLower}_initial_balance`] = parseFloat(document.getElementById(`cfg_${prefix}_initial_balance`).value);
             payload[`${modeLower}_k_percent`] = parseFloat(document.getElementById(`cfg_${prefix}_k_percent`).value);
             payload[`${modeLower}_n_percent`] = parseFloat(document.getElementById(`cfg_${prefix}_n_percent`).value);

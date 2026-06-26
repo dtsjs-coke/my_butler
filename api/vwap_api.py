@@ -247,7 +247,7 @@ def api_config():
         # 가상(VIRTUAL)용 키
         "virtual_ticker", "virtual_market", "virtual_interval", "virtual_n_percent", 
         "virtual_m_percent", "virtual_x_percent", "virtual_k_percent", "virtual_initial_balance", 
-        "virtual_max_daily_loss_limit", "virtual_reset_time", "virtual_use_adx_filter", 
+        "virtual_max_daily_loss_limit", "virtual_reset_time", "virtual_start_time", "virtual_use_adx_filter", 
         "virtual_adx_period", "virtual_adx_threshold", "virtual_use_rsi_filter", 
         "virtual_rsi_period", "virtual_rsi_threshold", "virtual_use_vwap_band", 
         "virtual_vwap_band_sigma",
@@ -255,7 +255,7 @@ def api_config():
         # 실제(REAL)용 키
         "real_ticker", "real_market", "real_interval", "real_n_percent", 
         "real_m_percent", "real_x_percent", "real_k_percent", "real_initial_balance", 
-        "real_max_daily_loss_limit", "real_reset_time", "real_use_adx_filter", 
+        "real_max_daily_loss_limit", "real_reset_time", "real_start_time", "real_use_adx_filter", 
         "real_adx_period", "real_adx_threshold", "real_use_rsi_filter", 
         "real_rsi_period", "real_rsi_threshold", "real_use_vwap_band", 
         "real_vwap_band_sigma"
