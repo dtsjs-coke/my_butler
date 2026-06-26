@@ -872,7 +872,7 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label id="lbl_v_initial_balance">가상 원금</label>
+                            <label id="lbl_v_initial_balance">가상 원금 (원/달러)</label>
                             <input type="number" id="cfg_v_initial_balance" required>
                         </div>
                         <div class="form-group">
@@ -1029,7 +1029,7 @@
 
             <div class="terminal">
                 <div class="terminal-header">
-                    <span>trading_bot_virtual.log</span>
+                    <span id="v_log_filename">trading_bot_virtual_1.log</span>
                     <span style="font-size: 9px; color: var(--accent-blue);">● LIVE</span>
                 </div>
                 <div class="terminal-body" id="v_log_terminal">가상 로그 로딩 중...</div>
@@ -1098,7 +1098,7 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label id="lbl_r_initial_balance">기준 자본금</label>
+                            <label id="lbl_r_initial_balance">기준 자본금 (원/달러)</label>
                             <input type="number" id="cfg_r_initial_balance" required>
                         </div>
                         <div class="form-group">
@@ -1445,14 +1445,14 @@
 
         function switchTab(tabName, btnEl) {
             activeTab = tabName;
-            document.querySelectorAll('.nav-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.nav-tab-btn:not(.sub-tab)').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             
             btnEl.classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
             
             // 탭 활성화 시 즉시 갱신
-            fetchStatus();
+            fetchStatus(true);
             fetchLogs();
         }
 
@@ -1473,7 +1473,15 @@
             
             // UI 바인딩 및 즉시 갱신
             applyConfigForActiveVirtualBot();
-            fetchStatus();
+            
+            // UI 헤더 및 로그 이름 즉시 갱신으로 체감 반응속도 향상
+            document.getElementById('v_monitoring_ticker').textContent = `[${activeVirtualTab} - 로딩 중...]`;
+            const filenameEl = document.getElementById('v_log_filename');
+            if (filenameEl) {
+                filenameEl.textContent = `trading_bot_${activeVirtualTab.toLowerCase()}.log`;
+            }
+            
+            fetchStatus(true);
             fetchLogs();
         }
 
@@ -1509,14 +1517,12 @@
                 const response = await fetch('/vwap/api/config');
                 if (response.ok) {
                     const data = await response.json();
-                    document.getElementById('cfg_v_x_percent').value = cfg.virtual_x_percent || 2.0;
-                    document.getElementById('cfg_v_max_daily_loss').value = cfg.virtual_max_daily_loss_limit || 5.0;
+                    cachedConfig = data.config;
                     
-                    document.getElementById('cfg_v_use_adx').checked = cfg.virtual_use_adx_filter || false;
-                    document.getElementById('cfg_v_use_rsi').checked = cfg.virtual_use_rsi_filter || false;
-                    document.getElementById('cfg_v_use_band').checked = cfg.virtual_use_vwap_band || false;
-                    document.getElementById('cfg_v_adx_th').value = cfg.virtual_adx_threshold || 25.0;
-                    document.getElementById('cfg_v_rsi_th').value = cfg.virtual_rsi_threshold || 30.0;
+                    // 활성화된 가상 봇 설정 대입
+                    applyConfigForActiveVirtualBot();
+
+                    const cfg = cachedConfig;
 
                     // 실제 설정 바인딩
                     document.getElementById('cfg_r_market').value = cfg.real_market || "US";
@@ -1669,8 +1675,8 @@
         }
 
         // 4. 상태 폴링
-        async function fetchStatus() {
-            if (isFetching) return;
+        async function fetchStatus(force = false) {
+            if (isFetching && !force) return;
             isFetching = true;
             try {
                 const response = await fetch('/vwap/api/status');
@@ -1689,6 +1695,7 @@
 
         let curVSymbol = "";
         let curVInterval = "";
+        let curVBotId = "";
         let curRSymbol = "";
         let curRInterval = "";
 
@@ -1701,9 +1708,10 @@
             else if (interval === "15m") tvInterval = "15";
 
             if (mode === "VIRTUAL") {
-                if (curVSymbol === symbol && curVInterval === tvInterval) return;
+                if (curVSymbol === symbol && curVInterval === tvInterval && curVBotId === activeVirtualTab) return;
                 curVSymbol = symbol;
                 curVInterval = tvInterval;
+                curVBotId = activeVirtualTab;
             } else {
                 if (curRSymbol === symbol && curRInterval === tvInterval) return;
                 curRSymbol = symbol;
@@ -1778,32 +1786,43 @@
             // --------------------------
             // [종합 현황 탭 업데이트]
             // --------------------------
-            // 하위 호환을 위해 종합 탭에는 여전히 VIRTUAL_1(기본 가상 봇) 메트릭스를 표기
-            document.getElementById('ov_v_total_asset').textContent = formatCurrency(metrics_virtual.total_asset, vBot.market);
-            document.getElementById('ov_v_cash').textContent = formatCurrency(metrics_virtual.cash, vBot.market);
-            document.getElementById('ov_v_stock').textContent = formatCurrency(metrics_virtual.stock_value, vBot.market);
+            // 가상거래 종합 잔고(VIRTUAL_1~3 합계)를 표기
+            document.getElementById('ov_v_total_asset').textContent = formatCurrency(vSum.total_asset, vBot.market);
+            document.getElementById('ov_v_cash').textContent = formatCurrency(vSum.cash, vBot.market);
+            document.getElementById('ov_v_stock').textContent = formatCurrency(vSum.stock_value, vBot.market);
             
-            const vRatio = metrics_virtual.total_asset > 0 ? Math.round((metrics_virtual.stock_value / metrics_virtual.total_asset) * 100) : 0;
+            const vRatio = vSum.total_asset > 0 ? Math.round((vSum.stock_value / vSum.total_asset) * 100) : 0;
             document.getElementById('ov_v_ratio_fill').style.width = vRatio + "%";
             document.getElementById('ov_v_ratio_txt').textContent = vRatio + "%";
             
             const vRoiEl = document.getElementById('ov_v_roi');
-            vRoiEl.textContent = (metrics_virtual.roi >= 0 ? "+" : "") + metrics_virtual.roi.toFixed(2) + "%";
-            vRoiEl.className = metrics_virtual.roi >= 0 ? "up-trend" : "down-trend";
-            document.getElementById('ov_v_trades').textContent = metrics_virtual.total_trades + "회";
+            vRoiEl.textContent = (vSum.roi >= 0 ? "+" : "") + vSum.roi.toFixed(2) + "%";
+            vRoiEl.className = vSum.roi >= 0 ? "up-trend" : "down-trend";
+            document.getElementById('ov_v_trades').textContent = vSum.total_trades + "회";
 
-            // 가상 보유 종목 바인딩 (VIRTUAL_1)
+            // 가상 보유 종목 바인딩 (V1 ~ V3 합산)
             const vHoldingsBody = document.getElementById('ov_v_holdings_body');
-            if (Object.keys(vBot.holdings).length > 0) {
-                vHoldingsBody.innerHTML = Object.entries(vBot.holdings).map(([t, info]) => `
-                    <tr>
-                        <td><strong>${t}</strong></td>
-                        <td>${info.qty}</td>
-                        <td>${formatCurrency(info.entry_price, vBot.market)}</td>
-                        <td>${formatCurrency(vBot.current_price, vBot.market)}</td>
-                        <td>${formatCurrency(info.qty * vBot.current_price, vBot.market)}</td>
-                    </tr>
-                `).join('');
+            let combinedVHoldingsHtml = "";
+            
+            Object.entries(vBots).forEach(([botKey, botData]) => {
+                const botLabel = botKey === "VIRTUAL_1" ? "V1" : (botKey === "VIRTUAL_2" ? "V2" : "V3");
+                if (botData.holdings && Object.keys(botData.holdings).length > 0) {
+                    Object.entries(botData.holdings).forEach(([ticker, info]) => {
+                        combinedVHoldingsHtml += `
+                            <tr>
+                                <td><strong>${ticker} <span style="font-size:9px; color:var(--text-secondary);">(${botLabel})</span></strong></td>
+                                <td>${info.qty}</td>
+                                <td>${formatCurrency(info.entry_price, botData.market)}</td>
+                                <td>${formatCurrency(botData.current_price, botData.market)}</td>
+                                <td>${formatCurrency(info.qty * botData.current_price, botData.market)}</td>
+                            </tr>
+                        `;
+                    });
+                }
+            });
+            
+            if (combinedVHoldingsHtml !== "") {
+                vHoldingsBody.innerHTML = combinedVHoldingsHtml;
             } else {
                 vHoldingsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">보유 가상 주식 없음</td></tr>`;
             }
