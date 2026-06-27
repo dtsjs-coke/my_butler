@@ -21,6 +21,27 @@ virtual_bots = {
 virtual_bot = virtual_bots["VIRTUAL_1"]  # 하위 호환용 매핑
 real_bot = VWAPBot("REAL")
 
+
+def restore_active_bots():
+    """서버 기동 시 이전에 가동 중이었던 봇들을 안전하게 자동 복구(재시작)시킵니다."""
+    try:
+        config = VwapConfigManager.load_config()
+        for v_mode in ["VIRTUAL_1", "VIRTUAL_2", "VIRTUAL_3"]:
+            v_idx = v_mode.lower()
+            if config.get(f"{v_idx}_is_running", False):
+                logger.info(f"🔄 [서버 초기화] {v_mode} 봇 자동 복구를 시작합니다...")
+                virtual_bots[v_mode].start()
+        if config.get("real_is_running", False):
+            logger.info("🔄 [서버 초기화] REAL 봇 자동 복구를 시작합니다...")
+            real_bot.start()
+    except Exception as e:
+        logger.error(f"❌ [서버 초기화] 봇 자동 복구 실패: {e}")
+
+
+# 블루프린트 로드 시 1회 자동 실행
+restore_active_bots()
+
+
 def admin_required(f):
     """Admin 세션 토큰을 검증하는 API 데코레이터입니다."""
     @wraps(f)
@@ -423,11 +444,19 @@ def api_control():
     
     if action == 'start':
         success = target_bot.start()
+        if success:
+            config = VwapConfigManager.load_config()
+            config[f"{mode.lower()}_is_running"] = True
+            VwapConfigManager.save_config(config)
         msg = f"{mode} 트레이딩 봇이 작동하기 시작했습니다." if success else f"{mode} 봇이 이미 실행 중입니다."
         return jsonify({"status": "success" if success else "failed", "message": msg})
         
     elif action == 'stop':
         success = target_bot.stop()
+        if success:
+            config = VwapConfigManager.load_config()
+            config[f"{mode.lower()}_is_running"] = False
+            VwapConfigManager.save_config(config)
         msg = f"{mode} 트레이딩 봇이 중지되었습니다." if success else f"{mode} 봇이 실행 중이 아닙니다."
         return jsonify({"status": "success" if success else "failed", "message": msg})
         
