@@ -21,6 +21,16 @@ virtual_bots = {
 virtual_bot = virtual_bots["VIRTUAL_1"]  # 하위 호환용 매핑
 real_bot = VWAPBot("REAL")
 
+# 실제 자산 실시간 데이터 캐시 (조회 버튼을 누를 때만 업데이트)
+real_assets_cache = {
+    "cash": 0.0,
+    "stock_value": 0.0,
+    "holdings": {},
+    "unrealized_pnl": 0.0,
+    "total_purchase_val": 0.0,
+    "last_updated": ""
+}
+
 
 def restore_active_bots():
     """서버 기동 시 이전에 가동 중이었던 봇들을 안전하게 자동 복구(재시작)시킵니다."""
@@ -181,12 +191,12 @@ def api_get_status():
     # API 자격증명 등록 여부 확인
     api_active = bool(config.get("toss_client_id") and config.get("toss_client_secret"))
     
-    r_cash = 0.0
-    r_stock_val = 0.0
-    r_holdings = {}
-    r_unrealized_pnl = 0.0
+    global real_assets_cache
     
-    if api_active:
+    # refresh_real 파라미터가 명시적으로 들어왔을 때만 Toss API 실시간 갱신 실행
+    refresh_real = request.args.get('refresh_real', 'false').lower() == 'true'
+    
+    if api_active and (refresh_real or not real_assets_cache["last_updated"]):
         # 실시간 자산 조회를 위해 TossBroker 활용
         try:
             # 기존 봇의 브로커가 있으면 재사용, 없으면 임시 생성
@@ -202,6 +212,10 @@ def api_get_status():
             if not broker.mock_mode:
                 balance = broker.get_balance()
                 r_cash = balance["cash"]
+                r_stock_val = 0.0
+                r_unrealized_pnl = 0.0
+                total_purchase_val = 0.0
+                r_holdings = {}
                 
                 # 실제 보유 종목들의 시세를 일괄적으로 받아와 평가금액 계산
                 tickers = list(balance["holdings"].keys())
@@ -215,6 +229,7 @@ def api_get_status():
                     qty = float(info["qty"])
                     entry_price = float(info["entry_price"])
                     eval_val = qty * current_price
+                    purchase_val = qty * entry_price
                     pnl = (current_price - entry_price) * qty
                     
                     r_holdings[ticker] = {
@@ -226,25 +241,56 @@ def api_get_status():
                     }
                     r_stock_val += eval_val
                     r_unrealized_pnl += pnl
+                    total_purchase_val += purchase_val
+                
+                # 캐시 갱신
+                real_assets_cache["cash"] = r_cash
+                real_assets_cache["stock_value"] = r_stock_val
+                real_assets_cache["holdings"] = r_holdings
+                real_assets_cache["unrealized_pnl"] = r_unrealized_pnl
+                real_assets_cache["total_purchase_val"] = total_purchase_val
+                real_assets_cache["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
             else:
                 # Mock 모드 폴백: 설정 캐시 활용
                 api_active = False
                 r_cash = r_status["cash"]
                 r_holdings = r_status["holdings"]
+                r_stock_val = 0.0
                 for t, info in r_holdings.items():
                     r_stock_val += float(info["qty"]) * r_status["current_price"]
+                
+                real_assets_cache["cash"] = r_cash
+                real_assets_cache["stock_value"] = r_stock_val
+                real_assets_cache["holdings"] = r_holdings
+                real_assets_cache["unrealized_pnl"] = 0.0
+                real_assets_cache["total_purchase_val"] = 0.0
+                real_assets_cache["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
         except Exception as e:
             logger.error(f"[api_status] 실제 자산 조회 에러: {e}")
             api_active = False
             r_cash = r_status["cash"]
             r_holdings = r_status["holdings"]
-    else:
-        # API 미설정 상태
-        r_cash = 0.0
-        r_holdings = {}
+            r_stock_val = 0.0
+            for t, info in r_holdings.items():
+                r_stock_val += float(info["qty"]) * r_status["current_price"]
+            
+            real_assets_cache["cash"] = r_cash
+            real_assets_cache["stock_value"] = r_stock_val
+            real_assets_cache["holdings"] = r_holdings
+            real_assets_cache["unrealized_pnl"] = 0.0
+            real_assets_cache["total_purchase_val"] = 0.0
+            real_assets_cache["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    # 캐시에서 자산 값 반환
+    r_cash = real_assets_cache["cash"]
+    r_stock_val = real_assets_cache["stock_value"]
+    r_holdings = real_assets_cache["holdings"]
+    r_unrealized_pnl = real_assets_cache["unrealized_pnl"]
+    total_purchase_val = real_assets_cache["total_purchase_val"]
         
     r_total_asset = r_cash + r_stock_val
-    r_roi = ((r_total_asset - r_initial) / r_initial) * 100.0 if r_initial > 0 else 0.0
+    # 실제 보유 종목들의 평단가 대비 실질 수익률 역계산
+    r_roi = (r_unrealized_pnl / total_purchase_val * 100.0) if total_purchase_val > 0 else 0.0
     
     # 봇 전용 성과 연산 (REAL)
     r_bot_realized_pnl = sum(float(t.get("pnl", 0.0)) for t in r_trades)
