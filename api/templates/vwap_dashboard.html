@@ -712,7 +712,11 @@
 
                     <div class="asset-card-header">
                         <h3 style="font-size: 15px; font-weight: bold; color: var(--accent-purple);">TOSS 실거래 연동 자산</h3>
-                        <span class="up-trend" id="ov_r_active_badge" style="font-size: 10px; font-weight: bold;">API CONNECTED</span>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button id="btn_refresh_real" onclick="triggerRealAssetRefresh()" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c084fc; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; cursor: pointer; transition: all 0.2s ease;">🔍 조회/갱신</button>
+                            <button id="btn_hide_real" onclick="toggleRealAssetVisibility(false)" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); color: var(--text-secondary); padding: 3px 8px; border-radius: 6px; font-size: 10px; cursor: pointer; display: none; transition: all 0.2s ease;">숨기기</button>
+                            <span class="up-trend" id="ov_r_active_badge" style="font-size: 10px; font-weight: bold;">API CONNECTED</span>
+                        </div>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
@@ -1601,6 +1605,43 @@
 
         let activeVirtualTab = 'VIRTUAL_1';
         let cachedConfig = null;
+        let isRealAssetVisible = false;
+        let isRealAssetRefreshing = false;
+
+        async function triggerRealAssetRefresh() {
+            if (isRealAssetRefreshing) return;
+            isRealAssetRefreshing = true;
+            const btn = document.getElementById('btn_refresh_real');
+            btn.textContent = "🔄 조회 중...";
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/vwap/api/status?refresh_real=true');
+                if (response.ok) {
+                    const data = await response.json();
+                    isRealAssetVisible = true;
+                    updateDOM(data);
+                    const hideBtn = document.getElementById('btn_hide_real');
+                    if (hideBtn) hideBtn.style.display = 'inline-block';
+                } else {
+                    alert("자산 조회에 실패하였습니다.");
+                }
+            } catch (err) {
+                console.error("실제 자산 조회 에러:", err);
+                alert("네트워크 에러: " + err);
+            } finally {
+                btn.textContent = "🔍 조회/갱신";
+                btn.disabled = false;
+                isRealAssetRefreshing = false;
+            }
+        }
+
+        function toggleRealAssetVisibility(visible) {
+            isRealAssetVisible = visible;
+            const hideBtn = document.getElementById('btn_hide_real');
+            if (hideBtn) hideBtn.style.display = visible ? 'inline-block' : 'none';
+            fetchStatus(true);
+        }
 
         function switchSubTab(vMode, btnEl) {
             activeVirtualTab = vMode;
@@ -1974,50 +2015,79 @@
                 ovRealLock.style.display = 'none';
                 realBotLock.style.display = 'none';
 
-                document.getElementById('ov_r_total_asset').textContent = formatCurrency(metrics.real.total_asset, rBot.market);
-                document.getElementById('ov_r_cash').textContent = formatCurrency(metrics.real.cash, rBot.market);
-                document.getElementById('ov_r_stock').textContent = formatCurrency(metrics.real.stock_value, rBot.market);
-                
-                const rRatio = metrics.real.total_asset > 0 ? Math.round((metrics.real.stock_value / metrics.real.total_asset) * 100) : 0;
-                document.getElementById('ov_r_ratio_fill').style.width = rRatio + "%";
-                document.getElementById('ov_r_ratio_txt').textContent = rRatio + "%";
-                
-                const rRoiEl = document.getElementById('ov_r_roi');
-                rRoiEl.textContent = (metrics.real.roi >= 0 ? "+" : "") + metrics.real.roi.toFixed(2) + "%";
-                rRoiEl.className = metrics.real.roi >= 0 ? "up-trend" : "down-trend";
+                if (isRealAssetVisible) {
+                    document.getElementById('ov_r_total_asset').textContent = formatCurrency(metrics.real.total_asset, rBot.market);
+                    document.getElementById('ov_r_cash').textContent = formatCurrency(metrics.real.cash, rBot.market);
+                    document.getElementById('ov_r_stock').textContent = formatCurrency(metrics.real.stock_value, rBot.market);
+                    
+                    const rRatio = metrics.real.total_asset > 0 ? Math.round((metrics.real.stock_value / metrics.real.total_asset) * 100) : 0;
+                    document.getElementById('ov_r_ratio_fill').style.width = rRatio + "%";
+                    document.getElementById('ov_r_ratio_txt').textContent = rRatio + "%";
+                    
+                    const rRoiEl = document.getElementById('ov_r_roi');
+                    rRoiEl.textContent = (metrics.real.roi >= 0 ? "+" : "") + metrics.real.roi.toFixed(2) + "%";
+                    rRoiEl.className = metrics.real.roi >= 0 ? "up-trend" : "down-trend";
 
-                // VWAP 봇 전용 성과 바인딩
-                const botPnlEl = document.getElementById('ov_r_bot_pnl');
-                botPnlEl.textContent = (metrics.real.bot_pnl >= 0 ? "+" : "") + formatCurrency(metrics.real.bot_pnl, rBot.market);
-                botPnlEl.className = "metric-value " + (metrics.real.bot_pnl >= 0 ? "up-trend" : "down-trend");
+                    // VWAP 봇 전용 성과 바인딩
+                    const botPnlEl = document.getElementById('ov_r_bot_pnl');
+                    botPnlEl.textContent = (metrics.real.bot_pnl >= 0 ? "+" : "") + formatCurrency(metrics.real.bot_pnl, rBot.market);
+                    botPnlEl.className = "metric-value " + (metrics.real.bot_pnl >= 0 ? "up-trend" : "down-trend");
 
-                document.getElementById('ov_r_bot_realized_pnl').textContent = formatCurrency(metrics.real.bot_realized_pnl, rBot.market);
-                document.getElementById('ov_r_bot_unrealized_pnl').textContent = formatCurrency(metrics.real.bot_unrealized_pnl, rBot.market);
+                    document.getElementById('ov_r_bot_realized_pnl').textContent = formatCurrency(metrics.real.bot_realized_pnl, rBot.market);
+                    document.getElementById('ov_r_bot_unrealized_pnl').textContent = formatCurrency(metrics.real.bot_unrealized_pnl, rBot.market);
 
-                const rBotRoiEl = document.getElementById('ov_r_bot_roi');
-                rBotRoiEl.textContent = (metrics.real.bot_roi >= 0 ? "+" : "") + metrics.real.bot_roi.toFixed(2) + "%";
-                rBotRoiEl.className = metrics.real.bot_roi >= 0 ? "up-trend" : "down-trend";
+                    const rBotRoiEl = document.getElementById('ov_r_bot_roi');
+                    rBotRoiEl.textContent = (metrics.real.bot_roi >= 0 ? "+" : "") + metrics.real.bot_roi.toFixed(2) + "%";
+                    rBotRoiEl.className = metrics.real.bot_roi >= 0 ? "up-trend" : "down-trend";
 
-                document.getElementById('ov_r_trades').textContent = metrics.real.total_trades + "회";
+                    document.getElementById('ov_r_trades').textContent = metrics.real.total_trades + "회";
 
-                // 실제 보유 종목 바인딩
-                const rHoldingsBody = document.getElementById('ov_r_holdings_body');
-                const entries = Object.entries(metrics.real.holdings || {});
-                
-                if (entries.length > 0) {
-                    rHoldingsBody.innerHTML = entries.map(([t, info]) => `
-                        <tr>
-                            <td><strong>${t}</strong></td>
-                            <td>${info.qty}</td>
-                            <td>${formatCurrency(info.entry_price, rBot.market)}</td>
-                            <td>${formatCurrency(info.eval_value, rBot.market)}</td>
-                            <td class="${info.pnl >= 0 ? 'up-trend' : 'down-trend'}">
-                                ${info.pnl >= 0 ? '+' : ''}${formatCurrency(info.pnl, rBot.market)} (${info.roi}%)
-                            </td>
-                        </tr>
-                    `).join('');
+                    // 실제 보유 종목 바인딩
+                    const rHoldingsBody = document.getElementById('ov_r_holdings_body');
+                    const entries = Object.entries(metrics.real.holdings || {});
+                    
+                    if (entries.length > 0) {
+                        rHoldingsBody.innerHTML = entries.map(([t, info]) => `
+                            <tr>
+                                <td><strong>${t}</strong></td>
+                                <td>${info.qty}</td>
+                                <td>${formatCurrency(info.entry_price, rBot.market)}</td>
+                                <td>${formatCurrency(info.eval_value, rBot.market)}</td>
+                                <td class="${info.pnl >= 0 ? 'up-trend' : 'down-trend'}">
+                                    ${info.pnl >= 0 ? '+' : ''}${formatCurrency(info.pnl, rBot.market)} (${info.roi}%)
+                                </td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        rHoldingsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">보유 실제 주식 없음</td></tr>`;
+                    }
                 } else {
-                    rHoldingsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">보유 실제 주식 없음</td></tr>`;
+                    // 숨김 상태 마스킹 렌더링
+                    document.getElementById('ov_r_total_asset').textContent = "🔒 조회 필요";
+                    document.getElementById('ov_r_cash').textContent = "🔒 조회 필요";
+                    document.getElementById('ov_r_stock').textContent = "🔒 조회 필요";
+                    document.getElementById('ov_r_ratio_fill').style.width = "0%";
+                    document.getElementById('ov_r_ratio_txt').textContent = "0%";
+                    
+                    const rRoiEl = document.getElementById('ov_r_roi');
+                    rRoiEl.textContent = "🔒 조회 필요";
+                    rRoiEl.className = "neutral-trend";
+
+                    const botPnlEl = document.getElementById('ov_r_bot_pnl');
+                    botPnlEl.textContent = "🔒 조회 필요";
+                    botPnlEl.className = "metric-value neutral-trend";
+
+                    document.getElementById('ov_r_bot_realized_pnl').textContent = "🔒 조회 필요";
+                    document.getElementById('ov_r_bot_unrealized_pnl').textContent = "🔒 조회 필요";
+
+                    const rBotRoiEl = document.getElementById('ov_r_bot_roi');
+                    rBotRoiEl.textContent = "🔒 조회 필요";
+                    rBotRoiEl.className = "neutral-trend";
+
+                    document.getElementById('ov_r_trades').textContent = "-";
+
+                    const rHoldingsBody = document.getElementById('ov_r_holdings_body');
+                    rHoldingsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">자산 조회 버튼을 클릭하여 확인하세요.</td></tr>`;
                 }
             }
 
@@ -2103,42 +2173,48 @@
                 document.getElementById('r_buy_target').textContent = formatCurrency(rBot.target_buy_price, rBot.market);
                 document.getElementById('r_sell_target').textContent = formatCurrency(rBot.target_sell_price, rBot.market);
 
-                // 실제 미체결
                 const rOpenBody = document.getElementById('r_open_orders_body');
-                if (rBot.open_orders && rBot.open_orders.length > 0) {
-                    rOpenBody.innerHTML = rBot.open_orders.map(o => `
-                        <tr>
-                            <td>${o.order_id}</td>
-                            <td class="${o.side === 'BUY' ? 'up-trend' : 'down-trend'}">${o.side}</td>
-                            <td>${formatCurrency(o.price, rBot.market)}</td>
-                            <td>${o.qty}주</td>
-                            <td>${formatCurrency(o.price * o.qty, rBot.market)}</td>
-                        </tr>
-                    `).join('');
-                } else {
-                    rOpenBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">미체결 주문이 없습니다.</td></tr>`;
-                }
-
-                // 실제 이력
                 const rHistBody = document.getElementById('r_history_body');
-                if (metrics.real.recent_trades && metrics.real.recent_trades.length > 0) {
-                    const rev = [...metrics.real.recent_trades].reverse();
-                    rHistBody.innerHTML = rev.map(t => {
-                        const isWin = t.pnl > 0;
-                        const pnlClass = t.side === "BUY" ? "neutral-trend" : (isWin ? "up-trend" : "down-trend");
-                        return `
+
+                if (isRealAssetVisible) {
+                    // 실제 미체결
+                    if (rBot.open_orders && rBot.open_orders.length > 0) {
+                        rOpenBody.innerHTML = rBot.open_orders.map(o => `
                             <tr>
-                                <td>${t.timestamp}</td>
-                                <td class="${t.side === 'BUY' ? 'up-trend' : 'down-trend'}">${t.side}</td>
-                                <td>${formatCurrency(t.price, rBot.market)}</td>
-                                <td>${t.qty}주</td>
-                                <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.pnl >= 0 ? '+' : '') + formatCurrency(t.pnl, rBot.market)}</td>
-                                <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.roi >= 0 ? '+' : '') + t.roi.toFixed(2) + '%'}</td>
+                                <td>${o.order_id}</td>
+                                <td class="${o.side === 'BUY' ? 'up-trend' : 'down-trend'}">${o.side}</td>
+                                <td>${formatCurrency(o.price, rBot.market)}</td>
+                                <td>${o.qty}주</td>
+                                <td>${formatCurrency(o.price * o.qty, rBot.market)}</td>
                             </tr>
-                        `;
-                    }).join('');
+                        `).join('');
+                    } else {
+                        rOpenBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">미체결 주문이 없습니다.</td></tr>`;
+                    }
+
+                    // 실제 이력
+                    if (metrics.real.recent_trades && metrics.real.recent_trades.length > 0) {
+                        const rev = [...metrics.real.recent_trades].reverse();
+                        rHistBody.innerHTML = rev.map(t => {
+                            const isWin = t.pnl > 0;
+                            const pnlClass = t.side === "BUY" ? "neutral-trend" : (isWin ? "up-trend" : "down-trend");
+                            return `
+                                <tr>
+                                    <td>${t.timestamp}</td>
+                                    <td class="${t.side === 'BUY' ? 'up-trend' : 'down-trend'}">${t.side}</td>
+                                    <td>${formatCurrency(t.price, rBot.market)}</td>
+                                    <td>${t.qty}주</td>
+                                    <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.pnl >= 0 ? '+' : '') + formatCurrency(t.pnl, rBot.market)}</td>
+                                    <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.roi >= 0 ? '+' : '') + t.roi.toFixed(2) + '%'}</td>
+                                </tr>
+                            `;
+                        }).join('');
+                    } else {
+                        rHistBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">거래 내역이 없습니다.</td></tr>`;
+                    }
                 } else {
-                    rHistBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">거래 내역이 없습니다.</td></tr>`;
+                    rOpenBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">자산 조회 버튼을 클릭하여 확인하세요.</td></tr>`;
+                    rHistBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">자산 조회 버튼을 클릭하여 확인하세요.</td></tr>`;
                 }
             }
         }
