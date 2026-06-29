@@ -211,48 +211,45 @@ def api_get_status():
             # API 키가 가짜가 아닌 경우에만 실제 계좌 조회 시도
             if not broker.mock_mode:
                 balance = broker.get_balance()
-                if balance is not None:
-                    r_cash = balance["cash"]
-                    r_stock_val = 0.0
-                    r_unrealized_pnl = 0.0
-                    total_purchase_val = 0.0
-                    r_holdings = {}
+                r_cash = balance["cash"]
+                r_stock_val = 0.0
+                r_unrealized_pnl = 0.0
+                total_purchase_val = 0.0
+                r_holdings = {}
+                
+                # 실제 보유 종목들의 시세를 일괄적으로 받아와 평가금액 계산
+                tickers = list(balance["holdings"].keys())
+                prices_map = broker.get_current_prices(tickers)
+                
+                for ticker, info in balance["holdings"].items():
+                    current_price = prices_map.get(ticker, 0.0)
+                    if current_price <= 0 and r_status["ticker"] == ticker:
+                        current_price = r_status["current_price"]
                     
-                    # 실제 보유 종목들의 시세를 일괄적으로 받아와 평가금액 계산
-                    tickers = list(balance["holdings"].keys())
-                    prices_map = broker.get_current_prices(tickers)
+                    qty = float(info["qty"])
+                    entry_price = float(info["entry_price"])
+                    eval_val = qty * current_price
+                    purchase_val = qty * entry_price
+                    pnl = (current_price - entry_price) * qty
                     
-                    for ticker, info in balance["holdings"].items():
-                        current_price = prices_map.get(ticker, 0.0)
-                        if current_price <= 0 and r_status["ticker"] == ticker:
-                            current_price = r_status["current_price"]
-                        
-                        qty = float(info["qty"])
-                        entry_price = float(info["entry_price"])
-                        eval_val = qty * current_price
-                        purchase_val = qty * entry_price
-                        pnl = (current_price - entry_price) * qty
-                        
-                        r_holdings[ticker] = {
-                            "qty": round(qty, 4),
-                            "entry_price": round(entry_price, 2),
-                            "eval_value": round(eval_val, 2),
-                            "pnl": round(pnl, 2),
-                            "roi": round((pnl / (entry_price * qty) * 100.0) if entry_price > 0 else 0.0, 2)
-                        }
-                        r_stock_val += eval_val
-                        r_unrealized_pnl += pnl
-                        total_purchase_val += purchase_val
-                    
-                    # 캐시 갱신
-                    real_assets_cache["cash"] = r_cash
-                    real_assets_cache["stock_value"] = r_stock_val
-                    real_assets_cache["holdings"] = r_holdings
-                    real_assets_cache["unrealized_pnl"] = r_unrealized_pnl
-                    real_assets_cache["total_purchase_val"] = total_purchase_val
-                    real_assets_cache["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
-                else:
-                    logger.warning("[api_status] Toss API로부터 자산 정보를 조회하지 못해 기존 캐시를 유지합니다.")
+                    r_holdings[ticker] = {
+                        "qty": round(qty, 4),
+                        "entry_price": round(entry_price, 2),
+                        "eval_value": round(eval_val, 2),
+                        "pnl": round(pnl, 2),
+                        "roi": round((pnl / (entry_price * qty) * 100.0) if entry_price > 0 else 0.0, 2)
+                    }
+                    r_stock_val += eval_val
+                    r_unrealized_pnl += pnl
+                    total_purchase_val += purchase_val
+                
+                # 캐시 갱신
+                real_assets_cache["cash"] = r_cash
+                real_assets_cache["stock_value"] = r_stock_val
+                real_assets_cache["holdings"] = r_holdings
+                real_assets_cache["unrealized_pnl"] = r_unrealized_pnl
+                real_assets_cache["total_purchase_val"] = total_purchase_val
+                real_assets_cache["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
             else:
                 # Mock 모드 폴백: 설정 캐시 활용
                 api_active = False

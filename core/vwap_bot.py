@@ -287,6 +287,13 @@ class VWAPBot:
         total_asset = cash + stock_value + pending_buy_value
         now_date = datetime.now().strftime("%Y-%m-%d")
 
+        # 만약 기존에 당일 기준 자산(Baseline)이 정상 설정되어 작동 중인 상태인데,
+        # 현재 조회된 총자산이 0.0원 이하로 잡힌다면, 실제 100% 손실이 났을 리 없으므로
+        # 일시적인 API 조회 지연/장애로 판정하고 해당 주기를 건너뜁니다 (패닉셀 오판 정지 방지).
+        if self.daily_baseline_asset > 0.0 and total_asset <= 0.0:
+            self.logger.error(f"⚠️ [{ticker}] 실제 자산 조회 결과가 0원 이하입니다. 일시적인 API 통신 장애로 간주하여 이번 주기를 안전하게 건너뜁니다.")
+            return
+
         # baseline 자산이 미설정되었거나 날짜가 바뀌었을 때 갱신
         if self.daily_baseline_asset <= 0.0 or self.last_baseline_date != now_date:
             self.daily_baseline_asset = initial_balance if initial_balance > 0.0 else total_asset
