@@ -266,6 +266,10 @@ class VWAPBot:
 
         # 6. 자산 및 포지션 조회
         balance = broker.get_balance()
+        if balance is None or "cash" not in balance or "holdings" not in balance:
+            self.logger.error(f"⚠️ [{ticker}] 자산 정보를 조회하지 못했습니다. 일시적인 API 에러일 수 있으므로 다음 주기에 재시도합니다.")
+            return
+            
         cash = balance["cash"]
         holdings = balance["holdings"]
         
@@ -274,9 +278,13 @@ class VWAPBot:
         qty = holding_info["qty"]
         entry_price = holding_info["entry_price"]
 
+        # 미체결 매수 주문에 묶인 거래 대기 금액 계산 (가상/실제 공통 적용)
+        open_orders = broker.get_open_orders(ticker)
+        pending_buy_value = sum(float(o["price"]) * float(o["qty"]) for o in open_orders if o["side"] == "BUY")
+
         # 당일 손실 한도(Panic Stop) 안전장치 검사
         stock_value = qty * current_price
-        total_asset = cash + stock_value
+        total_asset = cash + stock_value + pending_buy_value
         now_date = datetime.now().strftime("%Y-%m-%d")
 
         # baseline 자산이 미설정되었거나 날짜가 바뀌었을 때 갱신

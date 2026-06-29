@@ -220,6 +220,7 @@ class TossBroker(Broker):
                 cash = float(power_res.json().get("result", {}).get("cashBuyingPower", 0.0))
             else:
                 print(f"[TossBroker] get_balance (buying-power) API 에러 (HTTP {power_res.status_code}): {power_res.text}")
+                return None
             
             # 2. 보유 종목 조회
             holdings = {}
@@ -235,11 +236,12 @@ class TossBroker(Broker):
                         holdings[ticker] = {"qty": qty, "entry_price": entry_price}
             else:
                 print(f"[TossBroker] get_balance (holdings) API 에러 (HTTP {holdings_res.status_code}): {holdings_res.text}")
+                return None
                         
             return {"cash": cash, "holdings": holdings}
         except Exception as e:
             print(f"[TossBroker] get_balance 예외 발생: {e}")
-            return {"cash": 0.0, "holdings": {}}
+            return None
 
     def get_candles(self, ticker: str, interval: str = "1m", limit: int = 100) -> pd.DataFrame:
         self._ensure_token()

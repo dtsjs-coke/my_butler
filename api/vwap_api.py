@@ -211,6 +211,8 @@ def api_get_status():
             # API 키가 가짜가 아닌 경우에만 실제 계좌 조회 시도
             if not broker.mock_mode:
                 balance = broker.get_balance()
+                if balance is None:
+                    raise ValueError("Toss API로부터 자산 정보를 조회하는 데 실패했습니다.")
                 r_cash = balance["cash"]
                 r_stock_val = 0.0
                 r_unrealized_pnl = 0.0
