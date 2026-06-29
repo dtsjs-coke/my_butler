@@ -477,9 +477,13 @@ class VWAPBot:
             base_balance = initial_balance if initial_balance > 0.0 else cash
             invest_cash = base_balance * (k_percent / 100.0)
             
-            if invest_cash > cash:
-                self.logger.warning(f"🛡️ [안전장치] 가용 예산({invest_cash:.2f})이 보유 현금({cash:.2f})을 초과하여 보유 잔고로 제한합니다 (미수 방지).")
-                invest_cash = cash
+            # 실제 미국 주식 거래의 경우 토스의 통합증거금(원화 자동 환전)을 지원하므로 보유 달러 잔고(cash) 한도 제한을 완화
+            if mode == "REAL" and market == "US":
+                self.logger.info(f"ℹ️ [통합증거금 적용] 미국 주식 실거래이므로 원화 자동환전을 고려해 예산({invest_cash:.2f})을 실제 달러 잔고({cash:.2f})로 제한하지 않고 주문을 시도합니다.")
+            else:
+                if invest_cash > cash:
+                    self.logger.warning(f"🛡️ [안전장치] 가용 예산({invest_cash:.2f})이 보유 현금({cash:.2f})을 초과하여 보유 잔고로 제한합니다 (미수 방지).")
+                    invest_cash = cash
             
             buy_qty = int(invest_cash / target_buy_price)
             
