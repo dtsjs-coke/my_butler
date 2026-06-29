@@ -186,6 +186,16 @@ class TossBroker(Broker):
             print(f"[TossBroker] 토큰 발급 예외 발생: {e}")
             self.mock_mode = True
 
+    def get_usdkrw_rate(self) -> float:
+        """야후 파이낸스에서 실시간 USDKRW 환율을 가져옵니다. 실패 시 기본 환율 1350.0을 반환합니다."""
+        try:
+            df = self._fetch_yahoo_candles("USDKRW=X", "1m", 1)
+            if not df.empty:
+                return float(df.iloc[-1]['close'])
+        except Exception:
+            pass
+        return 1350.0
+
     def get_balance(self) -> dict:
         self._ensure_token()
         if self.mock_mode:
@@ -221,6 +231,23 @@ class TossBroker(Broker):
             else:
                 print(f"[TossBroker] get_balance (buying-power) API 에러 (HTTP {power_res.status_code}): {power_res.text}")
                 return None
+
+            # 미국 주식 거래 시, 달러 예수금이 부족하거나 0일 때 원화 예수금을 조회하여 합산 (통합 증거금 대응)
+            if currency == "USD":
+                try:
+                    krw_res = requests.get(
+                        f"{self.base_url}/api/v1/buying-power",
+                        headers=headers,
+                        params={"currency": "KRW"},
+                        timeout=5
+                    )
+                    if krw_res.status_code == 200:
+                        krw_cash = float(krw_res.json().get("result", {}).get("cashBuyingPower", 0.0))
+                        if krw_cash > 0:
+                            exchange_rate = self.get_usdkrw_rate()
+                            cash += (krw_cash / exchange_rate)
+                except Exception as ex:
+                    print(f"[TossBroker] 원화 예수금 통합 증거금 조회 실패: {ex}")
             
             # 2. 보유 종목 조회
             holdings = {}
