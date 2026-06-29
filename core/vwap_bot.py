@@ -289,7 +289,7 @@ class VWAPBot:
 
         # baseline 자산이 미설정되었거나 날짜가 바뀌었을 때 갱신
         if self.daily_baseline_asset <= 0.0 or self.last_baseline_date != now_date:
-            self.daily_baseline_asset = total_asset
+            self.daily_baseline_asset = initial_balance if initial_balance > 0.0 else total_asset
             self.last_baseline_date = now_date
             self.logger.info(f"🎯 당일 기준 자산(Baseline)이 설정되었습니다: {self.daily_baseline_asset:.2f} ({now_date})")
 
