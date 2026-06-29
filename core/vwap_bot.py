@@ -287,44 +287,42 @@ class VWAPBot:
         total_asset = cash + stock_value + pending_buy_value
         now_date = datetime.now().strftime("%Y-%m-%d")
 
-        # 만약 기존에 당일 기준 자산(Baseline)이 정상 설정되어 작동 중인 상태인데,
-        # 현재 조회된 총자산이 0.0원 이하로 잡힌다면, 실제 100% 손실이 났을 리 없으므로
-        # 일시적인 API 조회 지연/장애로 판정하고 해당 주기를 건너뜁니다 (패닉셀 오판 정지 방지).
-        if self.daily_baseline_asset > 0.0 and total_asset <= 0.0:
-            self.logger.error(f"⚠️ [{ticker}] 실제 자산 조회 결과가 0원 이하입니다. 일시적인 API 통신 장애로 간주하여 이번 주기를 안전하게 건너뜁니다.")
-            return
+        # 만약 실제 총자산이 0원 이하인 경우(통신 장애 또는 환전 전 등), 
+        # 당일 기준 자산 설정 및 손실 감지(Panic Stop) 로직을 안전하게 건너뜁니다.
+        if total_asset <= 0.0:
+            self.logger.warning(f"⚠️ [{ticker}] 실제 자산 조회 결과가 0원 이하입니다. 일시적인 API 장애 또는 환전 대기 상태일 수 있으므로 손실 한도 검사를 건너뜁니다.")
+        else:
+            # baseline 자산이 미설정되었거나 날짜가 바뀌었을 때 갱신
+            if self.daily_baseline_asset <= 0.0 or self.last_baseline_date != now_date:
+                self.daily_baseline_asset = total_asset
+                self.last_baseline_date = now_date
+                self.logger.info(f"🎯 당일 기준 자산(Baseline)이 설정되었습니다: {self.daily_baseline_asset:.2f} ({now_date})")
 
-        # baseline 자산이 미설정되었거나 날짜가 바뀌었을 때 갱신
-        if self.daily_baseline_asset <= 0.0 or self.last_baseline_date != now_date:
-            self.daily_baseline_asset = initial_balance if initial_balance > 0.0 else total_asset
-            self.last_baseline_date = now_date
-            self.logger.info(f"🎯 당일 기준 자산(Baseline)이 설정되었습니다: {self.daily_baseline_asset:.2f} ({now_date})")
-
-        # 손실 감지 시 강제 청산
-        if self.daily_baseline_asset > 0.0:
-            loss_amount = self.daily_baseline_asset - total_asset
-            loss_rate = (loss_amount / self.daily_baseline_asset) * 100.0
-            
-            if loss_rate >= max_daily_loss_limit:
-                self.logger.error(f"🚨🚨 [당일 손실 한도 초과] 당일 기준 자산({self.daily_baseline_asset:.2f}) 대비 손실률 {loss_rate:.2f}% 발생! (한도: {max_daily_loss_limit:.2f}%)")
-                self.logger.error(f"🚨 즉각 모든 미체결 주문 취소 및 보유 주식 전량 시장가 매도(Panic Sell & Stop)를 감행하고 봇을 강제 정지합니다.")
+            # 손실 감지 시 강제 청산
+            if self.daily_baseline_asset > 0.0:
+                loss_amount = self.daily_baseline_asset - total_asset
+                loss_rate = (loss_amount / self.daily_baseline_asset) * 100.0
                 
-                # 미체결 주문 전체 취소
-                open_orders = broker.get_open_orders(ticker)
-                for order in open_orders:
-                    if broker.cancel_order(order["order_id"]):
-                        self.tracked_open_orders.pop(order["order_id"], None)
+                if loss_rate >= max_daily_loss_limit:
+                    self.logger.error(f"🚨🚨 [당일 손실 한도 초과] 당일 기준 자산({self.daily_baseline_asset:.2f}) 대비 손실률 {loss_rate:.2f}% 발생! (한도: {max_daily_loss_limit:.2f}%)")
+                    self.logger.error(f"🚨 즉각 모든 미체결 주문 취소 및 보유 주식 전량 시장가 매도(Panic Sell & Stop)를 감행하고 봇을 강제 정지합니다.")
                     
-                # 보유 주식 시장가 전량 청산
-                if qty > 0:
-                    if mode == "VIRTUAL":
-                        self.virtual_broker.force_market_stop_loss(ticker, current_price)
-                    else:
-                        broker.place_order(ticker, "SELL", 0.0, qty, "MARKET")
-                
-                self.running = False
-                self.logger.error("🛑 당일 손실 한도 초과로 인해 봇 백그라운드 엔진이 정지(STOP)되었습니다.")
-                return
+                    # 미체결 주문 전체 취소
+                    open_orders = broker.get_open_orders(ticker)
+                    for order in open_orders:
+                        if broker.cancel_order(order["order_id"]):
+                            self.tracked_open_orders.pop(order["order_id"], None)
+                        
+                    # 보유 주식 시장가 전량 청산
+                    if qty > 0:
+                        if mode == "VIRTUAL":
+                            self.virtual_broker.force_market_stop_loss(ticker, current_price)
+                        else:
+                            broker.place_order(ticker, "SELL", 0.0, qty, "MARKET")
+                    
+                    self.running = False
+                    self.logger.error("🛑 당일 손실 한도 초과로 인해 봇 백그라운드 엔진이 정지(STOP)되었습니다.")
+                    return
 
         # 7. 전략 시그널 도출
         signals = VwapStrategy.get_signals(
