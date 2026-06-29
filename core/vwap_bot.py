@@ -475,7 +475,9 @@ class VWAPBot:
         # 9-3. 매수 진입 시그널 (BUY)
         elif signal == "BUY":
             buy_orders = [o for o in open_orders if o["side"] == "BUY"]
-            invest_cash = cash * (k_percent / 100.0)
+            # 사용자가 설정한 기준 자본금(initial_balance)이 존재하고 0보다 크면 이를 기준으로 예산을 할당하고, 없으면 실제 현금을 기준으로 함
+            base_balance = initial_balance if initial_balance > 0.0 else cash
+            invest_cash = base_balance * (k_percent / 100.0)
             
             if invest_cash > cash:
                 self.logger.warning(f"🛡️ [안전장치] 가용 예산({invest_cash:.2f})이 보유 현금({cash:.2f})을 초과하여 보유 잔고로 제한합니다 (미수 방지).")
