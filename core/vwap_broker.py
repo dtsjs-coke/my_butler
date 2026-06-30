@@ -72,7 +72,8 @@ class TossBroker(Broker):
         self.base_url = "https://openapi.tossinvest.com"
         
         # 키가 설정되어 있지 않은 경우 Mock(가상) 모드로 자동 폴백(Fallback)하기 위한 플래그
-        self.mock_mode = not (self.client_id and self.client_secret)
+        self.is_mock_only = not (self.client_id and self.client_secret)
+        self.mock_mode = self.is_mock_only
         if self.mock_mode:
             print("[TossBroker] API Key 누락으로 인해 시세 조회용 가상 Mock 모드로 작동합니다.")
 
@@ -181,17 +182,22 @@ class TossBroker(Broker):
                 print("[TossBroker] OAuth 토큰이 성공적으로 갱신되었습니다.")
             else:
                 logger = logging.getLogger("vwap_bot")
-                logger.error(f"[TossBroker] 토큰 발급 실패 (HTTP {res.status_code}): {res.text}")
+                err_msg = f"[TossBroker] 토큰 발급 실패 (HTTP {res.status_code}): {res.text}"
+                logger.error(err_msg)
                 # 발급 실패 시 시세 수집을 위해 임시로 Mock 모드 플래그 가동
                 self.mock_mode = True
+                if not self.is_mock_only:
+                    raise Exception(err_msg)
         except Exception as e:
             logger = logging.getLogger("vwap_bot")
             logger.error(f"[TossBroker] 토큰 발급 예외 발생: {e}")
             self.mock_mode = True
+            if not self.is_mock_only:
+                raise e
 
     def get_balance(self) -> dict:
         self._ensure_token()
-        if self.mock_mode:
+        if self.is_mock_only:
             # Mock 데이터 반환
             return {"cash": 10000000.0, "holdings": {}}
         
@@ -223,7 +229,9 @@ class TossBroker(Broker):
                 cash = float(power_res.json().get("result", {}).get("cashBuyingPower", 0.0))
             else:
                 logger = logging.getLogger("vwap_bot")
-                logger.error(f"[TossBroker] get_balance (buying-power) API 에러 (HTTP {power_res.status_code}): {power_res.text}")
+                err_msg = f"[TossBroker] get_balance (buying-power) API 에러 (HTTP {power_res.status_code}): {power_res.text}"
+                logger.error(err_msg)
+                raise Exception(err_msg)
             
             # 2. 보유 종목 조회
             holdings = {}
@@ -239,7 +247,9 @@ class TossBroker(Broker):
                         holdings[ticker] = {"qty": qty, "entry_price": entry_price}
             else:
                 logger = logging.getLogger("vwap_bot")
-                logger.error(f"[TossBroker] get_balance (holdings) API 에러 (HTTP {holdings_res.status_code}): {holdings_res.text}")
+                err_msg = f"[TossBroker] get_balance (holdings) API 에러 (HTTP {holdings_res.status_code}): {holdings_res.text}"
+                logger.error(err_msg)
+                raise Exception(err_msg)
                         
             return {"cash": cash, "holdings": holdings}
         except Exception as e:
