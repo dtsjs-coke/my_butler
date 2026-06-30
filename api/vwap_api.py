@@ -267,6 +267,8 @@ def api_get_status():
                 real_assets_cache["last_updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
         except Exception as e:
             logger.error(f"[api_status] 실제 자산 조회 에러: {e}")
+            if refresh_real:
+                return jsonify({"status": "failed", "reason": str(e)}), 500
             api_active = False
             r_cash = r_status["cash"]
             r_holdings = r_status["holdings"]
