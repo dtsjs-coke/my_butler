@@ -48,21 +48,9 @@
                 <input type="date" id="srt-date" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
             </div>
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
-                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">출발 시간 (이후)</label>
-                <select id="srt-time" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="000000">00:00</option>
-                    <option value="020000">02:00</option>
-                    <option value="040000">04:00</option>
-                    <option value="060000">06:00</option>
-                    <option value="080000" selected>08:00</option>
-                    <option value="100000">10:00</option>
-                    <option value="120000">12:00</option>
-                    <option value="140000">14:00</option>
-                    <option value="160000">16:00</option>
-                    <option value="180000">18:00</option>
-                    <option value="200000">20:00</option>
-                    <option value="220000">22:00</option>
-                </select>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">출발 시간 (이후) (hhmmss)</label>
+                <input type="text" id="srt-time" value="080000" placeholder="예: 080000" class="w-full px-4 py-3 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                <p class="text-[10px] text-gray-400 mt-2">* 입력한 시간 이후 열차부터 조회합니다.</p>
             </div>
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">조회 시간 한도 (hhmmss)</label>
