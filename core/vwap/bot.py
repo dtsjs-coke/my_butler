@@ -4,12 +4,12 @@ import logging
 import threading
 import traceback
 from datetime import datetime
-from core.vwap_config_manager import VwapConfigManager
-from core.vwap_broker import TossBroker, VirtualBroker
-from core.vwap_strategy import VwapStrategy
+from core.vwap.config_manager import VwapConfigManager
+from core.vwap.broker import TossBroker, VirtualBroker
+from core.vwap.strategy import VwapStrategy
 
 # 프로젝트 루트 경로
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LOG_PATH = os.path.join(PROJECT_ROOT, "trading_bot_virtual.log")
 
 def setup_logger(mode="VIRTUAL"):

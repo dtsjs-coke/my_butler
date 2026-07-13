@@ -11,7 +11,7 @@ from config.config_manager import load_keywords
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NEWS_FILE = os.path.join(BASE_DIR, "news.json")
+NEWS_FILE = os.path.join(BASE_DIR, "data", "news.json")
 NEWS_CHANNEL_ID = int(os.getenv("NEWS_CHANNEL_ID", 0))
 
 def extract_publisher(url):

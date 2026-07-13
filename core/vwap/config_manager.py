@@ -1,11 +1,12 @@
 import os
 import json
 from dotenv import load_dotenv
-from utils.vwap_crypto import VwapCrypto
+from core.vwap.crypto import VwapCrypto
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_PATH = os.path.join(PROJECT_ROOT, "vwap_config.json")
-TRADES_PATH = os.path.join(PROJECT_ROOT, "vwap_trades.json")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+CONFIG_PATH = os.path.join(DATA_DIR, "vwap_config.json")
+TRADES_PATH = os.path.join(DATA_DIR, "vwap_trades.json")
 
 # 암호화하여 저장할 민감한 필드 목록
 SENSITIVE_KEYS = ["toss_client_secret", "toss_account_seq"]
@@ -276,10 +277,10 @@ class VwapConfigManager:
     @staticmethod
     def load_trades(mode: str = "VIRTUAL") -> list:
         """가상/실제 거래 이력을 로드합니다."""
-        trades_path = os.path.join(PROJECT_ROOT, f"vwap_trades_{mode.lower()}.json")
+        trades_path = os.path.join(DATA_DIR, f"vwap_trades_{mode.lower()}.json")
         if not os.path.exists(trades_path):
             # 하위 호환: 기존 vwap_trades.json이 있고 mode가 VIRTUAL이면 마이그레이션
-            legacy_path = os.path.join(PROJECT_ROOT, "vwap_trades.json")
+            legacy_path = os.path.join(DATA_DIR, "vwap_trades.json")
             if mode == "VIRTUAL" and os.path.exists(legacy_path):
                 try:
                     os.rename(legacy_path, trades_path)
@@ -297,7 +298,7 @@ class VwapConfigManager:
     @classmethod
     def save_trades(cls, trades: list, mode: str = "VIRTUAL"):
         """거래 이력을 저장합니다."""
-        trades_path = os.path.join(PROJECT_ROOT, f"vwap_trades_{mode.lower()}.json")
+        trades_path = os.path.join(DATA_DIR, f"vwap_trades_{mode.lower()}.json")
         try:
             with open(trades_path, "w", encoding="utf-8") as f:
                 json.dump(trades, f, ensure_ascii=False, indent=4)

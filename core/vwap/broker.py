@@ -5,7 +5,7 @@ import requests
 import pandas as pd
 from abc import ABC, abstractmethod
 from datetime import datetime
-from core.vwap_config_manager import VwapConfigManager
+from core.vwap.config_manager import VwapConfigManager
 
 class Broker(ABC):
     @abstractmethod

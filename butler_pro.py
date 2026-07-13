@@ -21,14 +21,15 @@ from config.config_manager import (
     load_ktx_stations, save_ktx_stations,
     load_model_name, save_model_name
 )
-from core.ai_service import ask_gemini, a2a_engine, analyze_intent
+from core.ai.service import ask_gemini, a2a_engine, analyze_intent
 from core.news_service import news_loop
-from core.srt_manager import srt_reservation_loop, SRTMainMenuView
-from core.ktx_manager import ktx_reservation_loop, KTXMainMenuView
-from core.subscription_manager import start_subscription_tasks
+from core.srt.manager import srt_reservation_loop, SRTMainMenuView
+from core.ktx.manager import ktx_reservation_loop, KTXMainMenuView
+from core.subscription.manager import start_subscription_tasks
 from api.flask_app import run_flask
 from utils.system_status import get_system_status_embed, get_battery_short_report
-from core import srt_service, ktx_service
+from core.srt import service as srt_service
+from core.ktx import service as ktx_service
 
 # 봇 초기화
 intents = discord.Intents.default()
@@ -285,7 +286,7 @@ async def on_message(message):
             request = content.replace("!a2a ", "").strip()
             await handle_a2a_task(message, request)
         elif content == "!구독":
-            from core.subscription_service import load_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
+            from core.subscription.service import load_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
             from datetime import datetime
             
             subs_data = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})

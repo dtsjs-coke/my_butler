@@ -5,8 +5,8 @@ import hashlib
 from cryptography.fernet import Fernet
 
 # Key 파일 위치 설정 (프로젝트 루트 디렉토리 기준)
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KEY_PATH = os.path.join(PROJECT_ROOT, "vwap_secret.key")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+KEY_PATH = os.path.join(PROJECT_ROOT, "data", "vwap_secret.key")
 
 class VwapCrypto:
     _fernet = None

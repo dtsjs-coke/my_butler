@@ -6,13 +6,14 @@ from korail2 import AdultPassenger, ChildPassenger, SeniorPassenger, ReserveOpti
 
 # 프로젝트 루트 경로 설정 (config/ 폴더의 부모인 my_butler/)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
 
-KEYWORDS_FILE = os.path.join(BASE_DIR, "keywords.json")
-STATIONS_FILE = os.path.join(BASE_DIR, "stations.json")
-QUEUE_FILE = os.path.join(BASE_DIR, "reservations.json")
-KTX_STATIONS_FILE = os.path.join(BASE_DIR, "ktx_stations.json")
-KTX_QUEUE_FILE = os.path.join(BASE_DIR, "ktx_reservations.json")
-MODEL_FILE = os.path.join(BASE_DIR, "model_config.json")
+KEYWORDS_FILE = os.path.join(DATA_DIR, "keywords.json")
+STATIONS_FILE = os.path.join(DATA_DIR, "stations.json")
+QUEUE_FILE = os.path.join(DATA_DIR, "reservations.json")
+KTX_STATIONS_FILE = os.path.join(DATA_DIR, "ktx_stations.json")
+KTX_QUEUE_FILE = os.path.join(DATA_DIR, "ktx_reservations.json")
+MODEL_FILE = os.path.join(DATA_DIR, "model_config.json")
 
 DEFAULT_KEYWORDS = ["AI Agent", "하네스 엔지니어링", "대우 건설"]
 DEFAULT_STATIONS = ["수서", "동탄","광주송정", "평택지제", "천안아산", "오송", "대전", "김천(구미)", "서대구", "대구", "울산(통도사)", "부산", "공주", "익산", "정읍", "나주", "목포", "남원","순천","여천","여수EXPO"]
@@ -20,8 +21,7 @@ DEFAULT_KTX_STATIONS = ["서울", "용산", "영등포", "광명", "수원", "�
 DEFAULT_MODEL = "gemini-3-flash-preview"
 
 def load_json(file_path, default_data):
-    # ktx_stations.json 이나 ktx_reservations.json 등은 my_butler 루트에 위치하도록 함
-    # (다른 파일들과 동일한 경로)
+    # ktx_stations.json, ktx_reservations.json 등 런타임 데이터 파일은 my_butler/data/ 아래 위치
     if not os.path.exists(file_path):
         return default_data
     try:

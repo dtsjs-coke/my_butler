@@ -3,10 +3,10 @@ import time
 import logging
 from flask import Blueprint, request, jsonify, render_template, make_response
 from functools import wraps
-from core.vwap_config_manager import VwapConfigManager
-from core.vwap_bot import VWAPBot, PROJECT_ROOT
-from utils.vwap_crypto import VwapCrypto
-from core.vwap_broker import TossBroker
+from core.vwap.config_manager import VwapConfigManager
+from core.vwap.bot import VWAPBot, PROJECT_ROOT
+from core.vwap.crypto import VwapCrypto
+from core.vwap.broker import TossBroker
 
 logger = logging.getLogger("vwap_bot")
 
@@ -538,7 +538,7 @@ def api_get_logs():
 @admin_required
 def api_run_backtest():
     """토스 API 과거 봉 데이터를 활용해 백테스트를 실행하고 결과를 요약 반환합니다."""
-    from backtest.vwap_backtester import VwapBacktester
+    from core.vwap.backtester import VwapBacktester
     
     data = request.get_json() or {}
     ticker = data.get("ticker", "AAPL")
@@ -550,7 +550,7 @@ def api_run_backtest():
     config = VwapConfigManager.load_config()
     initial_balance = float(data.get("initial_balance", config.get("real_initial_balance", 10000000.0)))
     
-    from core.vwap_broker import TossBroker
+    from core.vwap.broker import TossBroker
     toss = TossBroker(
         client_id=config["toss_client_id"],
         client_secret=config["toss_client_secret"],

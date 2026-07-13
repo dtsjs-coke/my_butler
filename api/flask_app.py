@@ -10,13 +10,13 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 from core.news_service import load_news
-from core.subscription_service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
+from core.subscription.service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
 from utils.system_status import get_system_status_data
 from config.config_manager import (
-    load_keywords, load_queue, load_ktx_queue, load_stations, 
+    load_keywords, load_queue, load_ktx_queue, load_stations,
     save_queue, save_ktx_queue, serialize_queue
 )
-from core.srt_service import reservation_queue
+from core.srt.service import reservation_queue
 from SRT.passenger import Adult, Child, Senior, Disability1To3
 from SRT import SeatType
 
@@ -135,7 +135,7 @@ def news_page():
     
     # 키워드 그룹 설정 로드
     groups = {}
-    group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
+    group_file = os.path.join(PROJECT_ROOT, "data", "keyword_groups.json")
     if os.path.exists(group_file) and os.path.getsize(group_file) > 0:
         try:
             with open(group_file, 'r', encoding='utf-8') as f:
@@ -172,7 +172,7 @@ def news_page():
 @app.route('/api/keyword_groups', methods=['GET', 'POST', 'DELETE'])
 @token_required
 def manage_keyword_groups():
-    group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
+    group_file = os.path.join(PROJECT_ROOT, "data", "keyword_groups.json")
     
     # helper to load groups safely
     def load_groups():
@@ -235,7 +235,7 @@ def api_graph_data():
 
     # 모델 정보 로드
     model_name = "Unknown"
-    model_config_path = os.path.join(PROJECT_ROOT, "model_config.json")
+    model_config_path = os.path.join(PROJECT_ROOT, "data", "model_config.json")
     if os.path.exists(model_config_path):
         try:
             with open(model_config_path, 'r', encoding='utf-8') as f:
@@ -244,7 +244,7 @@ def api_graph_data():
 
     # 그룹 정보 로드
     groups_map = {}
-    group_file = os.path.join(PROJECT_ROOT, "keyword_groups.json")
+    group_file = os.path.join(PROJECT_ROOT, "data", "keyword_groups.json")
     if os.path.exists(group_file) and os.path.getsize(group_file) > 0:
         try:
             with open(group_file, 'r', encoding='utf-8') as f:

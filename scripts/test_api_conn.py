@@ -1,11 +1,11 @@
 import sys
 import os
 
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(PROJECT_ROOT)
 
-from core.vwap_config_manager import VwapConfigManager
-from core.vwap_broker import TossBroker
+from core.vwap.config_manager import VwapConfigManager
+from core.vwap.broker import TossBroker
 
 config = VwapConfigManager.load_config()
 print("====================================")
