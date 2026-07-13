@@ -87,7 +87,7 @@ pm2 logs butler --lines 50
 ### 경로 정보
 - **프로젝트 루트**: `~/dev_pjt/my_butler/`
 - **로그 저장소**: `~/.pm2/logs/`
-- **설정 파일**: `core/config/agent_config.json`
+- **설정 파일**: `core/agent_state/agent_config.json`
 
 ---
 

@@ -5,7 +5,7 @@ from datetime import datetime
 from config.config_manager import load_keywords
 
 # 설정 파일 경로
-AGENT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "agent_config.json")
+AGENT_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent_state", "agent_config.json")
 
 DEFAULT_CONFIG = {
     "thermal_management": {

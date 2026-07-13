@@ -2,7 +2,7 @@ aiohappyeyeballs
 aiohttp
 aiosignal
 attrs
-audioop-lts
+audioop-lts; python_version >= "3.13"
 blinker
 certifi
 cffi
@@ -12,6 +12,9 @@ cryptography
 discord.py
 Flask
 frozenlist
+numpy
+pandas
+PyYAML
 google-ai-generativelanguage
 google-api-core
 google-api-python-client

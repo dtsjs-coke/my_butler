@@ -9,7 +9,7 @@ from utils.security import SecurityChecker, FileManager
 from config.constants import A2A_TIERS
 
 # 프로젝트 루트 경로를 기준으로 workspace 경로 설정
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WORKSPACE_DIR = os.path.join(BASE_DIR, "workspace")
 
 class A2AEngine:

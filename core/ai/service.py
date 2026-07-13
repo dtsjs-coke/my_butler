@@ -2,7 +2,7 @@ import os
 import aiohttp
 import asyncio
 import json
-from core.a2a_engine import A2AEngine
+from core.ai.a2a_engine import A2AEngine
 from config.config_manager import load_model_name
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

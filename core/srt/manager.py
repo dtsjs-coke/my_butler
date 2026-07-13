@@ -3,7 +3,7 @@ import asyncio
 import discord
 from discord.ext import tasks
 from SRT import SRT
-from core.srt_service import reservation_queue, save_queue, SRTStationView
+from core.srt.service import reservation_queue, save_queue, SRTStationView
 
 SRT_CHANNEL_ID = int(os.getenv("SRT_CHANNEL_ID", 0))
 

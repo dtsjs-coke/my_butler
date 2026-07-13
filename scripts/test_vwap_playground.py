@@ -4,14 +4,14 @@ import pandas as pd
 import time
 
 # Import paths setup
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
-from utils.vwap_crypto import VwapCrypto
-from core.vwap_config_manager import VwapConfigManager
-from core.vwap_strategy import VwapStrategy
-from core.vwap_broker import TossBroker, VirtualBroker
+from core.vwap.crypto import VwapCrypto
+from core.vwap.config_manager import VwapConfigManager
+from core.vwap.strategy import VwapStrategy
+from core.vwap.broker import TossBroker, VirtualBroker
 
 def print_menu():
     print("\n" + "=" * 50)

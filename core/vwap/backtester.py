@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from core.vwap_strategy import VwapStrategy
+from core.vwap.strategy import VwapStrategy
 
 class VwapBacktester:
     @staticmethod

@@ -1,6 +1,6 @@
 import os
 from discord.ext import tasks
-from core.subscription_service import SubscriptionService
+from core.subscription.service import SubscriptionService
 
 STREAMLIT_URL = os.getenv("STREAMLIT_URL")
 

@@ -134,7 +134,7 @@ class SRTTimeModal(ui.Modal):
 
         async def next_callback(it: discord.Interaction):
             # 버튼 클릭 인터랙션은 새로운 모달을 띄울 수 있습니다.
-            from core.srt_service import SRTPassengerModal
+            from core.srt.service import SRTPassengerModal
             await it.response.send_modal(SRTPassengerModal(self.data))
 
         next_btn.callback = next_callback

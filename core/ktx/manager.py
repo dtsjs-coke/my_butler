@@ -3,7 +3,7 @@ import asyncio
 import discord
 from discord.ext import tasks
 from korail2 import Korail
-from core.ktx_service import ktx_reservation_queue, save_ktx_queue, KTXStationView
+from core.ktx.service import ktx_reservation_queue, save_ktx_queue, KTXStationView
 
 # KTX도 SRT와 동일한 채널을 사용하거나, 별도 설정이 없으므로 SRT_CHANNEL_ID 사용
 SRT_CHANNEL_ID = int(os.getenv("SRT_CHANNEL_ID", 0))

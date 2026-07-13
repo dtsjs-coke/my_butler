@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from utils.system_status import get_system_status_embed
-from core.ai_service import ask_gemini
+from core.ai.service import ask_gemini
 from config.constants import STATUS_CHANNEL_ID, CHAT_CHANNEL_ID
 from core.agent_manager import load_agent_config, save_agent_config, add_pending_action
 
