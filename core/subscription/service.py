@@ -5,7 +5,7 @@ import asyncio
 import aiohttp
 from datetime import datetime, date
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
 SUBSCRIPTIONS_FILE = os.path.join(DATA_DIR, "subscriptions.yaml")
 USERS_FILE = os.path.join(DATA_DIR, "users.yaml")
 
