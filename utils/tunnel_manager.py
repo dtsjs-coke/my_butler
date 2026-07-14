@@ -177,6 +177,12 @@ def run_tunnel():
                 print(f"[cloudflared] {line_str}")
             
             # URL 패턴 검색 (최초 및 변경 시 모두 대응)
+            # 주의: cloudflared는 기동 시 "Environmental variables map[...]" 진단 로그에
+            # 프로세스가 물려받은 모든 환경변수를 그대로 찍는다. 여기에 트래킹과 무관한
+            # trycloudflare.com URL이 값으로 들어있는 환경변수(BUTLER_TUNNEL_URL 등)가 있으면
+            # 실제 "Your quick Tunnel has been created!" 배너 줄이 아닌데도 오탐될 수 있으므로 제외.
+            if "Environmental variables" in line_str:
+                continue
             match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
             if match:
                 detected_url = match.group(0)
