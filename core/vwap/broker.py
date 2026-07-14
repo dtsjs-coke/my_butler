@@ -157,9 +157,9 @@ class TossBroker(Broker):
 
     def _ensure_token(self):
         """액세스 토큰의 유효성을 검사하고 만료 5분 전이면 재발급받습니다."""
-        if self.mock_mode:
+        if self.is_mock_only:
             return
-        
+
         now = time.time()
         if self.access_token and (self.token_expiry - now > 300):
             return  # 유효함
@@ -179,6 +179,8 @@ class TossBroker(Broker):
                 self.access_token = res_data.get("access_token")
                 expires_in = float(res_data.get("expires_in", 3600))
                 self.token_expiry = time.time() + expires_in
+                # 이전에 일시 장애로 mock 모드에 빠졌었더라도 토큰 재발급에 성공했으므로 정상 모드로 복귀
+                self.mock_mode = False
                 print("[TossBroker] OAuth 토큰이 성공적으로 갱신되었습니다.")
             else:
                 logger = logging.getLogger("vwap_bot")

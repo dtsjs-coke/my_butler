@@ -318,8 +318,24 @@ class VWAPBot:
                         if mode == "VIRTUAL":
                             self.virtual_broker.force_market_stop_loss(ticker, current_price)
                         else:
-                            broker.place_order(ticker, "SELL", 0.0, qty, "MARKET")
-                    
+                            panic_order_id = broker.place_order(ticker, "SELL", 0.0, qty, "MARKET")
+                            if panic_order_id:
+                                panic_pnl = (current_price - entry_price) * qty
+                                panic_roi = (panic_pnl / (entry_price * qty)) * 100.0 if entry_price > 0 else 0.0
+                                VwapConfigManager.add_trade({
+                                    "trade_id": panic_order_id,
+                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "ticker": ticker,
+                                    "side": "STOP_LOSS",
+                                    "price": current_price,
+                                    "qty": qty,
+                                    "pnl": round(panic_pnl, 2),
+                                    "roi": round(panic_roi, 2)
+                                }, "REAL")
+                                self.logger.info(f"🚨 패닉스탑 시장가 청산 체결 기록 완료: {ticker} {qty}주 @ {current_price:.2f} (손익: {panic_pnl:+.2f})")
+                            else:
+                                self.logger.error(f"❌🚨 패닉스탑 시장가 청산 주문 제출에 실패했습니다! {ticker} {qty}주 보유 포지션이 그대로 남아있으니 즉시 수동으로 확인하세요.")
+
                     self.running = False
                     self.logger.error("🛑 당일 손실 한도 초과로 인해 봇 백그라운드 엔진이 정지(STOP)되었습니다.")
                     return
@@ -443,6 +459,20 @@ class VWAPBot:
                 order_id = broker.place_order(ticker, "SELL", 0.0, qty, "MARKET")
                 if order_id:
                     self.logger.info(f"정상 시장가 손절 주문 제출 성공. (ID: {order_id})")
+                    sl_pnl = (current_price - entry_price) * qty
+                    sl_roi = (sl_pnl / (entry_price * qty)) * 100.0 if entry_price > 0 else 0.0
+                    VwapConfigManager.add_trade({
+                        "trade_id": order_id,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "ticker": ticker,
+                        "side": "STOP_LOSS",
+                        "price": current_price,
+                        "qty": qty,
+                        "pnl": round(sl_pnl, 2),
+                        "roi": round(sl_roi, 2)
+                    }, "REAL")
+                else:
+                    self.logger.error(f"❌🚨 시장가 손절 주문 제출에 실패했습니다! {ticker} {qty}주 보유 포지션이 그대로 남아있으니 즉시 수동으로 확인하세요.")
             return
 
         # 9-2. 매도 청산 시그널 (SELL)
@@ -477,13 +507,9 @@ class VWAPBot:
             base_balance = initial_balance if initial_balance > 0.0 else cash
             invest_cash = base_balance * (k_percent / 100.0)
             
-            # 실제 미국 주식 거래의 경우 토스의 통합증거금(원화 자동 환전)을 지원하므로 보유 달러 잔고(cash) 한도 제한을 완화
-            if mode == "REAL" and market == "US":
-                self.logger.info(f"ℹ️ [통합증거금 적용] 미국 주식 실거래이므로 원화 자동환전을 고려해 예산({invest_cash:.2f})을 실제 달러 잔고({cash:.2f})로 제한하지 않고 주문을 시도합니다.")
-            else:
-                if invest_cash > cash:
-                    self.logger.warning(f"🛡️ [안전장치] 가용 예산({invest_cash:.2f})이 보유 현금({cash:.2f})을 초과하여 보유 잔고로 제한합니다 (미수 방지).")
-                    invest_cash = cash
+            if invest_cash > cash:
+                self.logger.warning(f"🛡️ [안전장치] 가용 예산({invest_cash:.2f})이 보유 현금({cash:.2f})을 초과하여 보유 잔고로 제한합니다 (미수 방지).")
+                invest_cash = cash
             
             buy_qty = int(invest_cash / target_buy_price)
             

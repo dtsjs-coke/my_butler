@@ -546,20 +546,33 @@ def api_run_backtest():
     n_percent = float(data.get("n_percent", 1.0))
     m_percent = float(data.get("m_percent", 1.0))
     x_percent = float(data.get("x_percent", 2.0))
-    
+    k_percent = float(data.get("k_percent", 10.0))
+    use_adx_filter = bool(data.get("use_adx_filter", False))
+    adx_threshold = float(data.get("adx_threshold", 25.0))
+    use_rsi_filter = bool(data.get("use_rsi_filter", False))
+    rsi_threshold = float(data.get("rsi_threshold", 30.0))
+    use_vwap_band = bool(data.get("use_vwap_band", False))
+    vwap_band_sigma = float(data.get("vwap_band_sigma", 2.0))
+
     config = VwapConfigManager.load_config()
     initial_balance = float(data.get("initial_balance", config.get("real_initial_balance", 10000000.0)))
-    
+
     from core.vwap.broker import TossBroker
     toss = TossBroker(
         client_id=config["toss_client_id"],
         client_secret=config["toss_client_secret"],
         account_seq=config["toss_account_seq"]
     )
-    
+
     try:
         logger.info(f"⚡ [{ticker}] 백테스트 연산 시작 요청 접수...")
-        result = VwapBacktester.run(toss, ticker, interval, n_percent, m_percent, x_percent, initial_balance)
+        result = VwapBacktester.run(
+            toss, ticker, interval, n_percent, m_percent, x_percent, initial_balance,
+            k_percent=k_percent,
+            use_adx_filter=use_adx_filter, adx_threshold=adx_threshold,
+            use_rsi_filter=use_rsi_filter, rsi_threshold=rsi_threshold,
+            use_vwap_band=use_vwap_band, vwap_band_sigma=vwap_band_sigma
+        )
         return jsonify({"status": "success", "result": result})
     except Exception as e:
         logger.error(f"백테스트 연산 실패: {e}")
