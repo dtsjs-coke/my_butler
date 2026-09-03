@@ -4,8 +4,9 @@
 
 {% block content %}
 {% macro render_news_card(n) %}
+    {% set card_link = n.get('link', n.get('naver_link', '')) %}
     <!-- News Card -->
-    <div class="group relative bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-100 dark:border-dark-border shadow-sm hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-200">
+    <div class="group relative bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-100 dark:border-dark-border shadow-sm hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-200" data-card-link="{{ card_link }}">
         <div class="flex items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
                 <!-- Meta Info -->
@@ -29,10 +30,18 @@
                         <i data-lucide="building-2" class="w-3 h-3"></i>
                         <span class="font-bold text-gray-700 dark:text-gray-300">{{ n.get('publisher', '언론사') }}</span>
                     </div>
-                    <a href="{{ n.get('link', n.get('naver_link', '#')) }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm cursor-pointer z-10 relative">
-                        <span>뉴스 바로가기</span>
-                        <i data-lucide="external-link" class="w-3 h-3"></i>
-                    </a>
+                    <div class="flex items-center gap-1">
+                        <button type="button" class="news-bookmark-btn p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-border transition-colors" data-link="{{ card_link }}" title="북마크">
+                            <i data-lucide="star" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button type="button" class="news-read-btn p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-border transition-colors" data-link="{{ card_link }}" title="읽음 표시">
+                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <a href="{{ card_link if card_link else '#' }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 dark:bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm cursor-pointer z-10 relative">
+                            <span>뉴스 바로가기</span>
+                            <i data-lucide="external-link" class="w-3 h-3"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -47,6 +56,20 @@
             <p class="text-gray-500 mt-2">S9 서버에서 그룹화되어 수집된 뉴스입니다.</p>
         </div>
         <div class="flex items-center gap-3">
+            <div class="relative">
+                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" id="news-search-input" oninput="filterNewsCards()" placeholder="제목/언론사 검색"
+                    class="pl-8 pr-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl text-xs focus:outline-none focus:border-blue-500 w-44" />
+            </div>
+            <select id="news-group-filter" onchange="filterNewsCards()"
+                class="px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl text-xs font-bold">
+                <option value="">전체 그룹</option>
+            </select>
+            <select id="news-sort-select" onchange="sortNewsCards()"
+                class="px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl text-xs font-bold">
+                <option value="latest">최신순</option>
+                <option value="oldest">오래된순</option>
+            </select>
             <button onclick="handleManageNews()" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl text-xs font-bold hover:border-blue-500 transition-all shadow-sm">
                 <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
                 <span>키워드 관리</span>
@@ -75,7 +98,10 @@
                         <!-- Articles List -->
                         <div id="list-{{ loop.index }}" class="space-y-3">
                             {% for n in articles %}
-                                <div class="news-item-hidden {% if loop.index > 10 %}hidden{% endif %}" data-index="{{ loop.index }}">
+                                {% set display_date = n.get('date', n.get('pub_date', '')) %}
+                                <div class="news-item-hidden {% if loop.index > 10 %}hidden{% endif %}" data-index="{{ loop.index }}"
+                                    data-title="{{ n.title|lower }}" data-publisher="{{ n.get('publisher', '')|lower }}"
+                                    data-keyword="{{ keyword|lower }}" data-date="{{ display_date }}">
                                     {{ render_news_card(n) }}
                                 </div>
                             {% endfor %}
@@ -115,6 +141,10 @@
         border-radius: 10px;
     }
     .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; }
+    .news-bookmark-btn svg, .news-read-btn svg { color: #d1d5db; transition: color 0.15s; }
+    .news-bookmark-btn.news-bookmarked svg { color: #f59e0b; }
+    .news-read-btn.news-read svg { color: #10b981; }
+    .news-card-read { opacity: 0.55; }
 </style>
 
 <script>
@@ -160,6 +190,114 @@
         });
     }
 
+    function collectNewsCards() {
+        return Array.from(document.querySelectorAll('.news-item-hidden'));
+    }
+
+    function filterNewsCards() {
+        const query = (document.getElementById('news-search-input').value || '').trim().toLowerCase();
+        const groupVal = document.getElementById('news-group-filter').value;
+        const groupKeywords = groupVal && window.__newsGroups ? (window.__newsGroups[groupVal] || []).map(k => k.toLowerCase()) : null;
+        const active = !!query || !!groupVal;
+
+        collectNewsCards().forEach(item => {
+            const title = item.getAttribute('data-title') || '';
+            const publisher = item.getAttribute('data-publisher') || '';
+            const kw = item.getAttribute('data-keyword') || '';
+            let visible = true;
+            if (query && !title.includes(query) && !publisher.includes(query)) visible = false;
+            if (groupKeywords && !groupKeywords.includes(kw)) visible = false;
+            if (active) item.classList.toggle('hidden', !visible);
+        });
+
+        // 검색/그룹 필터가 켜져있는 동안엔 "더보기" 버튼을 숨기고, 꺼지면 원래 10개 캡 상태로 복귀
+        document.querySelectorAll('[id^="btn-more-"]').forEach(btn => btn.classList.toggle('hidden', active));
+        if (!active) {
+            collectNewsCards().forEach(item => {
+                const idx = parseInt(item.getAttribute('data-index'), 10);
+                item.classList.toggle('hidden', idx > 10);
+            });
+        }
+
+        // 결과가 하나도 없는 섹션은 통째로 숨김
+        document.querySelectorAll('.category-section').forEach(sec => {
+            const anyVisible = Array.from(sec.querySelectorAll('.news-item-hidden')).some(i => !i.classList.contains('hidden'));
+            sec.classList.toggle('hidden', active && !anyVisible);
+        });
+    }
+
+    function sortNewsCards() {
+        const mode = document.getElementById('news-sort-select').value;
+        document.querySelectorAll('[id^="list-"]').forEach(list => {
+            const items = Array.from(list.children);
+            items.sort((a, b) => {
+                const da = a.getAttribute('data-date') || '';
+                const db = b.getAttribute('data-date') || '';
+                return mode === 'oldest' ? da.localeCompare(db) : db.localeCompare(da);
+            });
+            items.forEach(item => list.appendChild(item));
+        });
+    }
+
+    async function loadNewsGroupOptions() {
+        try {
+            const res = await fetch('/api/keyword_groups', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+            const data = await res.json();
+            const groups = data.groups || {};
+            window.__newsGroups = groups;
+            const select = document.getElementById('news-group-filter');
+            Object.keys(groups).forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g;
+                opt.textContent = g;
+                select.appendChild(opt);
+            });
+        } catch (e) {}
+    }
+
+    function loadNewsStateSet(key) {
+        try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch (e) { return new Set(); }
+    }
+    function saveNewsStateSet(key, set) {
+        try { localStorage.setItem(key, JSON.stringify(Array.from(set))); } catch (e) {}
+    }
+    function applyNewsBookmarkReadState() {
+        const bookmarks = loadNewsStateSet('butler_news_bookmarks');
+        const reads = loadNewsStateSet('butler_news_read');
+        document.querySelectorAll('.news-bookmark-btn').forEach(btn => {
+            btn.classList.toggle('news-bookmarked', bookmarks.has(btn.getAttribute('data-link')));
+        });
+        document.querySelectorAll('.news-read-btn').forEach(btn => {
+            btn.classList.toggle('news-read', reads.has(btn.getAttribute('data-link')));
+        });
+        document.querySelectorAll('[data-card-link]').forEach(card => {
+            card.classList.toggle('news-card-read', reads.has(card.getAttribute('data-card-link')));
+        });
+    }
+    function initNewsCardActions() {
+        document.querySelectorAll('.news-bookmark-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                const set = loadNewsStateSet('butler_news_bookmarks');
+                const link = btn.getAttribute('data-link');
+                if (set.has(link)) set.delete(link); else set.add(link);
+                saveNewsStateSet('butler_news_bookmarks', set);
+                applyNewsBookmarkReadState();
+            });
+        });
+        document.querySelectorAll('.news-read-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                const set = loadNewsStateSet('butler_news_read');
+                const link = btn.getAttribute('data-link');
+                if (set.has(link)) set.delete(link); else set.add(link);
+                saveNewsStateSet('butler_news_read', set);
+                applyNewsBookmarkReadState();
+            });
+        });
+        applyNewsBookmarkReadState();
+    }
+
     function generateCategoryNav() {
         const tocContainer = document.getElementById('toc-container');
         if (!tocContainer) return;
@@ -190,6 +328,8 @@
     document.addEventListener('DOMContentLoaded', () => {
         updateLatestBadges();
         generateCategoryNav();
+        loadNewsGroupOptions();
+        initNewsCardActions();
         if (window.lucide) lucide.createIcons();
         // Graph View 강제 트리거 (뉴스룸에서도 보이도록)
         if (typeof initGraph === 'function') {
