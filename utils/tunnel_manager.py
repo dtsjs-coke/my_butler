@@ -101,31 +101,43 @@ def git_push_changes(new_url):
         return False
 
 
-def notify_via_butler(message):
-    """Butler를 통해 디스코드에 알림 전송 (Flask API 호출)"""
+def notify_via_butler(message, retries=3, retry_delay=5):
+    """Butler를 통해 디스코드에 알림 전송 (Flask API 호출).
+    pm2 resurrect 등으로 butler(Flask)와 butler-tunnel이 동시에 뜰 때
+    Flask가 아직 기동 전이라 실패하는 레이스컨디션이 있어 재시도한다."""
+    # 상태 확인 채널 ID 가져오기 (기본값 0)
     try:
-        # 상태 확인 채널 ID 가져오기 (기본값 0)
         status_channel_id = int(os.getenv("STATUS_CHANNEL_ID", 0))
-        api_token = os.getenv("BUTLER_API_TOKEN", "butler_v3_secret_2026")
-        
-        # S9의 실제 로컬 IP를 사용하여 통신 안정성 확보
-        url = "http://127.0.0.1:5000/send"
-        payload = {
-            "channel_id": status_channel_id,
-            "content": message
-        }
-        headers = {
-            "X-Butler-Token": api_token
-        }
-        # timeout을 짧게 설정하여 메인 루프 지연 방지
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
-        if response.status_code == 200:
-            print(f"✅ Discord notification sent to {status_channel_id}: {message[:30]}...")
-            return True
-        else:
-            print(f"⚠️ Discord notification failed (HTTP {response.status_code}): {response.text}")
-    except Exception as e:
-        print(f"❌ Discord notification error: {e}")
+    except (TypeError, ValueError):
+        print("⚠️ STATUS_CHANNEL_ID 환경변수가 올바르지 않습니다. 기본값 0 사용.")
+        status_channel_id = 0
+    api_token = os.getenv("BUTLER_API_TOKEN", "butler_v3_secret_2026")
+
+    # S9의 실제 로컬 IP를 사용하여 통신 안정성 확보
+    url = "http://127.0.0.1:5000/send"
+    payload = {
+        "channel_id": status_channel_id,
+        "content": message
+    }
+    headers = {
+        "X-Butler-Token": api_token
+    }
+
+    for attempt in range(1, retries + 1):
+        try:
+            # timeout을 짧게 설정하여 메인 루프 지연 방지
+            response = requests.post(url, json=payload, headers=headers, timeout=5)
+            if response.status_code == 200:
+                print(f"✅ Discord notification sent to {status_channel_id}: {message[:30]}...")
+                return True
+            else:
+                print(f"⚠️ Discord notification failed (HTTP {response.status_code}): {response.text}")
+        except Exception as e:
+            print(f"❌ Discord notification error (attempt {attempt}/{retries}): {e}")
+
+        if attempt < retries:
+            time.sleep(retry_delay)
+
     return False
 
 def handle_url_change(new_url):
@@ -144,12 +156,18 @@ def handle_url_change(new_url):
     else:
         status_msg = "GitHub 업데이트 실패 (로그 확인 필요)"
     
-    notify_via_butler(
-        f"🔗 **터널 주소 정보 업데이트**\n"
-        f"현재 주소: {new_url}\n"
-        f"이전 주소: {old_url}\n"
-        f"상태: {status_msg}"
-    )
+    # notify_via_butler는 재시도 시 최대 ~25초 블로킹될 수 있어, monitor_stdout
+    # 스레드(cloudflared 로그 읽기)를 막지 않도록 별도 스레드에서 실행한다.
+    threading.Thread(
+        target=notify_via_butler,
+        args=(
+            f"🔗 **터널 주소 정보 업데이트**\n"
+            f"현재 주소: {new_url}\n"
+            f"이전 주소: {old_url}\n"
+            f"상태: {status_msg}",
+        ),
+        daemon=True
+    ).start()
     return True
 
 def run_tunnel():
