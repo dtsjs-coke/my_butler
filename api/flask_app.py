@@ -11,7 +11,9 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 from core.news_service import load_news
 from core.subscription.service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
-from utils.system_status import get_system_status_data
+from utils.system_status import get_system_status_data, get_system_status_history
+from core.activity_feed import get_recent_events
+from core.agent_manager import load_agent_config, resolve_action
 from config.config_manager import (
     load_keywords, load_queue, load_ktx_queue, load_stations,
     save_queue, save_ktx_queue, serialize_queue
@@ -221,9 +223,37 @@ def manage_keyword_groups():
 def api_status():
     start_time = time.time()
     data = get_system_status_data()
+    data["history"] = get_system_status_history()
     elapsed = (time.time() - start_time) * 1000
     print(f"[API] system_status request took {elapsed:.2f}ms")
     return jsonify(data)
+
+@app.route('/api/activity_feed')
+@token_required
+def api_activity_feed():
+    since = request.args.get('since')
+    events = get_recent_events(limit=50, since_ts=since)
+    return jsonify({"events": events})
+
+@app.route('/api/agent/pending_actions')
+@token_required
+def api_pending_actions():
+    config = load_agent_config()
+    pending = [a for a in config.get("pending_actions", []) if a.get("status") == "pending"]
+    return jsonify({"pending_actions": pending})
+
+@app.route('/api/agent/pending_actions/<action_id>/resolve', methods=['POST'])
+@token_required
+def api_resolve_pending_action(action_id):
+    data = request.get_json(silent=True) or {}
+    approved = bool(data.get('approved', False))
+    action = resolve_action(action_id, approved=approved)
+    if not action:
+        return jsonify({"status": "failed", "reason": "not_found"}), 404
+    from core.activity_feed import log_event
+    log_event("agent", f"액션 {action_id} {'승인' if approved else '거부'} (웹 대시보드)",
+               level="success" if approved else "warning")
+    return jsonify({"status": "ok", "action": action})
 
 @app.route('/api/graph_data')
 @token_required

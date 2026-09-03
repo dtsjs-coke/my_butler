@@ -6,6 +6,7 @@ import shutil
 import threading
 import time
 import subprocess
+import collections
 from datetime import datetime
 
 # 글로벌 캐시 저장소 (초기값 설정)
@@ -18,12 +19,20 @@ _status_cache = {
     "last_updated": None
 }
 
+# 최근 10분(10초 주기 x 60개) 추이 — 스파크라인용 슬림 스냅샷만 보관
+_history = collections.deque(maxlen=60)
+
 _cache_lock = threading.Lock()
 
 def get_system_status_data():
     """캐시된 데이터를 즉각 반환"""
     with _cache_lock:
         return _status_cache.copy()
+
+def get_system_status_history():
+    """최근 추이(배터리/RAM/CPU/저장공간 %) 스냅샷 목록을 오래된 순으로 반환"""
+    with _cache_lock:
+        return list(_history)
 
 def _safe_run(cmd, timeout=1.5):
     try:
@@ -105,9 +114,16 @@ def _worker_loop():
             
             new_data["status"] = "Healthy"
             new_data["last_updated"] = datetime.now().strftime("%H:%M:%S")
-            
+
             with _cache_lock:
                 _status_cache.update(new_data)
+                _history.append({
+                    "t": new_data["last_updated"],
+                    "battery": new_data.get("battery", {}).get("percentage", 0),
+                    "memory": new_data.get("memory", {}).get("percentage", 0),
+                    "cpu": new_data.get("cpu", {}).get("percentage", 0),
+                    "storage": new_data.get("storage", {}).get("percentage", 0),
+                })
         except Exception as e:
             print(f"Worker Error: {e}")
         

@@ -172,6 +172,23 @@
                     </div>
                 </div>
 
+                <div class="mb-8" id="pending-actions-section">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">승인 대기</h3>
+                        <span id="pending-actions-count" class="hidden px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 text-[10px] font-black rounded">0</span>
+                    </div>
+                    <div id="pending-actions-list" class="space-y-2">
+                        <p class="italic text-xs text-gray-400">대기 중인 작업이 없습니다.</p>
+                    </div>
+                </div>
+
+                <div class="mb-8" id="activity-feed-section">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">활동 피드</h3>
+                    <div id="activity-feed-list" class="space-y-2 max-h-64 overflow-y-auto">
+                        <p class="italic text-xs text-gray-400">최근 활동이 없습니다.</p>
+                    </div>
+                </div>
+
                 <div class="flex-1 overflow-y-auto">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">On this page</h3>
                     <div id="toc-container" class="space-y-2 text-sm text-gray-500 dark:text-gray-400">
@@ -507,6 +524,90 @@
             }
         }
 
+        // 상대 시간 표시 (활동 피드용)
+        function timeAgo(isoStr) {
+            try {
+                const diffMs = Date.now() - new Date(isoStr).getTime();
+                const diffMin = Math.floor(diffMs / 60000);
+                if (diffMin < 1) return '방금 전';
+                if (diffMin < 60) return `${diffMin}분 전`;
+                const diffHr = Math.floor(diffMin / 60);
+                if (diffHr < 24) return `${diffHr}시간 전`;
+                return `${Math.floor(diffHr / 24)}일 전`;
+            } catch (e) { return ''; }
+        }
+
+        const ACTIVITY_CATEGORY_ICON = { news: 'newspaper', system: 'thermometer', agent: 'bot', vwap: 'trending-up' };
+
+        // 활동 피드 패널
+        async function loadActivityFeed() {
+            const list = document.getElementById('activity-feed-list');
+            if (!list) return;
+            try {
+                const res = await fetch('/api/activity_feed', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+                const data = await res.json();
+                const events = data.events || [];
+                if (events.length === 0) {
+                    list.innerHTML = '<p class="italic text-xs text-gray-400">최근 활동이 없습니다.</p>';
+                    return;
+                }
+                list.innerHTML = events.map(ev => {
+                    const icon = ACTIVITY_CATEGORY_ICON[ev.category] || 'circle';
+                    const levelColor = ev.level === 'warning' ? 'text-amber-500' : (ev.level === 'success' ? 'text-green-500' : 'text-gray-400');
+                    return `
+                        <div class="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-card/50 transition-colors">
+                            <i data-lucide="${icon}" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${levelColor}"></i>
+                            <div class="min-w-0">
+                                <p class="text-xs text-gray-700 dark:text-gray-300 truncate">${ev.message}</p>
+                                <p class="text-[10px] text-gray-400">${timeAgo(ev.ts)}</p>
+                            </div>
+                        </div>`;
+                }).join('');
+                if (window.lucide) lucide.createIcons();
+            } catch (e) { console.error("Activity feed load failed", e); }
+        }
+
+        // 승인 대기 액션 패널 (agent_manager.pending_actions, !승인 커맨드와 동일한 로직 재사용)
+        async function loadPendingActions() {
+            const list = document.getElementById('pending-actions-list');
+            const countBadge = document.getElementById('pending-actions-count');
+            if (!list) return;
+            try {
+                const res = await fetch('/api/agent/pending_actions', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+                const data = await res.json();
+                const actions = data.pending_actions || [];
+                if (countBadge) {
+                    countBadge.innerText = actions.length;
+                    countBadge.classList.toggle('hidden', actions.length === 0);
+                }
+                if (actions.length === 0) {
+                    list.innerHTML = '<p class="italic text-xs text-gray-400">대기 중인 작업이 없습니다.</p>';
+                    return;
+                }
+                list.innerHTML = actions.map(a => `
+                    <div class="p-2.5 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-lg">
+                        <p class="text-[11px] font-bold text-amber-700 dark:text-amber-400 mb-1">${a.type || 'ACTION'} · ${a.id}</p>
+                        <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">${(a.details || '').slice(0, 120)}</p>
+                        <div class="flex gap-1.5">
+                            <button onclick="resolvePendingAction('${a.id}', true)" class="flex-1 text-[11px] font-bold py-1 rounded-md bg-green-600 text-white hover:bg-green-700">승인</button>
+                            <button onclick="resolvePendingAction('${a.id}', false)" class="flex-1 text-[11px] font-bold py-1 rounded-md bg-gray-200 dark:bg-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-300">거부</button>
+                        </div>
+                    </div>`).join('');
+            } catch (e) { console.error("Pending actions load failed", e); }
+        }
+
+        async function resolvePendingAction(actionId, approved) {
+            try {
+                await fetch(`/api/agent/pending_actions/${actionId}/resolve`, {
+                    method: 'POST',
+                    headers: { 'X-Butler-Token': BUTLER_API_TOKEN, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ approved })
+                });
+                loadPendingActions();
+                loadActivityFeed();
+            } catch (e) { console.error("Resolve action failed", e); }
+        }
+
         // Graph View
         async function initGraph() {
             const container = document.getElementById('graph-view');
@@ -526,14 +627,21 @@
         }
 
         window.onload = () => {
-            updateStatus(); // 상태 정보 먼저 호출
+            if (typeof updateStatus === 'function') updateStatus(); // 상태 정보 먼저 호출 (Home 페이지 전용)
             generateDefaultTOC();
             if (window.innerWidth >= 1024) {
                 document.getElementById('left-sidebar').classList.remove('-translate-x-full');
                 document.getElementById('right-sidebar').classList.remove('translate-x-full');
             }
             // 그래프 뷰는 부하가 크므로 약간의 지연 후 실행
-            setTimeout(initGraph, 1000); 
+            setTimeout(initGraph, 1000);
+            setInterval(initGraph, 25000); // 실시간 시스템 맵 갱신
+
+            loadActivityFeed();
+            setInterval(loadActivityFeed, 15000);
+
+            loadPendingActions();
+            setInterval(loadPendingActions, 20000);
         };
 
         window.onresize = () => {

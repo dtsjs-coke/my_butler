@@ -277,8 +277,10 @@ async def on_message(message):
         elif content.startswith("!승인 "):
             action_id = content.replace("!승인 ", "").strip()
             from core.agent_manager import resolve_action
+            from core.activity_feed import log_event
             action = resolve_action(action_id, approved=True)
             if action:
+                log_event("agent", f"액션 {action_id} 승인", level="success")
                 await message.channel.send(f"🆗 **승인 완료**: ID `{action_id}` 작업을 곧 실행합니다.")
             else:
                 await message.channel.send(f"❌ **오류**: 유효하지 않은 ID `{action_id}` 입니다.")

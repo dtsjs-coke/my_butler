@@ -16,6 +16,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Battery</h3>
                 <p id="batt-status" class="text-xl font-bold">--% <span id="batt-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
+                <svg id="batt-spark" class="w-full h-6 mt-2" viewBox="0 0 100 24" preserveAspectRatio="none"></svg>
             </div>
 
             <!-- 2. Temperature -->
@@ -34,6 +35,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">RAM Usage</h3>
                 <p id="mem-status" class="text-xl font-bold">--% <span id="mem-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
+                <svg id="mem-spark" class="w-full h-6 mt-2" viewBox="0 0 100 24" preserveAspectRatio="none"></svg>
             </div>
 
             <!-- 4. AP (CPU) Usage -->
@@ -43,6 +45,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">AP Usage</h3>
                 <p id="cpu-status" class="text-xl font-bold text-gray-900 dark:text-gray-100">--%</p>
+                <svg id="cpu-spark" class="w-full h-6 mt-2" viewBox="0 0 100 24" preserveAspectRatio="none"></svg>
             </div>
 
             <!-- 5. HDD (Storage) Usage -->
@@ -52,6 +55,7 @@
                 </div>
                 <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">HDD Storage</h3>
                 <p id="storage-status" class="text-xl font-bold">--% <span id="storage-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
+                <svg id="storage-spark" class="w-full h-6 mt-2" viewBox="0 0 100 24" preserveAspectRatio="none"></svg>
             </div>
         </div>
     </section>
@@ -74,6 +78,19 @@
 </div>
 
 <script>
+    function renderSparkline(svgId, values, color) {
+        const svg = document.getElementById(svgId);
+        if (!svg || !Array.isArray(values) || values.length < 2) return;
+        const w = 100, h = 24;
+        const step = w / (values.length - 1);
+        const points = values.map((v, i) => {
+            const x = (i * step).toFixed(2);
+            const y = (h - (Math.max(0, Math.min(100, v)) / 100) * h).toFixed(2);
+            return `${x},${y}`;
+        }).join(' ');
+        svg.innerHTML = `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" />`;
+    }
+
     async function updateStatus() {
         try {
             const res = await fetch('/api/system_status', {
@@ -100,7 +117,15 @@
             if (data.last_updated) {
                 document.getElementById('last-updated').innerText = `Last updated: ${data.last_updated}`;
             }
-            
+
+            // 7. History sparklines (최근 10분 추이)
+            if (Array.isArray(data.history) && data.history.length > 1) {
+                renderSparkline('batt-spark', data.history.map(h => h.battery), '#3B82F6');
+                renderSparkline('mem-spark', data.history.map(h => h.memory), '#8B5CF6');
+                renderSparkline('cpu-spark', data.history.map(h => h.cpu), '#F97316');
+                renderSparkline('storage-spark', data.history.map(h => h.storage), '#10B981');
+            }
+
         } catch (e) {
             console.error("Status update failed", e);
         }
