@@ -846,12 +846,6 @@
         items.forEach(initRatios);
         recalculate();
         loadSavedList();
-        
-        const tocContainer = document.getElementById('toc-container');
-        if (tocContainer) {
-            tocContainer.setAttribute('data-custom', 'true');
-            tocContainer.innerHTML = '<p class="text-xs text-gray-400">정산 계산이 실시간으로 이 웹 화면과 연동되어 연산됩니다.</p>';
-        }
     });
 </script>
 {% endblock %}

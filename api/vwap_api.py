@@ -7,7 +7,6 @@ from core.vwap.config_manager import VwapConfigManager
 from core.vwap.bot import VWAPBot, PROJECT_ROOT
 from core.vwap.crypto import VwapCrypto
 from core.vwap.broker import TossBroker
-from core.activity_feed import log_event
 
 logger = logging.getLogger("vwap_bot")
 
@@ -497,7 +496,6 @@ def api_control():
             config = VwapConfigManager.load_config()
             config[f"{mode.lower()}_is_running"] = True
             VwapConfigManager.save_config(config)
-            log_event("vwap", f"[{mode}] 봇 시작")
         msg = f"{mode} 트레이딩 봇이 작동하기 시작했습니다." if success else f"{mode} 봇이 이미 실행 중입니다."
         return jsonify({"status": "success" if success else "failed", "message": msg})
 
@@ -507,7 +505,6 @@ def api_control():
             config = VwapConfigManager.load_config()
             config[f"{mode.lower()}_is_running"] = False
             VwapConfigManager.save_config(config)
-            log_event("vwap", f"[{mode}] 봇 정지")
         msg = f"{mode} 트레이딩 봇이 중지되었습니다." if success else f"{mode} 봇이 실행 중이 아닙니다."
         return jsonify({"status": "success" if success else "failed", "message": msg})
         

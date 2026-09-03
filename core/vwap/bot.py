@@ -7,7 +7,6 @@ from datetime import datetime
 from core.vwap.config_manager import VwapConfigManager
 from core.vwap.broker import TossBroker, VirtualBroker
 from core.vwap.strategy import VwapStrategy
-from core.activity_feed import log_event
 
 # 프로젝트 루트 경로
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -432,8 +431,6 @@ class VWAPBot:
                     }
                     VwapConfigManager.add_trade(trade_record, "REAL")
                     self.logger.info(f"🎉 [실거래 체결 감지] {oinfo['side']} 체결 완료: {oinfo['ticker']} {oinfo['qty']}주 @ {oinfo['price']:.2f} (손익: {pnl:+.2f})")
-                    log_event("vwap", f"[REAL] {oinfo['ticker']} {oinfo['side']} 체결 @ {oinfo['price']:.2f} (손익 {pnl:+.2f})",
-                              level="success" if pnl >= 0 else "warning")
                     self.tracked_open_orders.pop(prev_id, None)
 
             # 8-2. 현재 오픈 주문 중 추적 리스트에 없는 항목 신규 등록
