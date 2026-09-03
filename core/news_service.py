@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from discord.ext import tasks
 from config.config_manager import load_keywords
-from core.activity_feed import log_event
 
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET")
@@ -227,7 +226,6 @@ async def news_loop(client):
                     publishers = list(dict.fromkeys(c["publisher"] for c in cluster))
                     embed.add_field(name=f"{len(cluster)}개 매체 보도", value=", ".join(publishers), inline=False)
                 await channel.send(embed=embed)
-                log_event("news", f"[{kw}] {lead['title']}")
 
             for cand in new_candidates:
                 cand.pop("_parsed_pub", None)

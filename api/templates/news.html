@@ -298,48 +298,12 @@
         applyNewsBookmarkReadState();
     }
 
-    function generateCategoryNav() {
-        const tocContainer = document.getElementById('toc-container');
-        if (!tocContainer) return;
-
-        const sections = document.querySelectorAll('.category-section');
-        
-        if (sections.length > 0) {
-            tocContainer.setAttribute('data-custom', 'true'); // base.html 덮어쓰기 방지
-            tocContainer.innerHTML = '<p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">News Keywords</p>';
-            sections.forEach(sec => {
-                const kw = sec.querySelector('h3').innerText;
-                const count = sec.querySelector('span.text-xs').innerText;
-                const id = sec.id;
-                
-                const btn = document.createElement('a');
-                btn.href = '#' + id;
-                btn.className = 'flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-card transition-colors group mb-1';
-                btn.innerHTML = `
-                    <span class="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-blue-500">${kw}</span>
-                    <span class="text-[10px] bg-gray-100 dark:bg-dark-border px-1.5 rounded text-gray-400">${count.split(' ')[0]}</span>
-                `;
-                tocContainer.appendChild(btn);
-            });
-        }
-    }
-
     // Use DOMContentLoaded instead of window.onload for reliability
     document.addEventListener('DOMContentLoaded', () => {
         updateLatestBadges();
-        generateCategoryNav();
         loadNewsGroupOptions();
         initNewsCardActions();
         if (window.lucide) lucide.createIcons();
-        // Graph View 강제 트리거 (뉴스룸에서도 보이도록)
-        if (typeof initGraph === 'function') {
-            setTimeout(initGraph, 500);
-        }
-    });
-
-    // Support for base.html window.onload
-    window.addEventListener('load', () => {
-        generateCategoryNav();
     });
 </script>
 {% endblock %}

@@ -287,11 +287,6 @@
         loadQueue();
         setInterval(loadQueue, 15000);
 
-        // Graph View 초기화
-        if (typeof initGraph === 'function') {
-            setTimeout(initGraph, 1000);
-        }
-        
         if (window.lucide) lucide.createIcons();
     });
 </script>

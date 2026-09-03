@@ -12,18 +12,16 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 from core.news_service import load_news
 from core.subscription.service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
 from utils.system_status import get_system_status_data, get_system_status_history
-from core.activity_feed import get_recent_events
-from core.agent_manager import load_agent_config, resolve_action
 from config.config_manager import (
-    load_keywords, load_queue, load_ktx_queue, load_stations,
-    save_queue, save_ktx_queue, serialize_queue
+    load_keywords, load_stations,
+    save_queue, serialize_queue
 )
 from core.srt.service import reservation_queue
 from SRT.passenger import Adult, Child, Senior, Disability1To3
 from SRT import SeatType
 
 app = Flask(__name__)
-from api.vwap_api import vwap_bp, virtual_bots, real_bot
+from api.vwap_api import vwap_bp
 app.register_blueprint(vwap_bp, url_prefix='/vwap')
 discord_client = None
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
@@ -227,193 +225,6 @@ def api_status():
     elapsed = (time.time() - start_time) * 1000
     print(f"[API] system_status request took {elapsed:.2f}ms")
     return jsonify(data)
-
-@app.route('/api/activity_feed')
-@token_required
-def api_activity_feed():
-    since = request.args.get('since')
-    events = get_recent_events(limit=50, since_ts=since)
-    return jsonify({"events": events})
-
-@app.route('/api/agent/pending_actions')
-@token_required
-def api_pending_actions():
-    config = load_agent_config()
-    pending = [a for a in config.get("pending_actions", []) if a.get("status") == "pending"]
-    # 장기간 누적된 백로그가 그대로 DOM에 렌더링되지 않도록 최근 N개만 반환 (오래된 것부터 승인/거부 UI에서 처리)
-    pending.sort(key=lambda a: a.get("timestamp", ""), reverse=True)
-    limit = 30
-    return jsonify({
-        "pending_actions": pending[:limit],
-        "total_pending": len(pending),
-    })
-
-@app.route('/api/agent/pending_actions/<action_id>/resolve', methods=['POST'])
-@token_required
-def api_resolve_pending_action(action_id):
-    data = request.get_json(silent=True) or {}
-    approved = bool(data.get('approved', False))
-    action = resolve_action(action_id, approved=approved)
-    if not action:
-        return jsonify({"status": "failed", "reason": "not_found"}), 404
-    from core.activity_feed import log_event
-    log_event("agent", f"액션 {action_id} {'승인' if approved else '거부'} (웹 대시보드)",
-               level="success" if approved else "warning")
-    return jsonify({"status": "ok", "action": action})
-
-@app.route('/api/graph_data')
-@token_required
-def api_graph_data():
-    keywords = load_keywords()
-    srt_queue = load_queue()
-    ktx_queue = load_ktx_queue()
-    sys_data = get_system_status_data()
-
-    # 모델 정보 로드
-    model_name = "Unknown"
-    model_config_path = os.path.join(PROJECT_ROOT, "data", "model_config.json")
-    if os.path.exists(model_config_path):
-        try:
-            with open(model_config_path, 'r', encoding='utf-8') as f:
-                model_name = json.load(f).get("model_name", "Unknown")
-        except: pass
-
-    # 그룹 정보 로드
-    groups_map = {}
-    group_file = os.path.join(PROJECT_ROOT, "data", "keyword_groups.json")
-    if os.path.exists(group_file) and os.path.getsize(group_file) > 0:
-        try:
-            with open(group_file, 'r', encoding='utf-8') as f:
-                groups_map = json.load(f)
-        except: pass
-
-    nodes = [
-        {"id": "root", "label": "Butler Pro", "color": "#3b82f6", "size": 25},
-        {"id": "news_root", "label": "News Room", "color": "#10b981", "size": 20},
-        {"id": "train_root", "label": "Trains", "color": "#f59e0b", "size": 20},
-        {"id": "device_root", "label": "S9 Server", "color": "#ef4444", "size": 20},
-        {"id": "ai_root", "label": "AI Engine", "color": "#8b5cf6", "size": 20},
-        {"id": "sub_root", "label": "Subscriptions", "color": "#ec4899", "size": 20}
-    ]
-    edges = [
-        {"from": "root", "to": "news_root"},
-        {"from": "root", "to": "train_root"},
-        {"from": "root", "to": "device_root"},
-        {"from": "root", "to": "ai_root"},
-        {"from": "root", "to": "sub_root"}
-    ]
-
-    # Add Subscription Details
-    try:
-        subs_data = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
-        total_subs = sum(len(user_subs) for user_subs in subs_data.values())
-        nodes.append({"id": "sub_count", "label": f"Active: {total_subs}", "color": "#f472b6", "size": 12})
-        edges.append({"from": "sub_root", "to": "sub_count"})
-    except: pass
-
-    # Add Device Details
-    nodes.append({"id": "dev_batt", "label": f"Battery: {sys_data['battery']['percentage']}%", "color": "#f87171", "size": 12})
-    nodes.append({"id": "dev_mem", "label": f"RAM: {sys_data['memory']['percentage']}%", "color": "#f87171", "size": 12})
-    nodes.append({"id": "dev_cpu", "label": f"CPU: {sys_data['cpu']['percentage']}%", "color": "#f87171", "size": 12})
-    nodes.append({"id": "dev_storage", "label": f"HDD: {sys_data['storage']['percentage']}%", "color": "#f87171", "size": 12})
-    
-    edges.extend([
-        {"from": "device_root", "to": "dev_batt"},
-        {"from": "device_root", "to": "dev_mem"},
-        {"from": "device_root", "to": "dev_cpu"},
-        {"from": "device_root", "to": "dev_storage"}
-    ])
-
-    # Add AI Details
-    nodes.append({"id": "ai_model", "label": model_name, "color": "#a78bfa", "size": 12})
-    edges.append({"from": "ai_root", "to": "ai_model"})
-
-    # 그룹 노드 및 해당 멤버 노드 추가
-    processed_keywords = set()
-    for group_name, members in groups_map.items():
-        group_node_id = f"group_{group_name}"
-        nodes.append({"id": group_node_id, "label": group_name.upper(), "color": "#34d399", "size": 18, "font": {"bold": True}})
-        edges.append({"from": "news_root", "to": group_node_id})
-
-        for m in members:
-            member_node_id = f"kw_{m}"
-            nodes.append({"id": member_node_id, "label": m, "color": "#6ee7b7", "size": 10})
-            edges.append({"from": group_node_id, "to": member_node_id})
-            processed_keywords.add(m.lower())
-
-    # 그룹에 속하지 않은 독립 키워드 추가
-    for kw in keywords:
-        if kw.lower() not in processed_keywords:
-            node_id = f"kw_{kw}"
-            nodes.append({"id": node_id, "label": kw, "color": "#a7f3d0", "size": 10})
-            edges.append({"from": "news_root", "to": node_id})
-
-    # Add SRT/KTX Tasks
-    task_count = 0
-    for user_id, tasks in srt_queue.items():
-        for task in tasks:
-            node_id = f"task_srt_{task_count}"
-            label = f"SRT: {task.get('dep')}→{task.get('arr')}"
-            nodes.append({"id": node_id, "label": label, "color": "#fcd34d", "size": 12})
-            edges.append({"from": "train_root", "to": node_id})
-            task_count += 1
-
-    for user_id, tasks in ktx_queue.items():
-        for task in tasks:
-            node_id = f"task_ktx_{task_count}"
-            label = f"KTX: {task.get('dep')}→{task.get('arr')}"
-            nodes.append({"id": node_id, "label": label, "color": "#fbbf24", "size": 12})
-            edges.append({"from": "train_root", "to": node_id})
-            task_count += 1
-
-    # Add VWAP Bot Status (실행중 여부 + 보유종목 평가손익 부호로 색상 결정, ROI 전체 재계산은 vwap_api 쪽 로직 재사용 대상이라 생략)
-    try:
-        vwap_root_id = "vwap_root"
-        nodes.append({"id": vwap_root_id, "label": "VWAP Bots", "color": "#0ea5e9", "size": 20})
-        edges.append({"from": "root", "to": vwap_root_id})
-
-        for bot_mode, bot_obj in list(virtual_bots.items()) + [("REAL", real_bot)]:
-            status = bot_obj.get_status()
-            is_running = status.get("is_running", False)
-            holdings = status.get("holdings", {}) or {}
-            cur_price = status.get("current_price", 0.0)
-
-            color = "#9ca3af"  # 정지 상태
-            if is_running:
-                color = "#38bdf8"  # 가동 중, 무포지션
-                if holdings:
-                    first_ticker = next(iter(holdings))
-                    entry = holdings[first_ticker].get("entry_price", 0.0)
-                    if cur_price and entry:
-                        color = "#22c55e" if cur_price >= entry else "#ef4444"
-
-            node_id = f"vwap_{bot_mode}"
-            nodes.append({
-                "id": node_id,
-                "label": f"{bot_mode}{' ●' if is_running else ''}",
-                "color": color,
-                "size": 14 if is_running else 10
-            })
-            edges.append({"from": vwap_root_id, "to": node_id})
-    except Exception as e:
-        print(f"[graph_data] VWAP node build failed: {e}")
-
-    # Add Pending Self-Healing Actions (건수가 많을 수 있어 노드 1개당이 아닌 집계 노드 1개로 표시)
-    try:
-        agent_cfg = load_agent_config()
-        pending_count = len([a for a in agent_cfg.get("pending_actions", []) if a.get("status") == "pending"])
-        if pending_count > 0:
-            nodes.append({
-                "id": "agent_pending",
-                "label": f"승인 대기 {pending_count}건",
-                "color": "#ef4444",
-                "size": min(30, 12 + pending_count // 50)
-            })
-            edges.append({"from": "ai_root", "to": "agent_pending"})
-    except Exception as e:
-        print(f"[graph_data] pending action node build failed: {e}")
-
-    return jsonify({"nodes": nodes, "edges": edges})
 
 from config.config_manager import save_keywords
 

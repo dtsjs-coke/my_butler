@@ -6,7 +6,6 @@ import pandas as pd
 from abc import ABC, abstractmethod
 from datetime import datetime
 from core.vwap.config_manager import VwapConfigManager
-from core.activity_feed import log_event
 
 class Broker(ABC):
     @abstractmethod
@@ -657,7 +656,6 @@ class VirtualBroker(Broker):
                     self.holdings[ticker] = {"qty": total_qty, "entry_price": weighted_price}
                 
                 print(f"🎉 [VirtualBroker] 매수 체결 성공: {ticker} {qty}주 @ {f_price:.2f}")
-                log_event("vwap", f"[{self.mode}] {ticker} BUY 체결 @ {f_price:.2f} ({qty}주)")
                 
             elif side == "SELL":
                 # 매도 정산
@@ -678,8 +676,6 @@ class VirtualBroker(Broker):
                     self.cash += (f_price * qty)
                 
                 print(f"🎉 [VirtualBroker] 매도 체결 성공: {ticker} {qty}주 @ {f_price:.2f} (손익: {pnl:+.2f}, 수익률: {roi:+.2f}%)")
-                log_event("vwap", f"[{self.mode}] {ticker} SELL 체결 @ {f_price:.2f} (손익 {pnl:+.2f})",
-                          level="success" if pnl >= 0 else "warning")
 
             # 체결 이력 JSON 파일에 영구 추가
             trade_record = {

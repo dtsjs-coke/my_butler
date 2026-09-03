@@ -14,7 +14,6 @@ from utils.system_status import get_system_status_embed
 from core.ai.service import ask_gemini
 from config.constants import STATUS_CHANNEL_ID, CHAT_CHANNEL_ID
 from core.agent_manager import load_agent_config, save_agent_config, add_pending_action
-from core.activity_feed import log_event
 
 # 설정
 TARGET_APP = "butler"
@@ -55,7 +54,6 @@ class ButlerAgent:
                 msg = f"""⚠️ **S9 발열 경고 ({temp}°C)**
 온도 임계치를 초과했습니다. 에이전트가 작업을 지연시킵니다."""
                 self.send_discord(msg)
-                log_event("system", f"발열 경고 {temp}°C", level="warning")
                 return True
             return False
         except Exception as e:
@@ -90,7 +88,6 @@ class ButlerAgent:
                 # 분석 결과에서 JSON 추출 (추후 정교화 필요)
                 # 현재는 텍스트 보고 위주로 구현
                 action_id = add_pending_action("SELF_HEALING", analysis_text, proposed_patch=None)
-                log_event("agent", f"자가진단 제안 (ID {action_id})", level="warning", meta={"action_id": action_id})
 
                 report = f"""🚨 **자가 진단 보고 (ID: {action_id})**
 
