@@ -576,15 +576,16 @@
                 const res = await fetch('/api/agent/pending_actions', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
                 const data = await res.json();
                 const actions = data.pending_actions || [];
+                const totalPending = data.total_pending || actions.length;
                 if (countBadge) {
-                    countBadge.innerText = actions.length;
-                    countBadge.classList.toggle('hidden', actions.length === 0);
+                    countBadge.innerText = totalPending;
+                    countBadge.classList.toggle('hidden', totalPending === 0);
                 }
                 if (actions.length === 0) {
                     list.innerHTML = '<p class="italic text-xs text-gray-400">대기 중인 작업이 없습니다.</p>';
                     return;
                 }
-                list.innerHTML = actions.map(a => `
+                let html = actions.map(a => `
                     <div class="p-2.5 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-lg">
                         <p class="text-[11px] font-bold text-amber-700 dark:text-amber-400 mb-1">${a.type || 'ACTION'} · ${a.id}</p>
                         <p class="text-xs text-gray-600 dark:text-gray-400 mb-2">${(a.details || '').slice(0, 120)}</p>
@@ -593,6 +594,10 @@
                             <button onclick="resolvePendingAction('${a.id}', false)" class="flex-1 text-[11px] font-bold py-1 rounded-md bg-gray-200 dark:bg-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-300">거부</button>
                         </div>
                     </div>`).join('');
+                if (totalPending > actions.length) {
+                    html += `<p class="text-[10px] text-center text-gray-400 pt-1">최근 ${actions.length}건 표시 중 (전체 ${totalPending}건 대기)</p>`;
+                }
+                list.innerHTML = html;
             } catch (e) { console.error("Pending actions load failed", e); }
         }
 

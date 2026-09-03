@@ -240,7 +240,13 @@ def api_activity_feed():
 def api_pending_actions():
     config = load_agent_config()
     pending = [a for a in config.get("pending_actions", []) if a.get("status") == "pending"]
-    return jsonify({"pending_actions": pending})
+    # 장기간 누적된 백로그가 그대로 DOM에 렌더링되지 않도록 최근 N개만 반환 (오래된 것부터 승인/거부 UI에서 처리)
+    pending.sort(key=lambda a: a.get("timestamp", ""), reverse=True)
+    limit = 30
+    return jsonify({
+        "pending_actions": pending[:limit],
+        "total_pending": len(pending),
+    })
 
 @app.route('/api/agent/pending_actions/<action_id>/resolve', methods=['POST'])
 @token_required
