@@ -23,7 +23,7 @@ from SRT.passenger import Adult, Child, Senior, Disability1To3
 from SRT import SeatType
 
 app = Flask(__name__)
-from api.vwap_api import vwap_bp
+from api.vwap_api import vwap_bp, virtual_bots, real_bot
 app.register_blueprint(vwap_bp, url_prefix='/vwap')
 discord_client = None
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
@@ -365,6 +365,53 @@ def api_graph_data():
             nodes.append({"id": node_id, "label": label, "color": "#fbbf24", "size": 12})
             edges.append({"from": "train_root", "to": node_id})
             task_count += 1
+
+    # Add VWAP Bot Status (실행중 여부 + 보유종목 평가손익 부호로 색상 결정, ROI 전체 재계산은 vwap_api 쪽 로직 재사용 대상이라 생략)
+    try:
+        vwap_root_id = "vwap_root"
+        nodes.append({"id": vwap_root_id, "label": "VWAP Bots", "color": "#0ea5e9", "size": 20})
+        edges.append({"from": "root", "to": vwap_root_id})
+
+        for bot_mode, bot_obj in list(virtual_bots.items()) + [("REAL", real_bot)]:
+            status = bot_obj.get_status()
+            is_running = status.get("is_running", False)
+            holdings = status.get("holdings", {}) or {}
+            cur_price = status.get("current_price", 0.0)
+
+            color = "#9ca3af"  # 정지 상태
+            if is_running:
+                color = "#38bdf8"  # 가동 중, 무포지션
+                if holdings:
+                    first_ticker = next(iter(holdings))
+                    entry = holdings[first_ticker].get("entry_price", 0.0)
+                    if cur_price and entry:
+                        color = "#22c55e" if cur_price >= entry else "#ef4444"
+
+            node_id = f"vwap_{bot_mode}"
+            nodes.append({
+                "id": node_id,
+                "label": f"{bot_mode}{' ●' if is_running else ''}",
+                "color": color,
+                "size": 14 if is_running else 10
+            })
+            edges.append({"from": vwap_root_id, "to": node_id})
+    except Exception as e:
+        print(f"[graph_data] VWAP node build failed: {e}")
+
+    # Add Pending Self-Healing Actions (건수가 많을 수 있어 노드 1개당이 아닌 집계 노드 1개로 표시)
+    try:
+        agent_cfg = load_agent_config()
+        pending_count = len([a for a in agent_cfg.get("pending_actions", []) if a.get("status") == "pending"])
+        if pending_count > 0:
+            nodes.append({
+                "id": "agent_pending",
+                "label": f"승인 대기 {pending_count}건",
+                "color": "#ef4444",
+                "size": min(30, 12 + pending_count // 50)
+            })
+            edges.append({"from": "ai_root", "to": "agent_pending"})
+    except Exception as e:
+        print(f"[graph_data] pending action node build failed: {e}")
 
     return jsonify({"nodes": nodes, "edges": edges})
 
