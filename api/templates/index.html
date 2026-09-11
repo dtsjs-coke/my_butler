@@ -14,12 +14,16 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- 1. Battery -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
-                <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg flex items-center justify-center mb-4">
-                    <i data-lucide="battery"></i>
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                        <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg flex items-center justify-center mb-4">
+                            <i data-lucide="battery"></i>
+                        </div>
+                        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Battery</h3>
+                        <p id="batt-status" class="text-xl font-bold">--% <span id="batt-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
+                    </div>
+                    <svg id="batt-spark" class="w-20 sm:w-24 h-10 flex-shrink-0" viewBox="0 0 100 40" preserveAspectRatio="none"></svg>
                 </div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Battery</h3>
-                <p id="batt-status" class="text-xl font-bold">--% <span id="batt-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
-                <svg id="batt-spark" class="w-full h-6 mt-2" viewBox="0 0 100 24" preserveAspectRatio="none"></svg>
             </div>
 
             <!-- 2. Temperature -->
@@ -33,32 +37,44 @@
 
             <!-- 3. RAM Usage -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
-                <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-lg flex items-center justify-center mb-4">
-                    <i data-lucide="cpu"></i>
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                        <div class="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 text-purple-600 rounded-lg flex items-center justify-center mb-4">
+                            <i data-lucide="cpu"></i>
+                        </div>
+                        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">RAM Usage</h3>
+                        <p id="mem-status" class="text-xl font-bold">--% <span id="mem-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
+                    </div>
+                    <svg id="mem-spark" class="w-20 sm:w-24 h-10 flex-shrink-0" viewBox="0 0 100 40" preserveAspectRatio="none"></svg>
                 </div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">RAM Usage</h3>
-                <p id="mem-status" class="text-xl font-bold">--% <span id="mem-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
-                <svg id="mem-spark" class="w-full h-6 mt-2" viewBox="0 0 100 24" preserveAspectRatio="none"></svg>
             </div>
 
             <!-- 4. AP (CPU) Usage -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
-                <div class="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-lg flex items-center justify-center mb-4">
-                    <i data-lucide="zap"></i>
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                        <div class="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-lg flex items-center justify-center mb-4">
+                            <i data-lucide="zap"></i>
+                        </div>
+                        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1" title="안드로이드 권한 제한으로 기기 전체 CPU는 읽을 수 없어, Butler 프로세스가 점유한 CPU를 표시합니다 (100% = 8코어 전부 점유)">AP Usage <span class="text-[10px] text-gray-400">(Butler 프로세스)</span></h3>
+                        <p id="cpu-status" class="text-xl font-bold text-gray-900 dark:text-gray-100">--%</p>
+                    </div>
+                    <svg id="cpu-spark" class="w-20 sm:w-24 h-10 flex-shrink-0" viewBox="0 0 100 40" preserveAspectRatio="none"></svg>
                 </div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1" title="안드로이드 권한 제한으로 기기 전체 CPU는 읽을 수 없어, Butler 프로세스가 점유한 CPU를 표시합니다 (100% = 8코어 전부 점유)">AP Usage <span class="text-[10px] text-gray-400">(Butler 프로세스)</span></h3>
-                <p id="cpu-status" class="text-xl font-bold text-gray-900 dark:text-gray-100">--%</p>
-                <svg id="cpu-spark" class="w-full h-6 mt-2" viewBox="0 0 100 24" preserveAspectRatio="none"></svg>
             </div>
 
             <!-- 5. HDD (Storage) Usage -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
-                <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg flex items-center justify-center mb-4">
-                    <i data-lucide="hard-drive"></i>
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                        <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg flex items-center justify-center mb-4">
+                            <i data-lucide="hard-drive"></i>
+                        </div>
+                        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">HDD Storage</h3>
+                        <p id="storage-status" class="text-xl font-bold">--% <span id="storage-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
+                    </div>
+                    <svg id="storage-spark" class="w-20 sm:w-24 h-10 flex-shrink-0" viewBox="0 0 100 40" preserveAspectRatio="none"></svg>
                 </div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">HDD Storage</h3>
-                <p id="storage-status" class="text-xl font-bold">--% <span id="storage-extra" class="text-xs font-normal text-gray-400 ml-2">--</span></p>
-                <svg id="storage-spark" class="w-full h-6 mt-2" viewBox="0 0 100 24" preserveAspectRatio="none"></svg>
             </div>
         </div>
     </section>
@@ -84,11 +100,35 @@
     function renderSparkline(svgId, values, color) {
         const svg = document.getElementById(svgId);
         if (!svg || !Array.isArray(values) || values.length < 2) return;
-        const w = 100, h = 24;
+        const w = 100, h = 40;
         const step = w / (values.length - 1);
+
+        // 데이터의 실제 최소/최대값을 구해서 y축을 자동 스케일링한다.
+        // (고정 0~100 범위를 쓰면 배터리가 95~100 사이에서만 움직여도
+        //  거의 평평한 직선처럼 보여서 변화가 안 보이는 문제가 있었음)
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+
+        if (min === max) {
+            // 모든 값이 동일한 경우: 분모가 0이 되는 걸 피하고
+            // 세로 중앙에 수평선을 그린다.
+            const midY = (h / 2).toFixed(2);
+            const points = values.map((v, i) => `${(i * step).toFixed(2)},${midY}`).join(' ');
+            svg.innerHTML = `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" />`;
+            return;
+        }
+
+        // 실제 범위 위아래로 10%씩 여백을 줘서 선이 SVG 상/하단 경계에
+        // 딱 붙어 잘리지 않게 한다.
+        const range = max - min;
+        const padding = range * 0.1;
+        const paddedMin = min - padding;
+        const paddedMax = max + padding;
+        const paddedRange = paddedMax - paddedMin;
+
         const points = values.map((v, i) => {
             const x = (i * step).toFixed(2);
-            const y = (h - (Math.max(0, Math.min(100, v)) / 100) * h).toFixed(2);
+            const y = (h - ((v - paddedMin) / paddedRange) * h).toFixed(2);
             return `${x},${y}`;
         }).join(' ');
         svg.innerHTML = `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" />`;
