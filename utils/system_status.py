@@ -100,64 +100,74 @@ def _update_memory():
     except: pass
     return _status_cache["memory"]
 
-# /proc/stat 직전 스냅샷 (idle_ticks, total_ticks)
-_prev_cpu_ticks = None
+# ---------------------------------------------------------------------------
+# CPU(AP) 사용률
+#
+# [S9 실측 결과 — 2026-09-11]
+#   /proc/stat      -> Permission denied (삼성 커널 SELinux 제한)
+#   /proc/loadavg   -> Permission denied
+#   os.getloadavg() -> bionic에 getloadavg(3)가 없어 AttributeError
+#   top -n 2 -b     -> 요약 라인이 부하를 걸어도 항상 "800%cpu 0%user ... 800%idle"
+#                      (toybox top도 내부적으로 /proc/stat에 의존하므로 무의미)
+#   /proc/<pid>/stat-> 읽기 가능. busy loop 1초 측정 시 99.0%로 정확히 산출됨.
+#
+# 결론: 이 기기에서 "시스템 전체 CPU 사용률"은 권한상 취득할 방법이 없다.
+#       따라서 이 지표는 취득 가능한 값인 "Butler 프로세스가 점유한 CPU"로 정의한다.
+#       (기기 전체가 아니라 우리 서버 프로세스의 부하 = 모니터링 목적상 더 유용)
+#       100% = 8코어 전부 점유. 1코어를 꽉 쓰면 12.5%.
+# ---------------------------------------------------------------------------
 
-def _read_cpu_ticks():
-    """/proc/stat 첫 줄(전체 CPU 합계)에서 (idle, total) 누적 tick을 읽는다."""
-    with open('/proc/stat', 'r') as f:
-        line = f.readline()
-    parts = line.split()
-    if not parts or parts[0] != 'cpu':
-        return None
-    vals = [int(v) for v in parts[1:] if v.isdigit()]
-    if len(vals) < 4:
-        return None
-    # 0:user 1:nice 2:system 3:idle 4:iowait ...
-    idle = vals[3] + (vals[4] if len(vals) > 4 else 0)
-    return idle, sum(vals)
+# 직전 스냅샷: (프로세스 누적 cpu tick, 측정 시각)
+_prev_proc_cpu = None
+_CLK_TCK = os.sysconf('SC_CLK_TCK') if hasattr(os, 'sysconf') else 100
+_CPU_CORES = os.cpu_count() or 1
+
+def _read_proc_cpu_ticks():
+    """자기 프로세스(모든 쓰레드 합)의 누적 CPU tick(utime+stime)을 읽는다."""
+    with open('/proc/self/stat', 'r') as f:
+        raw = f.read()
+    # comm 필드에 공백/괄호가 들어갈 수 있으므로 마지막 ')' 뒤부터 자른다.
+    fields = raw.rsplit(')', 1)[1].split()
+    # rsplit 이후 인덱스: 0=state(3번째 필드) 이므로 utime(14번째)=11, stime(15번째)=12
+    return int(fields[11]) + int(fields[12])
 
 def _update_cpu():
-    """CPU(AP) 사용률.
-
-    기존에는 top 출력을 파싱했으나, `raw.replace(' ', '')`로 공백을 모두 제거한 뒤
-    `\\s+`를 요구하는 정규식이라 절대 매칭될 수 없었고(=항상 실패),
-    결국 loadavg 또는 하드코딩 5%가 표시되고 있었다.
-    Android/Termux에서 안정적으로 읽히는 /proc/stat 델타 방식으로 교체한다.
-    """
-    global _prev_cpu_ticks
+    global _prev_proc_cpu
     try:
-        cur = _read_cpu_ticks()
-        if cur:
-            prev = _prev_cpu_ticks
-            _prev_cpu_ticks = cur
-            if prev:
-                d_idle = cur[0] - prev[0]
-                d_total = cur[1] - prev[1]
-                if d_total > 0:
-                    _log_once("cpu", "")
-                    pct = (1.0 - (d_idle / d_total)) * 100.0
-                    return {"percentage": int(round(max(0.0, min(100.0, pct))))}
-            # 첫 수집은 비교 대상이 없으므로 직전 값을 유지 (다음 주기부터 정상)
-            return _status_cache["cpu"]
+        cur_ticks = _read_proc_cpu_ticks()
+        now = time.time()
+        prev = _prev_proc_cpu
+        _prev_proc_cpu = (cur_ticks, now)
+        if prev:
+            d_ticks = cur_ticks - prev[0]
+            d_wall = now - prev[1]
+            if d_wall > 0 and d_ticks >= 0:
+                _log_once("cpu", "")
+                pct = (d_ticks / _CLK_TCK) / (d_wall * _CPU_CORES) * 100.0
+                return {"percentage": round(max(0.0, min(100.0, pct)), 1)}
+        # 첫 수집은 비교 대상이 없으므로 직전 값 유지 (다음 주기부터 정상)
+        return _status_cache["cpu"]
     except Exception as e:
-        _log_once("cpu", f"/proc/stat 읽기 실패: {type(e).__name__}: {e}")
-
-    # 대안: loadavg를 코어 수로 정규화
-    try:
-        with open('/proc/loadavg', 'r') as f:
-            load = float(f.readline().split()[0])
-        cores = os.cpu_count() or 1
-        return {"percentage": int(round(min(100.0, (load / cores) * 100.0)))}
-    except Exception:
-        pass
+        _log_once("cpu", f"/proc/self/stat 읽기 실패: {type(e).__name__}: {e}")
     return _status_cache["cpu"]
 
 def _update_storage():
+    """Termux 홈이 속한 /data 파티션 사용량.
+
+    [S9 실측 — 2026-09-11] df -h 결과 231G / 13G used / 217G avail / Use% 6%
+    파이썬 shutil 값과 동일하므로 수집 로직 자체에는 버그가 없었다.
+    다만 표시가 `//(1024**3)` 정수 절삭이라 230G(실제 230.7G), 5%(실제 5.7%)로
+    df보다 한 단위씩 작게 보였던 부분만 반올림/소수 1자리로 보정한다.
+    """
     try:
         u = shutil.disk_usage("/data/data/com.termux/files/home")
-        return {"total": f"{u.total//(1024**3)}G", "used": f"{u.used//(1024**3)}G", "percentage": int((u.used/u.total)*100)}
-    except: pass
+        return {
+            "total": f"{u.total/(1024**3):.1f}G",
+            "used": f"{u.used/(1024**3):.1f}G",
+            "percentage": round((u.used / u.total) * 100, 1),
+        }
+    except Exception as e:
+        _log_once("storage", f"disk_usage 실패: {type(e).__name__}: {e}")
     return _status_cache["storage"]
 
 def _worker_loop():
