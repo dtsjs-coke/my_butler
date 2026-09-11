@@ -26,6 +26,7 @@ from core.news_service import news_loop
 from core.srt.manager import srt_reservation_loop, SRTMainMenuView
 from core.ktx.manager import ktx_reservation_loop, KTXMainMenuView
 from core.subscription.manager import start_subscription_tasks
+from core.smartthings.battery_guard import start_battery_guard
 from api.flask_app import run_flask
 from utils.system_status import get_system_status_embed, get_battery_short_report
 from core.srt import service as srt_service
@@ -57,7 +58,10 @@ async def on_ready():
             
         # 구독 관리 작업 시작
         start_subscription_tasks(client)
-            
+
+        # 배터리 가드 시작 (배터리 90% 이상이면 스마트플러그 OFF, 30% 이하면 ON)
+        start_battery_guard(client)
+
         # Flask 서버 별도 쓰레드 실행
         threading.Thread(target=run_flask, args=(client,), daemon=True).start()
         _tasks_started = True

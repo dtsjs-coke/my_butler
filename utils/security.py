@@ -17,7 +17,7 @@ class SecurityChecker:
     # 민감한 환경 변수 패턴 (메시지 필터링용)
     SENSITIVE_PATTERNS = [
         r"DISCORD_TOKEN", r"GEMINI_API_KEY", r"NAVER_CLIENT_SECRET",
-        r"SRT_PW", r"SRT_ID"
+        r"SRT_PW", r"SRT_ID", r"SMARTTHINGS_TOKEN"
     ]
 
     @staticmethod
