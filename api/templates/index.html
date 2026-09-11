@@ -5,8 +5,11 @@
 {% block content %}
 <div class="space-y-8">
     <section>
-        <h2 class="text-2xl font-bold mb-6">Welcome back, Butler Pro</h2>
-        
+        <div class="flex items-baseline justify-between mb-6">
+            <h2 class="text-2xl font-bold">Welcome back, Butler Pro</h2>
+            <span id="last-updated" class="text-xs text-gray-400">Last updated: --</span>
+        </div>
+
         <!-- Device Monitoring Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!-- 1. Battery -->
@@ -114,8 +117,11 @@
             document.getElementById('storage-status').innerHTML = `${data.storage.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">${data.storage.used}/${data.storage.total}</span>`;
             
             // 6. Last Updated Time
-            if (data.last_updated) {
-                document.getElementById('last-updated').innerText = `Last updated: ${data.last_updated}`;
+            // 주의: #last-updated 엘리먼트가 없으면 여기서 예외가 나면서
+            // 아래 7번(스파크라인)이 통째로 건너뛰어진다. 반드시 null 체크할 것.
+            const lastUpdatedEl = document.getElementById('last-updated');
+            if (lastUpdatedEl && data.last_updated) {
+                lastUpdatedEl.innerText = `Last updated: ${data.last_updated}`;
             }
 
             // 7. History sparklines (최근 10분 추이)
