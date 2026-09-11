@@ -28,11 +28,16 @@
 
             <!-- 2. Temperature -->
             <div class="bg-white dark:bg-dark-card p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
-                <div class="w-10 h-10 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg flex items-center justify-center mb-4">
-                    <i data-lucide="thermometer"></i>
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                        <div class="w-10 h-10 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg flex items-center justify-center mb-4">
+                            <i data-lucide="thermometer"></i>
+                        </div>
+                        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Device Temp</h3>
+                        <p id="sys-temp" class="text-xl font-bold text-gray-900 dark:text-gray-100">--°C</p>
+                    </div>
+                    <svg id="temp-spark" class="w-20 sm:w-24 h-10 flex-shrink-0" viewBox="0 0 100 40" preserveAspectRatio="none"></svg>
                 </div>
-                <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Device Temp</h3>
-                <p id="sys-temp" class="text-xl font-bold text-gray-900 dark:text-gray-100">--°C</p>
             </div>
 
             <!-- 3. RAM Usage -->
@@ -170,6 +175,7 @@
                 renderSparkline('mem-spark', data.history.map(h => h.memory), '#8B5CF6');
                 renderSparkline('cpu-spark', data.history.map(h => h.cpu), '#F97316');
                 renderSparkline('storage-spark', data.history.map(h => h.storage), '#10B981');
+                renderSparkline('temp-spark', data.history.map(h => h.temperature), '#EF4444');
             }
 
         } catch (e) {

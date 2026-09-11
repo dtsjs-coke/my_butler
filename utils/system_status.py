@@ -203,6 +203,7 @@ def _worker_loop():
                     "memory": _status_cache.get("memory", {}).get("percentage", 0),
                     "cpu": _status_cache.get("cpu", {}).get("percentage", 0),
                     "storage": _status_cache.get("storage", {}).get("percentage", 0),
+                    "temperature": _status_cache.get("battery", {}).get("temperature", 0),
                 })
         except Exception as e:
             print(f"Worker Error: {e}")
