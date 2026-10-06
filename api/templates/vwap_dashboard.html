@@ -105,7 +105,7 @@
         }
 
         .header-logo span {
-            font-size: 11px;
+            font-size: 12px;
             background: rgba(255, 255, 255, 0.05);
             padding: 4px 10px;
             border-radius: 20px;
@@ -254,7 +254,7 @@
         }
 
         .metric-title {
-            font-size: 11px;
+            font-size: 12px;
             color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -269,7 +269,7 @@
         }
 
         .metric-sub {
-            font-size: 11px;
+            font-size: 12px;
             margin-top: 6px;
             font-weight: 500;
         }
@@ -316,7 +316,7 @@
         }
 
         .form-group label {
-            font-size: 11px;
+            font-size: 12px;
             color: var(--text-secondary);
             font-weight: 600;
             text-transform: uppercase;
@@ -434,7 +434,7 @@
         }
 
         .status-box-title {
-            font-size: 10px;
+            font-size: 12px;
             color: var(--text-secondary);
             text-transform: uppercase;
             margin-bottom: 4px;
@@ -459,7 +459,7 @@
             font-weight: 600;
             padding: 10px 8px;
             border-bottom: 1px solid var(--border-color);
-            font-size: 10px;
+            font-size: 12px;
             text-transform: uppercase;
         }
 
@@ -492,7 +492,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 11px;
+            font-size: 12px;
             color: var(--text-secondary);
             margin-bottom: 8px;
             border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -502,7 +502,7 @@
         .terminal-body {
             flex-grow: 1;
             font-family: 'Fira Code', monospace;
-            font-size: 11px;
+            font-size: 12px;
             color: #cbd5e1;
             overflow-y: auto;
             white-space: pre-wrap;
@@ -638,6 +638,132 @@
         ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+        /* ===== 2단계 UI 개선: 반응형 / 현황 카드 / 타임라인 / 체결 상세 ===== */
+        .nav-tabs { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .nav-tabs::-webkit-scrollbar { display: none; }
+        .nav-tab-btn { white-space: nowrap; flex: 0 0 auto; }
+        header { flex-wrap: wrap; gap: 12px; }
+        .header-logo { flex-wrap: wrap; }
+        .table-container { overflow-x: auto; }
+        .table-container table { min-width: 480px; }
+        .table-container.compact table { min-width: 0; }
+        .table-container th, .table-container td { white-space: nowrap; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .status-grid.grid-6 { grid-template-columns: repeat(6, 1fr); margin-top: 12px; gap: 10px; }
+        .bottom-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .bt-layout { display: grid; grid-template-columns: 350px 1fr; gap: 24px; }
+        .chk-row { display: flex; gap: 8px 16px; flex-wrap: wrap; font-size: 13px; }
+        .chk-row label, .chk-single { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; }
+        .chk-single { font-size: 13px; }
+        .chk-row .help-note { flex: 1 0 100%; }
+        .hint { font-size: 12px; color: var(--text-secondary); font-weight: 400; }
+
+        /* ⓘ 도움말 */
+        .help-i { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: 4px; border-radius: 50%; border: 1px solid rgba(148,163,184,0.5); color: var(--text-secondary); font-size: 12px; font-weight: 700; cursor: pointer; text-transform: none; user-select: none; vertical-align: middle; }
+        .help-i:hover { color: white; border-color: var(--accent-blue); }
+        .help-note { font-size: 12px; line-height: 1.5; color: #cbd5e1; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; padding: 8px 10px; text-transform: none; font-weight: 400; }
+
+        /* 지금 봇은 무엇을 하고 있나 카드 */
+        .now-card { border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid var(--border-color); border-left-width: 5px; background: rgba(255,255,255,0.02); }
+        .now-card .now-head { display: flex; align-items: center; gap: 12px; }
+        .now-card .now-icon { font-size: 28px; line-height: 1; flex: 0 0 auto; }
+        .now-card .now-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-bottom: 2px; }
+        .now-card .now-text { font-size: 17px; font-weight: 700; line-height: 1.4; word-break: keep-all; overflow-wrap: anywhere; }
+        .now-card .now-time { font-size: 12px; color: var(--text-secondary); margin-top: 8px; text-align: right; }
+        .now-card .now-session { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+        .now-session-label { overflow-wrap: anywhere; min-width: 0; }
+        .now-session-warn { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--accent-yellow); background: rgba(245,158,11,0.14); color: #fbbf24; font-weight: 600; }
+        .reset-hint { margin-top: 4px; }
+        .now-gray   { border-left-color: #64748b; background: rgba(100,116,139,0.08); }
+        .now-blue   { border-left-color: var(--accent-blue); background: rgba(59,130,246,0.09); }
+        .now-orange { border-left-color: var(--accent-yellow); background: rgba(245,158,11,0.10); }
+        .now-red    { border-left-color: var(--accent-red); background: rgba(244,63,94,0.10); }
+        .now-blue .now-text { color: #93c5fd; }
+        .now-orange .now-text { color: #fbbf24; }
+        .now-red .now-text { color: #fb7185; }
+
+        .chip-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .chip { display: inline-flex; flex-direction: column; gap: 2px; padding: 6px 12px; border-radius: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); min-width: 92px; }
+        .chip .chip-k { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+        .chip .chip-v { font-size: 14px; font-weight: 700; }
+        .chip.chip-dim .chip-v { color: var(--text-secondary); font-weight: 500; }
+        .chip.chip-warn { border-color: var(--accent-yellow); background: rgba(245,158,11,0.14); }
+        .chip.chip-warn .chip-v { color: #fbbf24; }
+        .chip.chip-red .chip-v { color: #fb7185; }
+
+        /* 이벤트 타임라인 */
+        .tl-panel { display: flex; flex-direction: column; gap: 10px; }
+        .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+        .filter-chip { background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); color: var(--text-secondary); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 36px; }
+        .filter-chip.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+        .ev-list { max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+        .ev-item { border: 1px solid var(--border-color); border-left: 4px solid #64748b; border-radius: 10px; padding: 8px 10px; background: rgba(0,0,0,0.15); cursor: pointer; }
+        .ev-item.ev-green { border-left-color: var(--accent-green); }
+        .ev-item.ev-blue { border-left-color: var(--accent-blue); }
+        .ev-item.ev-orange { border-left-color: var(--accent-yellow); }
+        .ev-item.ev-red { border-left-color: var(--accent-red); background: rgba(244,63,94,0.06); }
+        .ev-top { display: flex; gap: 8px; align-items: baseline; }
+        .ev-ico { flex: 0 0 auto; }
+        .ev-ts { font-size: 12px; color: var(--text-secondary); font-family: 'Fira Code', monospace; flex: 0 0 auto; }
+        .ev-msg { font-size: 13px; line-height: 1.45; word-break: keep-all; overflow-wrap: anywhere; }
+        .ev-data { display: none; margin-top: 6px; font-family: 'Fira Code', monospace; font-size: 12px; color: #cbd5e1; white-space: pre-wrap; word-break: break-all; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 6px 8px; }
+        .ev-item.open .ev-data { display: block; }
+        .ev-empty { font-size: 13px; color: var(--text-secondary); text-align: center; padding: 20px 8px; }
+        .raw-toggle { align-self: flex-start; background: transparent; border: 1px dashed var(--border-color); color: var(--text-secondary); border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; min-height: 36px; }
+        .tl-panel .terminal { height: 240px; }
+
+        /* 체결 이력 상세 */
+        .trade-row { cursor: pointer; }
+        .trade-row:hover { background: rgba(255,255,255,0.03); }
+        .trade-row .caret { display: inline-block; width: 14px; color: var(--text-secondary); transition: transform 0.15s; }
+        .trade-row.open .caret { transform: rotate(90deg); }
+        .trade-detail td { white-space: normal; background: rgba(59,130,246,0.04); }
+        .td-inner { position: sticky; left: 0; width: min(100%, calc(100vw - 64px)); padding: 4px 2px 8px; }
+        .td-group { font-size: 12px; font-weight: 700; color: var(--accent-blue); margin: 8px 0 4px; }
+        .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px 12px; }
+        .kv .k { font-size: 12px; color: var(--text-secondary); }
+        .kv .v { font-size: 13px; font-weight: 600; }
+        .td-empty { font-size: 13px; color: var(--text-secondary); padding: 6px 0; }
+        .src-badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 10px; margin-left: 4px; border: 1px solid transparent; cursor: help; }
+        .src-order_api { color: var(--accent-green); background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); }
+        .src-holdings_diff { color: #fbbf24; background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); }
+        .src-assumed { color: #fb7185; background: rgba(244,63,94,0.12); border-color: rgba(244,63,94,0.3); }
+        .src-desc { font-size: 12px; color: var(--text-secondary); margin-top: 4px; line-height: 1.4; }
+
+        @media (max-width: 1024px) {
+            .bottom-layout { grid-template-columns: 1fr; }
+            .bt-layout { grid-template-columns: 1fr; }
+            .status-grid.grid-6 { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            body { padding: 12px; }
+            header { margin-bottom: 14px; padding-bottom: 12px; }
+            .header-logo { width: 100%; }
+            .nav-tabs { order: 3; width: 100%; }
+            .nav-tab-btn { min-height: 40px; padding: 8px 14px; }
+            .header-actions { order: 4; width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+            .panel { padding: 14px; border-radius: 16px; }
+            .grid-2 { grid-template-columns: 1fr; }
+            .metric-value { font-size: 20px; }
+            button, .btn-security-settings, .logout-btn, .bot-toggle-btn { min-height: 36px; }
+            .form-group input, .form-group select { min-height: 40px; font-size: 16px; }
+            .form-group input[type="checkbox"] { min-height: 0; width: auto; }
+            .status-header { flex-wrap: wrap; gap: 10px; }
+            .now-card .now-text { font-size: 16px; }
+            .modal { padding: 12px; }
+            .modal-content { padding: 20px; max-height: 92vh; overflow-y: auto; }
+        }
+        @media (max-width: 520px) {
+            .status-grid.grid-6 { grid-template-columns: repeat(2, 1fr); }
+            .chip { min-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); }
+        }
+        @media (max-width: 360px) {
+            .form-row { grid-template-columns: 1fr; }
+            .form-group.full-width { grid-column: span 1; }
+        }
+        .bot-layout > *, .bottom-layout > *, .grid-2 > *, .bt-layout > *, .form-row > *, .portfolio-comparison > * { min-width: 0; }
+        .src-simulated { color: #94a3b8; background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.3); }
     </style>
 </head>
 <body>
@@ -648,7 +774,7 @@
             <div>
                 <h1>LIMIT VWAP</h1>
             </div>
-            <span id="botActiveStatus" style="font-weight: 700;">VIRTUAL: OFFLINE | REAL: OFFLINE</span>
+            <span id="botActiveStatus" style="font-weight: 700; white-space: normal;">VIRTUAL: OFFLINE | REAL: OFFLINE</span>
         </div>
 
         <!-- 중앙 네비게이션 탭 -->
@@ -677,7 +803,7 @@
                 <div class="asset-card" style="border-left: 4px solid var(--accent-blue);">
                     <div class="asset-card-header">
                         <h3 style="font-size: 15px; font-weight: bold; color: var(--accent-blue);">SANDBOX 가상 거래 자산</h3>
-                        <span class="neutral-trend" style="font-size: 11px; font-weight: bold;">가상 모의 계정</span>
+                        <span class="neutral-trend" style="font-size: 12px; font-weight: bold;">가상 모의 계정</span>
                     </div>
                     <div>
                         <div class="metric-title">총 가상 평가액</div>
@@ -688,11 +814,11 @@
                         <div>가상 주식금액: <span id="ov_v_stock" style="color: white; font-weight: bold;">₩0</span></div>
                     </div>
                     <div class="asset-progress-container">
-                        <div style="font-size: 10px; min-width: 45px; font-weight: bold;">주식 비중</div>
+                        <div style="font-size: 12px; min-width: 45px; font-weight: bold;">주식 비중</div>
                         <div class="progress-ring-bar">
                             <div class="progress-ring-fill" id="ov_v_ratio_fill" style="width: 0%;"></div>
                         </div>
-                        <div style="font-size: 10px; font-weight: bold;" id="ov_v_ratio_txt">0%</div>
+                        <div style="font-size: 12px; font-weight: bold;" id="ov_v_ratio_txt">0%</div>
                     </div>
                     <div style="border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; justify-content: space-between; font-size: 12px;">
                         <span>누적 가상 수익률: <strong id="ov_v_roi" class="neutral-trend">+0.00%</strong></span>
@@ -706,26 +832,26 @@
                     <div class="api-lock-overlay" id="ov_real_lock" style="display: none; border-radius: 16px; padding: 16px;">
                         <span class="api-lock-icon" style="font-size: 24px; margin-bottom: 8px;">🔒</span>
                         <h4 style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">토스 API 연동이 필요합니다</h4>
-                        <p style="font-size: 10px; color: var(--text-secondary); margin-bottom: 10px;">우측 상단 ⚙️ API 설정을 완료하면 내 자산이 연동됩니다.</p>
-                        <button class="btn-security-settings" onclick="openSecurityModal()" style="padding: 6px 12px; font-size: 11px;">API 설정 바로가기</button>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">우측 상단 ⚙️ API 설정을 완료하면 내 자산이 연동됩니다.</p>
+                        <button class="btn-security-settings" onclick="openSecurityModal()" style="padding: 6px 12px; font-size: 12px;">API 설정 바로가기</button>
                     </div>
 
                     <div class="asset-card-header">
                         <h3 style="font-size: 15px; font-weight: bold; color: var(--accent-purple);">TOSS 실거래 연동 자산</h3>
                         <div style="display: flex; gap: 8px; align-items: center;">
-                            <button id="btn_refresh_real" onclick="triggerRealAssetRefresh()" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c084fc; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; cursor: pointer; transition: all 0.2s ease;">🔍 조회/갱신</button>
-                            <button id="btn_hide_real" onclick="toggleRealAssetVisibility(false)" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); color: var(--text-secondary); padding: 3px 8px; border-radius: 6px; font-size: 10px; cursor: pointer; display: none; transition: all 0.2s ease;">숨기기</button>
-                            <span class="up-trend" id="ov_r_active_badge" style="font-size: 10px; font-weight: bold;">API CONNECTED</span>
+                            <button id="btn_refresh_real" onclick="triggerRealAssetRefresh()" style="background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #c084fc; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; transition: all 0.2s ease;">🔍 조회/갱신</button>
+                            <button id="btn_hide_real" onclick="toggleRealAssetVisibility(false)" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); color: var(--text-secondary); padding: 3px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; display: none; transition: all 0.2s ease;">숨기기</button>
+                            <span class="up-trend" id="ov_r_active_badge" style="font-size: 12px; font-weight: bold;">API CONNECTED</span>
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="grid-2">
                         <!-- 왼쪽: 계좌 전체 현황 -->
                         <div style="background: rgba(255, 255, 255, 0.01); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px;">
-                            <h4 style="font-size: 11px; color: var(--accent-purple); font-weight: bold; margin-bottom: 8px;">🏦 TOSS 계좌 전체</h4>
+                            <h4 style="font-size: 12px; color: var(--accent-purple); font-weight: bold; margin-bottom: 8px;">🏦 TOSS 계좌 전체</h4>
                             <div class="metric-title" style="margin-bottom: 2px;">계좌 평가 자산</div>
                             <div class="metric-value" id="ov_r_total_asset" style="font-size: 18px; margin-bottom: 6px;">₩0</div>
-                            <div style="font-size: 11px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 3px;">
+                            <div style="font-size: 12px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 3px;">
                                 <div>예수금: <span id="ov_r_cash" style="color: white; font-weight: bold;">₩0</span></div>
                                 <div>주식잔고: <span id="ov_r_stock" style="color: white; font-weight: bold;">₩0</span></div>
                                 <div style="margin-top: 4px; border-top: 1px solid var(--border-color); padding-top: 4px;">
@@ -736,10 +862,10 @@
                         
                         <!-- 오른쪽: VWAP 봇 전용 성과 -->
                         <div style="background: rgba(139, 92, 246, 0.04); border: 1px solid rgba(139, 92, 246, 0.15); border-radius: 12px; padding: 14px;">
-                            <h4 style="font-size: 11px; color: #a78bfa; font-weight: bold; margin-bottom: 8px;">🤖 VWAP 봇 성과</h4>
+                            <h4 style="font-size: 12px; color: #a78bfa; font-weight: bold; margin-bottom: 8px;">🤖 VWAP 봇 성과</h4>
                             <div class="metric-title" style="margin-bottom: 2px;">봇 누적 손익</div>
                             <div class="metric-value" id="ov_r_bot_pnl" style="font-size: 18px; margin-bottom: 6px;">₩0</div>
-                            <div style="font-size: 11px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 3px;">
+                            <div style="font-size: 12px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 3px;">
                                 <div>실현 손익: <span id="ov_r_bot_realized_pnl" style="color: white; font-weight: bold;">₩0</span></div>
                                 <div>평가 손익: <span id="ov_r_bot_unrealized_pnl" style="color: white; font-weight: bold;">₩0</span></div>
                                 <div style="margin-top: 4px; border-top: 1px solid rgba(139, 92, 246, 0.15); padding-top: 4px;">
@@ -749,7 +875,7 @@
                         </div>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
                         <div style="display: flex; align-items: center; gap: 8px; width: 65%;">
                             <span style="font-weight: bold; min-width: 45px;">주식 비중</span>
                             <div class="progress-ring-bar" style="margin: 0; flex-grow: 1;">
@@ -763,7 +889,7 @@
             </div>
 
             <!-- 보유 종목 리스트 비교 -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <div class="grid-2" style="gap: 24px;">
                 <div>
                     <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: var(--accent-blue);">● 가상 포지션 보유 현황</h4>
                     <div class="table-container" style="max-height: 250px;">
@@ -814,31 +940,31 @@
         <div class="panel" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%); border: 1px solid rgba(59, 130, 246, 0.2);">
             <div class="panel-title" style="color: var(--accent-blue); display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-weight: 800; font-size: 15px;">📊 가상거래 종합 잔고 현황 (Virtual Portfolio Summary)</span>
-                <span style="font-size: 11px; color: var(--text-secondary); font-weight: normal;">* 3개 가상 봇의 실시간 평가 자산 합산</span>
+                <span style="font-size: 12px; color: var(--text-secondary); font-weight: normal;">* 3개 가상 봇의 실시간 평가 자산 합산</span>
             </div>
-            <div class="status-grid" style="grid-template-columns: repeat(6, 1fr); margin-top: 12px; gap: 10px;">
+            <div class="status-grid grid-6">
                 <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
-                    <div class="status-box-title" style="font-size: 10px;">총 평가 자산</div>
+                    <div class="status-box-title" style="font-size: 12px;">총 평가 자산</div>
                     <div class="status-box-value" id="v_sum_total_asset" style="color: #60a5fa; font-size: 14px; font-weight: bold;">$0</div>
                 </div>
                 <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
-                    <div class="status-box-title" style="font-size: 10px;">총 시작 원금</div>
+                    <div class="status-box-title" style="font-size: 12px;">총 시작 원금</div>
                     <div class="status-box-value" id="v_sum_initial_balance" style="font-size: 14px; font-weight: bold;">$0</div>
                 </div>
                 <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
-                    <div class="status-box-title" style="font-size: 10px;">가용 현금 합계</div>
+                    <div class="status-box-title" style="font-size: 12px;">가용 현금 합계</div>
                     <div class="status-box-value" id="v_sum_cash" style="color: var(--text-secondary); font-size: 14px;">$0</div>
                 </div>
                 <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
-                    <div class="status-box-title" style="font-size: 10px;">주식 평가금 합계</div>
+                    <div class="status-box-title" style="font-size: 12px;">주식 평가금 합계</div>
                     <div class="status-box-value" id="v_sum_stock_value" style="color: var(--text-secondary); font-size: 14px;">$0</div>
                 </div>
                 <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
-                    <div class="status-box-title" style="font-size: 10px;">합산 누적 수익률</div>
+                    <div class="status-box-title" style="font-size: 12px;">합산 누적 수익률</div>
                     <div class="status-box-value" id="v_sum_roi" style="font-size: 14px; font-weight: bold;">0.00%</div>
                 </div>
                 <div class="status-box" style="background: rgba(255,255,255,0.01); padding: 10px; border-radius: 8px;">
-                    <div class="status-box-title" style="font-size: 10px;">합산 승률 (체결수)</div>
+                    <div class="status-box-title" style="font-size: 12px;">합산 승률 (체결수)</div>
                     <div class="status-box-value" id="v_sum_win_rate" style="font-size: 13px; font-weight: bold;">0% (0회)</div>
                 </div>
             </div>
@@ -869,7 +995,7 @@
                             <input type="text" id="cfg_v_ticker" placeholder="AAPL / 005930" required>
                         </div>
                     </div>
-                    <div id="v_tickerNameDisplay" style="font-size: 11px; color: var(--accent-blue); margin-top: -6px; min-height: 12px; font-weight: 600;"></div>
+                    <div id="v_tickerNameDisplay" style="font-size: 12px; color: var(--accent-blue); margin-top: -6px; min-height: 12px; font-weight: 600;"></div>
 
                     <div class="form-row">
                         <div class="form-group">
@@ -883,6 +1009,7 @@
                         <div class="form-group">
                             <label>VWAP 리셋 시각</label>
                             <input type="text" id="cfg_v_reset_time" placeholder="ex: 22:30" required>
+                            <div class="hint reset-hint">미국 종목 22:30/23:30은 서머타임 자동 전환</div>
                         </div>
                     </div>
 
@@ -931,19 +1058,19 @@
 
                     <!-- 보조필터 아코디언 형태로 축소 배치 -->
                     <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 4px; display: flex; flex-direction: column; gap: 8px;">
-                        <div style="font-size: 11px; font-weight: bold; color: var(--accent-blue);">보조 지표 및 표준편차 필터</div>
-                        <div style="display: flex; gap: 15px; font-size: 11px;">
+                        <div style="font-size: 12px; font-weight: bold; color: var(--accent-blue);">보조 지표 및 표준편차 필터</div>
+                        <div class="chk-row">
                             <label><input type="checkbox" id="cfg_v_use_adx"> ADX</label>
                             <label><input type="checkbox" id="cfg_v_use_rsi"> RSI</label>
                             <label><input type="checkbox" id="cfg_v_use_band"> Dev Band</label>
                         </div>
-                        <div class="form-row" id="v_filters_params" style="font-size: 10px;">
+                        <div class="form-row" id="v_filters_params" style="font-size: 12px;">
                             <div class="form-group">
-                                <label style="font-size: 8px;">ADX Lmt</label>
+                                <label style="font-size: 12px;">ADX Lmt</label>
                                 <input type="number" step="0.1" id="cfg_v_adx_th" style="padding: 6px;" placeholder="25">
                             </div>
                             <div class="form-group">
-                                <label style="font-size: 8px;">RSI Lmt</label>
+                                <label style="font-size: 12px;">RSI Lmt</label>
                                 <input type="number" step="0.1" id="cfg_v_rsi_th" style="padding: 6px;" placeholder="30">
                             </div>
                         </div>
@@ -955,6 +1082,7 @@
                         </div>
                     </div>
 
+                    <label class="chk-single"><input type="checkbox" id="cfg_v_discord_notify"> 🔔 디스코드 알림 받기 <span class="hint">(가상 봇 1~3 공통)</span></label>
                     <button type="submit" class="btn-submit-config">가상 매매 설정 저장</button>
                 </form>
             </div>
@@ -963,7 +1091,7 @@
             <div class="panel">
                 <div class="panel-title">
                     <span>가상 모니터링 <span id="v_monitoring_ticker" style="color: var(--accent-blue); font-weight: bold; margin-left: 6px;"></span></span>
-                    <span id="v_last_updated" style="font-size: 11px; color: var(--text-secondary); font-weight: normal;">-</span>
+                    <span id="v_last_updated" style="font-size: 12px; color: var(--text-secondary); font-weight: normal;">-</span>
                 </div>
 
                 <div class="status-header">
@@ -971,9 +1099,21 @@
                         가상 봇 가동 (START)
                     </button>
                     <div class="signal-indicator">
-                        <span style="font-size: 11px; font-weight: bold; color: var(--text-secondary); margin-right: 6px;">시그널</span>
+                        <span style="font-size: 12px; font-weight: bold; color: var(--text-secondary); margin-right: 6px;">시그널</span>
                         <span id="v_signal" class="signal-badge WAIT">WAIT</span>
                     </div>
+                </div>
+
+                <div class="now-card now-gray" id="v_now_card">
+                    <div class="now-head">
+                        <span class="now-icon" id="v_now_icon">⏸</span>
+                        <div>
+                            <div class="now-label">지금 봇은 무엇을 하고 있나</div>
+                            <div class="now-text" id="v_now_text">상태를 불러오는 중...</div>
+                        </div>
+                    </div>
+                    <div class="now-session" id="v_now_session" style="display:none;"></div>
+                    <div class="now-time" id="v_now_time"></div>
                 </div>
 
                 <div class="status-grid">
@@ -995,9 +1135,11 @@
                     </div>
                 </div>
 
+                <div class="chip-grid" id="v_chips"></div>
+
                 <!-- 실시간 차트 -->
                 <div style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; background: rgba(0,0,0,0.2); margin-bottom: 16px;">
-                    <div id="v_tradingview_chart" style="height: 260px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11px;">
+                    <div id="v_tradingview_chart" style="height: 260px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 12px;">
                         차트 로드 대기 중...
                     </div>
                 </div>
@@ -1026,11 +1168,11 @@
         </div>
 
         <!-- 하단: 거래 이력 및 로그 -->
-        <div class="bottom-layout" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div class="bottom-layout">
             <div class="panel">
                 <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>가상 체결 이력</span>
-                    <button class="btn-security-settings" onclick="resetTrades('VIRTUAL')" style="padding: 4px 8px; font-size: 10px; background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.2); color: var(--accent-red);">
+                    <span>가상 체결 이력 <span class="hint">(행을 탭하면 상세)</span></span>
+                    <button class="btn-security-settings" onclick="resetTrades('VIRTUAL')" style="padding: 4px 8px; font-size: 12px; background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.2); color: var(--accent-red);">
                         🗑️ 거래 기록 리셋
                     </button>
                 </div>
@@ -1053,12 +1195,25 @@
                 </div>
             </div>
 
-            <div class="terminal">
-                <div class="terminal-header">
-                    <span id="v_log_filename">trading_bot_virtual_1.log</span>
-                    <span style="font-size: 9px; color: var(--accent-blue);">● LIVE</span>
+            <div class="panel tl-panel">
+                <div class="panel-title" style="margin-bottom: 4px;">
+                    <span>이벤트 타임라인 <span class="hint">(탭하면 상세)</span></span>
+                    <span style="font-size: 12px; color: var(--accent-blue);">● LIVE</span>
                 </div>
-                <div class="terminal-body" id="v_log_terminal">가상 로그 로딩 중...</div>
+                <div class="filter-chips" id="v_ev_filters">
+                    <button type="button" class="filter-chip active" onclick="setEventFilter('v', 'all', this)">전체</button>
+                    <button type="button" class="filter-chip" onclick="setEventFilter('v', 'trade', this)">주문·체결</button>
+                    <button type="button" class="filter-chip" onclick="setEventFilter('v', 'risk', this)">손절·오류</button>
+                </div>
+                <div class="ev-list" id="v_ev_list"><div class="ev-empty">불러오는 중...</div></div>
+                <button type="button" class="raw-toggle" id="v_raw_btn" onclick="toggleRawLog('v')">원문 로그 보기</button>
+                <div class="terminal" id="v_raw_wrap" style="display: none;">
+                    <div class="terminal-header">
+                        <span id="v_log_filename">trading_bot_virtual_1.log</span>
+                        <span style="font-size: 12px; color: var(--accent-blue);">● RAW</span>
+                    </div>
+                    <div class="terminal-body" id="v_log_terminal">가상 로그 로딩 중...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -1095,7 +1250,7 @@
                             <input type="text" id="cfg_r_ticker" placeholder="AAPL / 005930" required>
                         </div>
                     </div>
-                    <div id="r_tickerNameDisplay" style="font-size: 11px; color: var(--accent-purple); margin-top: -6px; min-height: 12px; font-weight: 600;"></div>
+                    <div id="r_tickerNameDisplay" style="font-size: 12px; color: var(--accent-purple); margin-top: -6px; min-height: 12px; font-weight: 600;"></div>
 
                     <div class="form-row">
                         <div class="form-group">
@@ -1109,6 +1264,7 @@
                         <div class="form-group">
                             <label>VWAP 리셋 시각</label>
                             <input type="text" id="cfg_r_reset_time" placeholder="ex: 22:30" required>
+                            <div class="hint reset-hint">미국 종목 22:30/23:30은 서머타임 자동 전환</div>
                         </div>
                     </div>
 
@@ -1157,19 +1313,19 @@
 
                     <!-- 보조필터 -->
                     <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 4px; display: flex; flex-direction: column; gap: 8px;">
-                        <div style="font-size: 11px; font-weight: bold; color: var(--accent-purple);">보조 지표 및 표준편차 필터</div>
-                        <div style="display: flex; gap: 15px; font-size: 11px;">
+                        <div style="font-size: 12px; font-weight: bold; color: var(--accent-purple);">보조 지표 및 표준편차 필터</div>
+                        <div class="chk-row">
                             <label><input type="checkbox" id="cfg_r_use_adx"> ADX</label>
                             <label><input type="checkbox" id="cfg_r_use_rsi"> RSI</label>
                             <label><input type="checkbox" id="cfg_r_use_band"> Dev Band</label>
                         </div>
-                        <div class="form-row" id="r_filters_params" style="font-size: 10px;">
+                        <div class="form-row" id="r_filters_params" style="font-size: 12px;">
                             <div class="form-group">
-                                <label style="font-size: 8px;">ADX Lmt</label>
+                                <label style="font-size: 12px;">ADX Lmt</label>
                                 <input type="number" step="0.1" id="cfg_r_adx_th" style="padding: 6px;" placeholder="25">
                             </div>
                             <div class="form-group">
-                                <label style="font-size: 8px;">RSI Lmt</label>
+                                <label style="font-size: 12px;">RSI Lmt</label>
                                 <input type="number" step="0.1" id="cfg_r_rsi_th" style="padding: 6px;" placeholder="30">
                             </div>
                         </div>
@@ -1180,6 +1336,7 @@
                         </div>
                     </div>
 
+                    <label class="chk-single"><input type="checkbox" id="cfg_r_discord_notify"> 🔔 디스코드 알림 받기 <span class="hint">(체결·손절·오류 등)</span></label>
                     <button type="submit" class="btn-submit-config" style="background: linear-gradient(135deg, var(--accent-purple) 0%, #6d28d9 100%);">실제 매매 설정 저장</button>
                 </form>
             </div>
@@ -1188,7 +1345,7 @@
             <div class="panel">
                 <div class="panel-title">
                     <span>실거래 모니터링 <span id="r_monitoring_ticker" style="color: var(--accent-purple); font-weight: bold; margin-left: 6px;"></span></span>
-                    <span id="r_last_updated" style="font-size: 11px; color: var(--text-secondary); font-weight: normal;">-</span>
+                    <span id="r_last_updated" style="font-size: 12px; color: var(--text-secondary); font-weight: normal;">-</span>
                 </div>
 
                 <div class="status-header">
@@ -1196,9 +1353,21 @@
                         실제 봇 가동 (START)
                     </button>
                     <div class="signal-indicator">
-                        <span style="font-size: 11px; font-weight: bold; color: var(--text-secondary); margin-right: 6px;">시그널</span>
+                        <span style="font-size: 12px; font-weight: bold; color: var(--text-secondary); margin-right: 6px;">시그널</span>
                         <span id="r_signal" class="signal-badge WAIT">WAIT</span>
                     </div>
+                </div>
+
+                <div class="now-card now-gray" id="r_now_card">
+                    <div class="now-head">
+                        <span class="now-icon" id="r_now_icon">⏸</span>
+                        <div>
+                            <div class="now-label">지금 봇은 무엇을 하고 있나</div>
+                            <div class="now-text" id="r_now_text">상태를 불러오는 중...</div>
+                        </div>
+                    </div>
+                    <div class="now-session" id="r_now_session" style="display:none;"></div>
+                    <div class="now-time" id="r_now_time"></div>
                 </div>
 
                 <div class="status-grid">
@@ -1220,9 +1389,11 @@
                     </div>
                 </div>
 
+                <div class="chip-grid" id="r_chips"></div>
+
                 <!-- 실시간 차트 -->
                 <div style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; background: rgba(0,0,0,0.2); margin-bottom: 16px;">
-                    <div id="r_tradingview_chart" style="height: 260px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11px;">
+                    <div id="r_tradingview_chart" style="height: 260px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 12px;">
                         차트 로드 대기 중...
                     </div>
                 </div>
@@ -1251,11 +1422,11 @@
         </div>
 
         <!-- 하단: 거래 이력 및 로그 -->
-        <div class="bottom-layout" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div class="bottom-layout">
             <div class="panel">
                 <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>실거래 체결 이력</span>
-                    <button class="btn-security-settings" onclick="resetTrades('REAL')" style="padding: 4px 8px; font-size: 10px; background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.2); color: var(--accent-red);">
+                    <span>실거래 체결 이력 <span class="hint">(행을 탭하면 상세)</span></span>
+                    <button class="btn-security-settings" onclick="resetTrades('REAL')" style="padding: 4px 8px; font-size: 12px; background: rgba(244, 63, 94, 0.1); border-color: rgba(244, 63, 94, 0.2); color: var(--accent-red);">
                         🗑️ 거래 기록 리셋
                     </button>
                 </div>
@@ -1278,12 +1449,25 @@
                 </div>
             </div>
 
-            <div class="terminal">
-                <div class="terminal-header">
-                    <span>trading_bot_real.log</span>
-                    <span style="font-size: 9px; color: var(--accent-blue);">● LIVE</span>
+            <div class="panel tl-panel">
+                <div class="panel-title" style="margin-bottom: 4px;">
+                    <span>이벤트 타임라인 <span class="hint">(탭하면 상세)</span></span>
+                    <span style="font-size: 12px; color: var(--accent-blue);">● LIVE</span>
                 </div>
-                <div class="terminal-body" id="r_log_terminal">실거래 로그 로딩 중...</div>
+                <div class="filter-chips" id="r_ev_filters">
+                    <button type="button" class="filter-chip active" onclick="setEventFilter('r', 'all', this)">전체</button>
+                    <button type="button" class="filter-chip" onclick="setEventFilter('r', 'trade', this)">주문·체결</button>
+                    <button type="button" class="filter-chip" onclick="setEventFilter('r', 'risk', this)">손절·오류</button>
+                </div>
+                <div class="ev-list" id="r_ev_list"><div class="ev-empty">불러오는 중...</div></div>
+                <button type="button" class="raw-toggle" id="r_raw_btn" onclick="toggleRawLog('r')">원문 로그 보기</button>
+                <div class="terminal" id="r_raw_wrap" style="display: none;">
+                    <div class="terminal-header">
+                        <span>trading_bot_real.log</span>
+                        <span style="font-size: 12px; color: var(--accent-blue);">● RAW</span>
+                    </div>
+                    <div class="terminal-body" id="r_log_terminal">실거래 로그 로딩 중...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -1294,7 +1478,7 @@
     <div class="tab-content" id="tab-backtest">
         <div class="panel">
             <div class="panel-title">과거 캔들 데이터를 이용한 전략 백테스트</div>
-            <div style="display: grid; grid-template-columns: 350px 1fr; gap: 24px;">
+            <div class="bt-layout">
                 <!-- 백테스트 설정 폼 -->
                 <form id="backtestForm" onsubmit="runBacktest(event)" style="display: flex; flex-direction: column; gap: 16px;">
                     <div class="form-group">
@@ -1360,6 +1544,7 @@
                                 <div class="status-box-value" id="bt_win_rate_and_count" style="font-size: 20px;">0회 (0.00%)</div>
                             </div>
                         </div>
+                        <div style="margin-top: 16px; font-size: 12px; color: var(--text-secondary);">⚠️ 최근 캔들 150개(1분봉≈2.5시간) 기준, 수수료 미반영 — 참고용</div>
                     </div>
                 </div>
             </div>
@@ -1380,7 +1565,7 @@
                 <!-- 전략 요약 -->
                 <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
                     <h3 style="color: white; font-size: 15px; margin-bottom: 8px; font-weight: 700;">1. LIMIT VWAP 전략 핵심 요약</h3>
-                    <p style="margin-bottom: 8px;">본 자동 매매 봇은 당일 리셋 시각부터 실시간으로 <strong>VWAP(Volume Weighted Average Price, 거래량 가중 평균 가격)</strong>을 누적 계산하고, 이를 기준선 삼아 철저히 <strong>지정가(Limit) 주문</strong>을 제출하고 제어합니다.</p>
+                    <p style="margin-bottom: 8px;">본 자동 매매 봇은 세션 시작(VWAP 리셋 시각)부터 실시간으로 <strong>VWAP(Volume Weighted Average Price, 거래량 가중 평균 가격)</strong>을 누적 계산하고, 이를 기준선 삼아 철저히 <strong>지정가(Limit) 주문</strong>을 제출하고 제어합니다.</p>
                     <ul style="padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 6px;">
                         <li><strong>진입 (지정가 매수)</strong>: 현재가가 VWAP 선보다 아래에 위치해 있고 보유 주식이 없을 때, 타겟 가격(<code style="color:var(--accent-blue); background:rgba(59,130,246,0.1); padding:2px 4px; border-radius:4px;">VWAP * (1 - N%)</code>)에 지정가 매수 주문을 제출합니다. VWAP 선이 변동함에 따라 미체결 매수 주문은 취소 및 재접수(Cancel & Replace)를 반복하며 실시간으로 추종합니다.</li>
                         <li><strong>청산 (지정가 매도)</strong>: 주식을 보유한 상태에서 현재가가 VWAP 선을 다시 상향 돌파하거나, 매도 타겟가(<code style="color:var(--accent-yellow); background:rgba(234,179,8,0.1); padding:2px 4px; border-radius:4px;">VWAP * (1 + M%)</code>) 이상 상승 시 지정가 매도(익절)를 수행합니다.</li>
@@ -1405,14 +1590,14 @@
                 <!-- 매매 파라미터 상세 정의 테이블 -->
                 <div style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
                     <h3 style="color: white; font-size: 15px; margin-bottom: 12px; font-weight: 700;">3. 매매 파라미터 상세 정의 및 실전 권장값</h3>
-                    <div style="border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; background: rgba(0,0,0,0.15);">
-                        <table style="font-size: 12px;">
+                    <div style="border: 1px solid var(--border-color); border-radius: 12px; overflow-x: auto; background: rgba(0,0,0,0.15);">
+                        <table style="font-size: 12px; min-width: 640px;">
                             <thead style="background: rgba(255,255,255,0.02);">
                                 <tr>
-                                    <th style="font-size: 11px; width: 140px; padding: 10px 8px;">파라미터명</th>
-                                    <th style="font-size: 11px; width: 280px; padding: 10px 8px;">상세 설명</th>
-                                    <th style="font-size: 11px; width: 160px; padding: 10px 8px;">대표 권장값</th>
-                                    <th style="font-size: 11px; padding: 10px 8px;">실전 팁 및 비결</th>
+                                    <th style="font-size: 12px; width: 140px; padding: 10px 8px;">파라미터명</th>
+                                    <th style="font-size: 12px; width: 280px; padding: 10px 8px;">상세 설명</th>
+                                    <th style="font-size: 12px; width: 160px; padding: 10px 8px;">대표 권장값</th>
+                                    <th style="font-size: 12px; padding: 10px 8px;">실전 팁 및 비결</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1460,9 +1645,9 @@
                                 </tr>
                                 <tr>
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);"><strong>VWAP 리셋 시각</strong></td>
-                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">실시간 VWAP 계산의 누적 합계를 0으로 초기화하고 새로 시작하는 기준 시각입니다.</td>
-                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">미국 주식: <strong>22:30</strong> (또는 23:30)<br>한국 주식: <strong>09:00</strong></td>
-                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">미국 본장 개장 시점이나 한국 장 개장 시점으로 맞춰주셔야 당일의 거래량 가중치 계산이 통계적으로 유효합니다.</td>
+                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">실시간 VWAP 계산의 누적 합계를 0으로 초기화하고 새로 시작하는 기준 시각입니다. 한국 시간 자정(00:00)에는 리셋되지 않으며, 세션 시작부터의 봉 전체로 계산합니다.</td>
+                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">미국 주식: <strong>22:30</strong> 또는 <strong>23:30</strong> (서머타임 자동 전환)<br>한국 주식: <strong>09:00</strong> (고정)</td>
+                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">미국 본장 개장 시점이나 한국 장 개장 시점으로 맞춰주셔야 당일의 거래량 가중치 계산이 통계적으로 유효합니다. 미국 종목에 22:30 또는 23:30을 넣으면 서머타임(22:30)/표준시(23:30)에 맞춰 자동으로 바뀌고, 그 밖의 시각은 입력한 시각에 고정됩니다.</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);"><strong>거래 시작 시각 (대기 설정)</strong></td>
@@ -1660,6 +1845,10 @@
                 filenameEl.textContent = `trading_bot_${activeVirtualTab.toLowerCase()}.log`;
             }
             
+            evCache.v = '';
+            const evl = document.getElementById('v_ev_list');
+            if (evl) evl.innerHTML = '<div class="ev-empty">불러오는 중...</div>';
+            histCache.v = '';
             fetchStatus(true);
             fetchLogs();
         }
@@ -1686,6 +1875,7 @@
             document.getElementById('cfg_v_use_band').checked = cfg[`${p}_use_vwap_band`] || false;
             document.getElementById('cfg_v_adx_th').value = cfg[`${p}_adx_threshold`] || 25.0;
             document.getElementById('cfg_v_rsi_th').value = cfg[`${p}_rsi_threshold`] || 30.0;
+            document.getElementById('cfg_v_discord_notify').checked = cfg.virtual_discord_notify === true;   // 기본 false
             
             updateTickerLabels();
         }
@@ -1721,6 +1911,7 @@
                     document.getElementById('cfg_r_use_band').checked = cfg.real_use_vwap_band || false;
                     document.getElementById('cfg_r_adx_th').value = cfg.real_adx_threshold || 25.0;
                     document.getElementById('cfg_r_rsi_th').value = cfg.real_rsi_threshold || 30.0;
+                    document.getElementById('cfg_r_discord_notify').checked = cfg.real_discord_notify !== false;   // 기본 true
 
                     // 보안 설정 바인딩
                     document.getElementById('sec_toss_client_id').value = cfg.toss_client_id || "";
@@ -1791,6 +1982,9 @@
             payload[`${modeLower}_adx_period`] = parseInt(document.getElementById(`cfg_${prefix}_adx_pd`).value || 14);
             payload[`${modeLower}_rsi_period`] = parseInt(document.getElementById(`cfg_${prefix}_rsi_pd`).value || 14);
             payload[`${modeLower}_vwap_band_sigma`] = parseFloat(document.getElementById(`cfg_${prefix}_band_sigma`).value || 2.0);
+
+            // 디스코드 알림 (가상은 봇 공통 키 1개)
+            payload[mode === "VIRTUAL" ? "virtual_discord_notify" : "real_discord_notify"] = document.getElementById(`cfg_${prefix}_discord_notify`).checked;
 
             try {
                 const response = await fetch('/vwap/api/config', {
@@ -1922,6 +2116,445 @@
             }
         }
 
+        // ==========================================================
+        // [2단계 UI] 공통 유틸 / 현황 카드 / 이벤트 타임라인 / 체결 상세 / 도움말
+        // 모든 신규 필드는 옵셔널: 없으면 해당 UI를 숨기거나 '-' 로 표기한다.
+        // ==========================================================
+        function esc(s) {
+            return String(s === undefined || s === null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        function fnum(v, d) {
+            const n = parseFloat(v);
+            return isNaN(n) ? '-' : n.toFixed(d === undefined ? 2 : d);
+        }
+        function hasVal(v) { return v !== undefined && v !== null && v !== ''; }
+
+        // reason_code -> 색/아이콘/짧은 라벨
+        const REASON_META = {
+            ABOVE_VWAP:       { cls: 'gray',   icon: '⏳', label: '현재가가 VWAP 위 (진입 대기)' },
+            BUY_ARMED:        { cls: 'blue',   icon: '📥', label: '매수 조건 충족' },
+            FILTER_ADX:       { cls: 'orange', icon: '🚧', label: 'ADX 필터 차단' },
+            FILTER_RSI:       { cls: 'orange', icon: '🚧', label: 'RSI 필터 차단' },
+            HOLD:             { cls: 'gray',   icon: '🧘', label: '보유 중 관망' },
+            SELL_ARMED:       { cls: 'blue',   icon: '📤', label: '매도 조건 충족' },
+            STOP_LOSS:        { cls: 'red',    icon: '🛑', label: '손절 발동' },
+            WAIT_START_TIME:  { cls: 'gray',   icon: '⏰', label: '거래 시작 시각 대기' },
+            BUDGET_SHORT:     { cls: 'orange', icon: '💸', label: '매수 예산 부족' },
+            DAILY_LOSS_STOP:  { cls: 'red',    icon: '⛔', label: '일 손실한도 도달 · 정지' },
+            DATA_UNAVAILABLE: { cls: 'red',    icon: '⚠️', label: '시세 데이터 불가' },
+            BOT_STOPPED:      { cls: 'gray',   icon: '⏹️', label: '봇 정지' },
+            LOOP_ERROR:       { cls: 'red',    icon: '❗', label: '주기 실행 중 오류' },
+            ADOPTED:          { cls: 'gray',   icon: '📲', label: '앱 수동 주문(봇 편입)' },
+            ORDER_REJECTED:   { cls: 'red',    icon: '🚫', label: '주문 거부' }
+        };
+
+        // 구버전 서버(reason_code/reason_text 없음) 폴백: signal + is_running 으로 추정
+        function deriveReason(bot) {
+            if (bot.is_running === false) return { code: 'BOT_STOPPED', text: '봇이 정지 상태입니다. START를 누르면 가동됩니다.' };
+            const sig = bot.signal;
+            if (sig === 'BUY') return { code: 'BUY_ARMED', text: '매수 조건에 도달해 매수 주문을 대기 중입니다.' };
+            if (sig === 'SELL') return { code: 'SELL_ARMED', text: '매도 조건에 도달해 매도 주문을 대기 중입니다.' };
+            if (sig === 'STOP_LOSS') return { code: 'STOP_LOSS', text: '손절 조건이 발동되었습니다.' };
+            return { code: 'HOLD', text: '조건을 기다리는 중입니다. (상세 사유는 서버 업데이트 후 표시)' };
+        }
+
+        function renderNow(p, bot) {
+            const card = document.getElementById(p + '_now_card');
+            if (!card || !bot) return;
+            let code = bot.reason_code, text = bot.reason_text;
+            if (!hasVal(code) && !hasVal(text)) {
+                const d = deriveReason(bot); code = d.code; text = d.text;
+            }
+            let meta = REASON_META[code] || { cls: 'gray', icon: 'ℹ️', label: code || '' };
+            // 패닉 자동정지(BOT_STOPPED + 손실 문구)는 빨강으로 강조
+            if (code === 'BOT_STOPPED' && typeof text === 'string' && text.includes('손실')) meta = { cls: 'red', icon: '⛔', label: meta.label };
+            if (!hasVal(text)) text = meta.label || '상태 정보 없음';
+            card.className = 'now-card now-' + meta.cls;
+            document.getElementById(p + '_now_icon').textContent = meta.icon;
+            document.getElementById(p + '_now_text').textContent = text;
+            document.getElementById(p + '_now_time').textContent = '마지막 갱신: ' + (bot.last_updated || '-');
+            // VWAP 세션 정보 (구버전 응답에 필드가 없으면 아무것도 표시하지 않음)
+            const sess = document.getElementById(p + '_now_session');
+            if (sess) {
+                let sh = '';
+                if (hasVal(bot.session_label)) sh += `<span class="now-session-label" title="VWAP 누적 계산 구간(세션)">VWAP 세션: ${esc(bot.session_label)}</span>`;
+                if (bot.vwap_full_session === false) sh += `<span class="now-session-warn" title="세션 시작부터의 봉을 모두 받지 못해 VWAP이 실제와 다를 수 있습니다">⚠️ 세션 일부 봉만 수신</span>`;
+                sess.innerHTML = sh;
+                sess.style.display = sh ? '' : 'none';
+            }
+        }
+
+        function chipHtml(k, v, cls, title) {
+            return `<div class="chip ${cls || ''}"${title ? ` title="${esc(title)}"` : ''}><span class="chip-k">${esc(k)}</span><span class="chip-v">${esc(v)}</span></div>`;
+        }
+
+        function filterChip(name, f, fallbackVal) {
+            if (f && typeof f === 'object' && Object.keys(f).length > 0) {
+                if (f.enabled === false) return chipHtml(name + ' 필터', '꺼짐', 'chip-dim');
+                const val = fnum(f.value, 1), th = hasVal(f.threshold) ? fnum(f.threshold, 1) : '-';
+                if (f.blocking) return chipHtml(name + ' (값/임계)', `${val} / ${th} ⛔ 차단`, 'chip-warn', `${name} 필터가 진입을 막고 있습니다`);
+                return chipHtml(name + ' (값/임계)', `${val} / ${th}`, '', `${name} 필터 켜짐 · 통과`);
+            }
+            if (hasVal(fallbackVal)) return chipHtml(name, fnum(fallbackVal, 1), '');
+            return '';
+        }
+
+        function renderChips(p, bot) {
+            const el = document.getElementById(p + '_chips');
+            if (!el || !bot) return;
+            const mk = bot.market;
+            const f = bot.filters || {};
+            let html = '';
+            const sl = parseFloat(bot.stop_loss_price);
+            html += chipHtml('손절가', sl > 0 ? formatCurrency(sl, mk) : '-', sl > 0 ? 'chip-red' : 'chip-dim', '평단 대비 -X% 도달 시 시장가 청산 기준가');
+            let entry = parseFloat(bot.entry_price), qty = parseFloat(bot.position_qty);
+            if ((isNaN(qty) || qty <= 0) && bot.holdings && bot.ticker && bot.holdings[bot.ticker]) {
+                const h = bot.holdings[bot.ticker];
+                qty = parseFloat(h.qty); entry = parseFloat(h.entry_price);
+            }
+            html += chipHtml('평단 / 보유', qty > 0 ? `${formatCurrency(entry, mk)} × ${qty}주` : '보유 없음', qty > 0 ? '' : 'chip-dim');
+            html += filterChip('ADX', f.adx, bot.adx);
+            html += filterChip('RSI', f.rsi, bot.rsi);
+            if (bot.waiting_for_start === true) html += chipHtml('시작 대기', '거래 시작 시각 전', 'chip-warn');
+            el.innerHTML = html;
+        }
+
+        // ---------------- 체결 이력 (펼침 상세) ----------------
+        const openTrades = new Set();
+        const histCache = {};
+        const SRC_META = {
+            simulated:     { label: '시뮬레이션', desc: '가상 거래의 모의 체결입니다. 실제 주문이 아닙니다.' },
+            order_api:     { label: '확인됨', desc: '증권사 주문 조회 API로 실제 체결이 확인된 거래입니다.' },
+            holdings_diff: { label: '추정',   desc: '보유 수량 변화를 보고 체결을 추정했습니다. 체결가·시점이 정확하지 않을 수 있습니다.' },
+            assumed:       { label: '가정',   desc: '주문 조회 없이 체결됐다고 가정한 기록입니다. 실제 체결가·수량과 다를 수 있습니다.' }
+        };
+        function fmtMinutes(m) {
+            const n = parseFloat(m);
+            if (isNaN(n)) return '-';
+            if (n < 60) return Math.round(n) + '분';
+            return Math.floor(n / 60) + '시간 ' + Math.round(n % 60) + '분';
+        }
+        function kv(k, v) { return `<div><div class="k">${esc(k)}</div><div class="v">${v}</div></div>`; }
+
+        function tradeDetailHtml(t, mk) {
+            const keys = ['fill_source', 'order_price', 'intended_price', 'vwap', 'target_price', 'reason_code', 'signal', 'config_snapshot', 'slippage', 'slippage_pct', 'commission', 'holding_minutes', 'filters', 'entry_price_snapshot', 'submitted_at'];
+            if (!keys.some(k => hasVal(t[k]))) return `<div class="td-empty">기록 없음 (이전 버전 거래)</div>`;
+
+            let cond = '';
+            cond += kv('주문 당시 VWAP', hasVal(t.vwap) ? esc(formatCurrency(t.vwap, mk)) : '-');
+            cond += kv('목표가', hasVal(t.target_price) ? esc(formatCurrency(t.target_price, mk)) : '-');
+            const intended = hasVal(t.intended_price) ? t.intended_price : t.order_price;
+            cond += kv('의도가', hasVal(intended) ? esc(formatCurrency(intended, mk)) : '-');
+            if (hasVal(t.entry_price_snapshot)) cond += kv('당시 평단', esc(formatCurrency(t.entry_price_snapshot, mk)));
+            const rm = REASON_META[t.reason_code];
+            let why = hasVal(t.reason_code) ? esc(rm ? rm.label : t.reason_code) : '-';
+            if (hasVal(t.signal)) why += ` <span class="hint">(${esc(t.signal)})</span>`;
+            cond += kv('판단 사유', why);
+            const c = t.config_snapshot;
+            if (c && typeof c === 'object') {
+                let s = `N ${fnum(c.n_percent)}% · M ${fnum(c.m_percent)}% · X ${fnum(c.x_percent)}% · K ${fnum(c.k_percent, 1)}%`;
+                if (c.use_vwap_band) s += ' · Dev Band';
+                cond += kv('당시 설정', esc(s));
+            } else {
+                cond += kv('당시 설정', '-');
+            }
+            if (t.filters && typeof t.filters === 'object') {
+                const parts = [];
+                ['adx', 'rsi'].forEach(n => {
+                    const f = t.filters[n];
+                    if (f && f.enabled) parts.push(`${n.toUpperCase()} ${fnum(f.value, 1)}/${fnum(f.threshold, 1)}${f.blocking ? ' 차단' : ''}`);
+                });
+                cond += kv('당시 필터', parts.length ? esc(parts.join(' · ')) : '꺼짐');
+            }
+            if (hasVal(t.submitted_at)) cond += kv('주문 접수', esc(t.submitted_at));
+
+            let res = '';
+            const fillPrice = hasVal(t.price) ? t.price : undefined;
+            res += kv('실체결가', fillPrice !== undefined ? esc(formatCurrency(fillPrice, mk)) : '-');
+            if (hasVal(t.slippage) || hasVal(t.slippage_pct)) {
+                const sl = parseFloat(t.slippage), sp = parseFloat(t.slippage_pct);
+                const adverse = (!isNaN(sl) ? sl : sp) > 0;
+                const txt = (!isNaN(sl) ? (sl > 0 ? '+' : '') + formatCurrency(sl, mk) : '') + (!isNaN(sp) ? ` (${sp > 0 ? '+' : ''}${sp.toFixed(3)}%)` : '');
+                res += kv('슬리피지', `<span class="${adverse ? 'down-trend' : 'up-trend'}">${esc(txt.trim())}</span> <span class="hint">${adverse ? '불리' : '유리/없음'}</span>`);
+            } else {
+                res += kv('슬리피지', '-');
+            }
+            res += kv('수수료', hasVal(t.commission) ? esc(formatCurrency(t.commission, mk)) : '-');
+            res += kv('보유 시간', hasVal(t.holding_minutes) ? esc(fmtMinutes(t.holding_minutes)) : '-');
+            const sm = SRC_META[t.fill_source];
+            let srcHtml = '-';
+            if (hasVal(t.fill_source)) {
+                srcHtml = sm
+                    ? `<span class="src-badge src-${esc(t.fill_source)}" title="${esc(sm.desc)}">${esc(sm.label)}</span>`
+                    : `<span class="src-badge">${esc(t.fill_source)}</span>`;
+            }
+            res += kv('체결 확인 방식', srcHtml);
+
+            const desc = sm ? `<div class="src-desc">${esc(sm.label)}: ${esc(sm.desc)}</div>` : '';
+            return `<div class="td-group">설정 조건 (주문 당시)</div><div class="kv">${cond}</div>
+                    <div class="td-group">실제 결과</div><div class="kv">${res}</div>${desc}`;
+        }
+
+        function renderHistory(p, trades, mk) {
+            const body = document.getElementById(p + '_history_body');
+            if (!body) return;
+            const list = Array.isArray(trades) ? trades : [];
+            const sig = (p === 'v' ? activeVirtualTab : 'REAL') + '|' + mk + '|' + JSON.stringify(list);
+            if (histCache[p] === sig) return;   // 변경 없으면 DOM 유지(펼침 상태 보존)
+            histCache[p] = sig;
+            if (list.length === 0) {
+                body.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">거래 내역이 없습니다.</td></tr>`;
+                return;
+            }
+            const rev = [...list].reverse();
+            body.innerHTML = rev.map((t, ri) => {
+                const origIdx = list.length - 1 - ri;   // 신규 거래가 추가돼도 안정적인 원본 인덱스
+                const key = hasVal(t.trade_id)
+                    ? [p, p === 'v' ? activeVirtualTab : '', 'id', t.trade_id].join('|')
+                    : [p, p === 'v' ? activeVirtualTab : '', t.timestamp, t.side, t.price, t.qty, origIdx].join('|');
+                const open = openTrades.has(key);
+                const isBuy = t.side === 'BUY';
+                const pnlClass = isBuy ? 'neutral-trend' : (t.pnl > 0 ? 'up-trend' : 'down-trend');
+                const sm = SRC_META[t.fill_source];
+                const badge = sm ? `<span class="src-badge src-${esc(t.fill_source)}" title="${esc(sm.desc)}">${esc(sm.label)}</span>` : '';
+                const roi = Number.isFinite(Number(t.roi)) ? ((t.roi >= 0 ? '+' : '') + Number(t.roi).toFixed(2) + '%') : '-';
+                const pnl = Number.isFinite(Number(t.pnl)) ? ((t.pnl >= 0 ? '+' : '') + formatCurrency(t.pnl, mk)) : '-';
+                return `
+                    <tr class="trade-row${open ? ' open' : ''}" data-key="${esc(key)}" onclick="toggleTradeDetail(this)">
+                        <td><span class="caret">▸</span>${esc(t.timestamp)}</td>
+                        <td class="${isBuy ? 'up-trend' : 'down-trend'}">${esc(t.side)}${badge}</td>
+                        <td>${formatCurrency(t.price, mk)}</td>
+                        <td>${esc(t.qty)}주</td>
+                        <td class="${pnlClass}">${isBuy ? '-' : pnl}</td>
+                        <td class="${pnlClass}">${isBuy ? '-' : roi}</td>
+                    </tr>
+                    <tr class="trade-detail" style="display:${open ? 'table-row' : 'none'};"><td colspan="6"><div class="td-inner">${tradeDetailHtml(t, mk)}</div></td></tr>`;
+            }).join('');
+        }
+
+        function toggleTradeDetail(tr) {
+            const key = tr.dataset.key;
+            const detail = tr.nextElementSibling;
+            const open = !openTrades.has(key);
+            if (open) openTrades.add(key); else openTrades.delete(key);
+            tr.classList.toggle('open', open);
+            if (detail) detail.style.display = open ? 'table-row' : 'none';
+        }
+
+        // ---------------- 이벤트 타임라인 ----------------
+        const EVENT_META = {
+            BOT_START:      { icon: '▶️', cls: 'green' },
+            BOT_STOP:       { icon: '⏹️', cls: 'gray' },
+            SIGNAL_CHANGE:  { icon: '🔔', cls: 'blue' },
+            ORDER_PLACED:   { icon: '📝', cls: 'blue' },
+            ORDER_REPLACED: { icon: '🔁', cls: 'blue' },
+            ORDER_CANCELED: { icon: '✖️', cls: 'gray' },
+            FILL:           { icon: '✅', cls: 'green' },
+            STOP_LOSS:      { icon: '🛑', cls: 'red' },
+            PANIC:          { icon: '🚨', cls: 'red' },
+            ERROR:          { icon: '⚠️', cls: 'orange' },
+            CRITICAL:       { icon: '🔥', cls: 'red' }
+        };
+        const EVENT_FILTERS = {
+            all:  '',
+            trade: 'ORDER_PLACED,ORDER_REPLACED,ORDER_CANCELED,FILL',
+            risk: 'STOP_LOSS,PANIC,ERROR,CRITICAL'
+        };
+        const evFilter = { v: 'all', r: 'all' };
+        const evCache = { v: '', r: '' };
+        const openEvents = new Set();
+        let eventsSupported = null;   // null=미확인, true/false
+        const rawOpen = { v: false, r: false };
+
+        function fmtEventTs(ts) {
+            if (typeof ts === 'number') {
+                const d = new Date(ts < 1e12 ? ts * 1000 : ts);
+                if (!isNaN(d)) { const z = n => String(n).padStart(2, '0'); return `${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; }
+            }
+            const m = /^\d{4}-(\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/.exec(String(ts || ''));
+            return m ? `${m[1]} ${m[2]}` : String(ts || '-');
+        }
+
+        function renderEvents(p, events) {
+            const el = document.getElementById(p + '_ev_list');
+            if (!el) return;
+            const sig = evFilter[p] + '|' + JSON.stringify(events);
+            if (evCache[p] === sig) return;
+            evCache[p] = sig;
+            if (!events.length) {
+                el.innerHTML = `<div class="ev-empty">표시할 이벤트가 없습니다.</div>`;
+                return;
+            }
+            el.innerHTML = events.map(ev => {
+                const meta = EVENT_META[ev.type] || { icon: '•', cls: 'gray' };
+                let cls = meta.cls;
+                if (ev.level === 'error' || ev.level === 'critical') cls = 'red';
+                else if (ev.level === 'warn') cls = 'orange';
+                const key = [ev.ts, ev.type, ev.message].join('|');
+                const hasData = ev.data && typeof ev.data === 'object' && Object.keys(ev.data).length > 0;
+                let dataTxt = '';
+                if (hasData || hasVal(ev.reason_code)) {
+                    const o = Object.assign({}, hasVal(ev.reason_code) ? { reason_code: ev.reason_code } : {}, hasData ? ev.data : {});
+                    try { dataTxt = JSON.stringify(o, null, 2); } catch (e) { dataTxt = ''; }
+                }
+                return `<div class="ev-item ev-${cls}${openEvents.has(key) ? ' open' : ''}" data-key="${esc(key)}" onclick="toggleEvent(this)">
+                    <div class="ev-top"><span class="ev-ico">${meta.icon}</span><span class="ev-ts">${esc(fmtEventTs(ev.ts))}</span></div>
+                    <div class="ev-msg">${esc(ev.message || ev.type || '')}</div>
+                    ${dataTxt ? `<div class="ev-data">${esc(dataTxt)}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function toggleEvent(el) {
+            const key = el.dataset.key;
+            const open = !openEvents.has(key);
+            if (open) openEvents.add(key); else openEvents.delete(key);
+            el.classList.toggle('open', open);
+        }
+
+        function setEventFilter(p, f, btn) {
+            evFilter[p] = f;
+            evCache[p] = '';
+            document.querySelectorAll(`#${p}_ev_filters .filter-chip`).forEach(b => b.classList.toggle('active', b === btn));
+            fetchEvents();
+        }
+
+        function toggleRawLog(p) {
+            rawOpen[p] = !rawOpen[p];
+            applyRawVisibility(p);
+            if (rawOpen[p]) fetchRawLog();
+        }
+
+        function applyRawVisibility(p) {
+            const show = rawOpen[p] || eventsSupported === false;
+            const wrap = document.getElementById(p + '_raw_wrap');
+            if (wrap) wrap.style.display = show ? 'flex' : 'none';
+            const btn = document.getElementById(p + '_raw_btn');
+            if (btn) {
+                btn.textContent = rawOpen[p] ? '원문 로그 숨기기' : '원문 로그 보기';
+                btn.style.display = eventsSupported === false ? 'none' : '';
+            }
+        }
+
+        function currentLogTarget() {
+            if (activeTab === 'virtual_bot') return { p: 'v', mode: activeVirtualTab };
+            if (activeTab === 'real_bot') return { p: 'r', mode: 'REAL' };
+            return null;
+        }
+
+        async function fetchEvents() {
+            const tgt = currentLogTarget();
+            if (!tgt || eventsSupported === false) return;
+            const { p, mode } = tgt;
+            const types = EVENT_FILTERS[evFilter[p]];
+            const url = `/vwap/api/events?mode=${encodeURIComponent(mode)}&limit=100` + (types ? `&types=${types}` : '');
+            try {
+                const response = await fetch(url);
+                if (response.status === 401) { window.location.reload(); return; }
+                if (!response.ok) {
+                    if (response.status === 404) { eventsSupported = false; applyEventFallback(); }
+                    return;
+                }
+                const data = await response.json();
+                if (!data || data.status !== 'success' || !Array.isArray(data.events)) return;
+                eventsSupported = true;
+                const cur = currentLogTarget();
+                if (!cur || cur.mode !== mode) return;   // 탭 전환 중 늦게 도착한 응답 무시
+                renderEvents(p, data.events);
+                applyRawVisibility('v'); applyRawVisibility('r');
+            } catch (err) {
+                console.error('이벤트 로드 실패:', err);
+            }
+        }
+
+        function applyEventFallback() {
+            ['v', 'r'].forEach(p => {
+                const list = document.getElementById(p + '_ev_list');
+                if (list) list.innerHTML = `<div class="ev-empty">이벤트 타임라인을 지원하지 않는 서버입니다. 아래 원문 로그를 확인하세요.</div>`;
+                const f = document.getElementById(p + '_ev_filters');
+                if (f) f.style.display = 'none';
+                applyRawVisibility(p);
+            });
+            fetchRawLog();
+        }
+
+        async function fetchRawLog() {
+            const tgt = currentLogTarget();
+            if (!tgt) return;
+            const termId = tgt.p === 'v' ? 'v_log_terminal' : 'r_log_terminal';
+            try {
+                const response = await fetch(`/vwap/api/logs?mode=${tgt.mode}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const term = document.getElementById(termId);
+                    if (term) {
+                        term.textContent = data.logs || "로그가 없습니다.";
+                        term.scrollTop = term.scrollHeight;
+                    }
+                }
+            } catch (err) {
+                console.error("로그 로드 실패:", err);
+            }
+        }
+
+        // 이벤트 타임라인(우선) + 원문 로그(펼쳤거나 이벤트 API 미지원 시)
+        async function fetchLogs() {
+            const tgt = currentLogTarget();
+            if (!tgt) return;
+            await fetchEvents();
+            if (rawOpen[tgt.p] || eventsSupported === false) fetchRawLog();
+        }
+
+        // ---------------- ⓘ 도움말 (매뉴얼 탭 기반) ----------------
+        const HELP_TEXTS = [
+            ['(N %)', '매수 이격률: 현재가가 VWAP보다 N% 낮은 가격에 지정가 매수를 겁니다. (매수 타겟 = VWAP × (1 − N%))'],
+            ['(M %)', '매도 이격률: 보유 중 VWAP보다 M% 높은 가격에 지정가 매도(익절)를 겁니다. (매도 타겟 = VWAP × (1 + M%))'],
+            ['(X %)', '손절 비율: 평단 대비 X% 하락하면 미체결을 취소하고 시장가로 전량 청산합니다.'],
+            ['(K %)', '투자 비중: 가용 예수금 중 1회 매수에 쓸 자금의 비율입니다. (통상 10% 안팎)'],
+            ['일 최대 손실한도', '당일 시작 자산 대비 평가 손실이 이 비율에 도달하면 주문 취소 + 전량 매도 후 봇을 정지합니다.'],
+            ['VWAP 리셋 시각', 'VWAP 누적 계산을 0부터 다시 시작하는 시각입니다. 한국 09:00 권장. 미국 종목은 22:30 또는 23:30을 넣으면 서머타임(22:30)/표준시(23:30)에 맞춰 자동 전환됩니다. 그 밖의 시각과 국내 종목은 입력한 시각에 고정되며, 자정(00:00)에는 리셋되지 않습니다.'],
+            ['거래 시작 시각', '리셋 이후 이 시각까지는 주문을 내지 않고 대기합니다. 장 초반 변동성을 피할 때 사용 (비우면 즉시 시작).'],
+            ['ADX Lmt', 'ADX가 이 값 이상이면 강한 추세로 보고 진입을 보류합니다. (권장 25~30)'],
+            ['RSI Lmt', 'RSI가 이 값 이하(과매도)일 때만 매수 주문을 제출합니다. (권장 30~35)'],
+            ['ADX', 'ADX 필터: 값이 임계 이상(강한 추세)이면 이격이 생겨도 진입을 보류해 급락장 추격매수를 막습니다.'],
+            ['RSI', 'RSI 필터: 과매도 구간(임계 이하)에서만 매수합니다.'],
+            ['Dev Band', '켜면 고정 N%/M% 대신 거래량 가중 표준편차(2σ) 밴드를 매수/매도 타겟으로 자동 계산합니다.']
+        ];
+        function attachHelpIcons() {
+            document.querySelectorAll('.settings-form label, #backtestForm label').forEach(lb => {
+                if (lb.querySelector('.help-i')) return;
+                const txt = (lb.textContent || '').trim();
+                const hit = HELP_TEXTS.find(([k]) => k.startsWith('(') || k.length > 4 ? txt.includes(k) : txt === k);
+                if (!hit) return;
+                const i = document.createElement('span');
+                i.className = 'help-i';
+                i.textContent = 'ⓘ';
+                i.setAttribute('role', 'button');
+                i.setAttribute('aria-label', '도움말');
+                i.dataset.help = hit[1];
+                i.addEventListener('click', toggleHelp);
+                lb.appendChild(i);
+            });
+        }
+        function toggleHelp(ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            const icon = ev.currentTarget;
+            const holder = icon.closest('.form-group') || icon.closest('.chk-row') || icon.closest('label').parentNode;
+            const old = holder.querySelector(':scope > .help-note');
+            if (old) { old.remove(); return; }
+            const note = document.createElement('div');
+            note.className = 'help-note';
+            note.textContent = icon.dataset.help;
+            const lb = icon.closest('label');
+            if (holder.classList.contains('form-group')) lb.after(note);
+            else holder.appendChild(note);
+        }
+
+        // 탭이 숨겨진 동안 폴링 중지, 복귀 시 즉시 갱신
+        function pollIfVisible(fn) { return () => { if (!document.hidden) fn(); }; }
+
         function updateDOM(data) {
             const vBot = data.virtual_bot;  // 하위 호환용 (VIRTUAL_1)
             const vBots = data.virtual_bots;
@@ -1989,7 +2622,7 @@
                     Object.entries(botData.holdings).forEach(([ticker, info]) => {
                         combinedVHoldingsHtml += `
                             <tr>
-                                <td><strong>${ticker} <span style="font-size:9px; color:var(--text-secondary);">(${botLabel})</span></strong></td>
+                                <td><strong>${ticker} <span style="font-size: 12px; color:var(--text-secondary);">(${botLabel})</span></strong></td>
                                 <td>${info.qty}</td>
                                 <td>${formatCurrency(info.entry_price, botData.market)}</td>
                                 <td>${formatCurrency(botData.current_price, botData.market)}</td>
@@ -2100,6 +2733,8 @@
                 document.getElementById('v_vwap').textContent = formatCurrency(activeVBot.vwap, activeVBot.market);
                 document.getElementById('v_buy_target').textContent = formatCurrency(activeVBot.target_buy_price, activeVBot.market);
                 document.getElementById('v_sell_target').textContent = formatCurrency(activeVBot.target_sell_price, activeVBot.market);
+                renderNow('v', activeVBot);
+                renderChips('v', activeVBot);
 
                 // 가상 미체결
                 const vOpenBody = document.getElementById('v_open_orders_body');
@@ -2117,27 +2752,8 @@
                     vOpenBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">미체결 주문이 없습니다.</td></tr>`;
                 }
 
-                // 가상 이력
-                const vHistBody = document.getElementById('v_history_body');
-                if (activeVMetrics.recent_trades && activeVMetrics.recent_trades.length > 0) {
-                    const rev = [...activeVMetrics.recent_trades].reverse();
-                    vHistBody.innerHTML = rev.map(t => {
-                        const isWin = t.pnl > 0;
-                        const pnlClass = t.side === "BUY" ? "neutral-trend" : (isWin ? "up-trend" : "down-trend");
-                        return `
-                            <tr>
-                                <td>${t.timestamp}</td>
-                                <td class="${t.side === 'BUY' ? 'up-trend' : 'down-trend'}">${t.side}</td>
-                                <td>${formatCurrency(t.price, activeVBot.market)}</td>
-                                <td>${t.qty}주</td>
-                                <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.pnl >= 0 ? '+' : '') + formatCurrency(t.pnl, activeVBot.market)}</td>
-                                <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.roi >= 0 ? '+' : '') + t.roi.toFixed(2) + '%'}</td>
-                            </tr>
-                        `;
-                    }).join('');
-                } else {
-                    vHistBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">거래 내역이 없습니다.</td></tr>`;
-                }
+                // 가상 이력 (행 탭 시 상세 펼침)
+                renderHistory('v', activeVMetrics.recent_trades, activeVBot.market);
             }
 
 
@@ -2161,6 +2777,8 @@
                 document.getElementById('r_vwap').textContent = formatCurrency(rBot.vwap, rBot.market);
                 document.getElementById('r_buy_target').textContent = formatCurrency(rBot.target_buy_price, rBot.market);
                 document.getElementById('r_sell_target').textContent = formatCurrency(rBot.target_sell_price, rBot.market);
+                renderNow('r', rBot);
+                renderChips('r', rBot);
 
                 const rOpenBody = document.getElementById('r_open_orders_body');
                 const rHistBody = document.getElementById('r_history_body');
@@ -2180,25 +2798,7 @@
                     rOpenBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">미체결 주문이 없습니다.</td></tr>`;
                 }
 
-                if (metrics.real.recent_trades && metrics.real.recent_trades.length > 0) {
-                    const rev = [...metrics.real.recent_trades].reverse();
-                    rHistBody.innerHTML = rev.map(t => {
-                        const isWin = t.pnl > 0;
-                        const pnlClass = t.side === "BUY" ? "neutral-trend" : (isWin ? "up-trend" : "down-trend");
-                        return `
-                            <tr>
-                                <td>${t.timestamp}</td>
-                                <td class="${t.side === 'BUY' ? 'up-trend' : 'down-trend'}">${t.side}</td>
-                                <td>${formatCurrency(t.price, rBot.market)}</td>
-                                <td>${t.qty}주</td>
-                                <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.pnl >= 0 ? '+' : '') + formatCurrency(t.pnl, rBot.market)}</td>
-                                <td class="${pnlClass}">${t.side === 'BUY' ? '-' : (t.roi >= 0 ? '+' : '') + t.roi.toFixed(2) + '%'}</td>
-                            </tr>
-                        `;
-                    }).join('');
-                } else {
-                    rHistBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">거래 내역이 없습니다.</td></tr>`;
-                }
+                renderHistory('r', metrics.real.recent_trades, rBot.market);
             }
         }
 
@@ -2224,26 +2824,7 @@
             }
         }
 
-        // 6. 실시간 로그 읽기
-        async function fetchLogs() {
-            if (activeTab !== 'virtual_bot' && activeTab !== 'real_bot') return;
-            const mode = activeTab === 'virtual_bot' ? activeVirtualTab : 'REAL';
-            const termId = activeTab === 'virtual_bot' ? 'v_log_terminal' : 'r_log_terminal';
-            
-            try {
-                const response = await fetch(`/vwap/api/logs?mode=${mode}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    const term = document.getElementById(termId);
-                    if (term) {
-                        term.textContent = data.logs || "로그가 없습니다.";
-                        term.scrollTop = term.scrollHeight;
-                    }
-                }
-            } catch (err) {
-                console.error("로그 로드 실패:", err);
-            }
-        }
+        // 6. 로그/이벤트: fetchLogs() 는 위 [2단계 UI] 블록에 정의됨
 
         // 7. 거래 이력 리셋
         async function resetTrades(mode) {
@@ -2287,6 +2868,7 @@
             submitBtn.textContent = "과거 시세 로드 & 연산중...";
             resultBox.style.display = 'none';
             placeholder.style.display = 'none';
+            placeholder.style.color = 'var(--text-secondary)';
 
             const payload = {
                 ticker: document.getElementById('bt_ticker').value.toUpperCase().trim(),
@@ -2304,21 +2886,26 @@
                     body: JSON.stringify(payload)
                 });
 
-                if (response.ok) {
-                    const data = await response.json();
+                let data = null;
+                try { data = await response.json(); } catch (e) { data = null; }
+
+                if (response.ok && data && data.status === "success" && data.result) {
                     const res = data.result;
+                    // 시장 판정: 6자리 숫자면 KR, 아니면 US
+                    const btMarket = /^\d{6}$/.test(payload.ticker) ? "KR" : "US";
                     
                     document.getElementById('bt_roi').textContent = (res.roi >= 0 ? "+" : "") + res.roi.toFixed(2) + "%";
                     document.getElementById('bt_roi').className = "status-box-value " + (res.roi >= 0 ? "up-trend" : "down-trend");
                     document.getElementById('bt_mdd').textContent = res.mdd.toFixed(2) + "%";
-                    document.getElementById('bt_final_asset').textContent = formatCurrency(res.final_asset, "KR");
+                    document.getElementById('bt_final_asset').textContent = formatCurrency(res.final_asset, btMarket);
                     document.getElementById('bt_win_rate_and_count').textContent = `${res.total_trades}회 (${res.win_rate.toFixed(2)}%)`;
                     document.getElementById('bt_win_rate_and_count').className = "status-box-value " + (res.win_rate >= 50 ? "up-trend" : "down-trend");
                     
                     resultBox.style.display = 'block';
                 } else {
                     placeholder.style.display = 'block';
-                    placeholder.textContent = "백테스트 실패: API 자격 증명이 누락되었거나 한도가 초과되었습니다.";
+                    placeholder.style.color = 'var(--accent-red)';
+                    placeholder.textContent = "백테스트 실패: " + ((data && data.message) || ("서버 응답 오류 (HTTP " + response.status + ")"));
                 }
             } catch (err) {
                 alert("백테스트 에러: " + err);
@@ -2340,8 +2927,14 @@
             document.getElementById('cfg_r_ticker').addEventListener('input', updateTickerLabels);
             document.getElementById('cfg_r_market').addEventListener('change', updateTickerLabels);
             
-            setInterval(fetchStatus, 2000);
-            setInterval(fetchLogs, 3000);
+            attachHelpIcons();
+
+            // 백그라운드 탭에서는 폴링 중지, 복귀 시 즉시 갱신
+            setInterval(pollIfVisible(fetchStatus), 2000);
+            setInterval(pollIfVisible(fetchLogs), 6000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) { fetchStatus(true); fetchLogs(); }
+            });
         });
     </script>
 </body>

@@ -1,89 +1,62 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from core.vwap.session import SessionSpec, to_kst_naive
 
 class VwapStrategy:
     @staticmethod
-    def calculate_vwap(df: pd.DataFrame, reset_time_str: str = "22:30") -> pd.DataFrame:
+    def calculate_vwap(df: pd.DataFrame, reset_time_str: str = "22:30", session: SessionSpec = None) -> pd.DataFrame:
         """
-        주어진 봉 데이터프레임(df)에 당일 누적 VWAP을 계산하여 새로운 컬럼 'vwap'으로 추가하여 반환합니다.
-        
+        봉 데이터프레임(df)에 '세션 누적' VWAP 과 거래량가중 표준편차를 계산해 컬럼으로 추가합니다. (ADR-0008)
+
         Parameters:
-        - df: 'time' (YYYY-MM-DD HH:MM:SS 포맷 또는 datetime), 'open', 'high', 'low', 'close', 'volume' 컬럼을 갖는 DataFrame.
-        - reset_time_str: VWAP 누적을 리셋할 시간 (HH:MM 포맷)
-        
-        수식:
-        - VWAP = sum(Close * Volume) / sum(Volume) (당일 리셋 시점부터 누적)
+        - df: 'time'(KST naive 또는 tz-aware), 'open','high','low','close','volume' 컬럼
+        - reset_time_str: session 을 주지 않았을 때 쓰는 리셋 시각(HH:MM, KST). 이 값을 매일 그대로 사용
+        - session: core.vwap.session.SessionSpec. 봇은 SessionSpec.for_market(...) 결과를 넘깁니다
+          (미국 종목 + 리셋 22:30/23:30 이면 서머타임에 따라 22:30↔23:30 자동)
+
+        수식(기존과 동일): VWAP = Σ(Close×Volume) / ΣVolume  (세션 시작부터 누적, 누적거래량 0 이면 종가)
+                          stdev = sqrt( Σ Volume×(Close - 그 시점 VWAP)² / ΣVolume )
+
+        ADR-0008 에서 바뀐 점: 세션은 '리셋 시각 ~ 다음 리셋 시각' 으로만 나뉩니다.
+        예전처럼 달력 날짜(KST 자정)가 바뀌었다고 세션을 끊지 않습니다(미국장 도중 00:00 VWAP 초기화 버그 수정).
+
+        추가 컬럼: vwap, vwap_stdev, rsi, adx, session_start(그 봉이 속한 세션의 시작 시각, KST naive)
+        'time' 컬럼은 KST naive 로 정규화되어 반환됩니다(tz-aware 입력은 KST 로 변환).
         """
         if df.empty:
             return df
 
         df = df.copy()
-        
-        # 'time' 컬럼을 datetime형태로 변환
-        if not pd.api.types.is_datetime64_any_dtype(df['time']):
-            df['time'] = pd.to_datetime(df['time'])
-
-        # 시간순으로 정렬 보장
+        df['time'] = to_kst_naive(df['time'])
         df = df.sort_values('time').reset_index(drop=True)
-        
-        # 계산의 편의를 위해 'typical_price' (고가, 저가, 종가의 평균) 혹은 'close'를 사용
-        # 사용자 수식에 맞추기 위해 'close'를 대표가격으로 사용합니다.
+        spec = session or SessionSpec.reset_time_mode(reset_time_str)
+
+        # 각 봉이 속한 세션(시작 시각)으로 그룹화 — 자정 경계 없음
+        sess_start = spec.label_bars(df['time'])
+        df['session_start'] = sess_start.values
+        grp = df['session_start']
+
         df['price_vol'] = df['close'] * df['volume']
-        
-        # 각 봉별로 당일 리셋 시점을 기준으로 그룹화(Group)하기 위한 'session_id' 생성
-        session_ids = []
-        current_session = 0
-        
-        # 리셋 시간 파싱 (시, 분)
-        try:
-            reset_h, reset_m = map(int, reset_time_str.split(':'))
-        except Exception:
-            reset_h, reset_m = 22, 30  # 파싱 실패 시 기본 미국장 시작
-            
-        for i, row in df.iterrows():
-            t = row['time']
-            # 이전 봉과 날짜가 달라졌거나, 동일 날짜 내에서 리셋 시각을 막 경과한 시점인지 판별
-            if i > 0:
-                prev_t = df.loc[i - 1, 'time']
-                
-                # 날짜 경계선이 지난 경우
-                if t.date() != prev_t.date():
-                    current_session += 1
-                # 날짜는 같으나 리셋 시각을 넘은 시점 (이전 봉은 리셋 시각 전, 현재 봉은 리셋 시각 이후인 경우)
-                else:
-                    # 리셋 기준 시간 생성
-                    boundary_time = t.replace(hour=reset_h, minute=reset_m, second=0, microsecond=0)
-                    if prev_t < boundary_time <= t:
-                        current_session += 1
-                        
-            session_ids.append(current_session)
-            
-        df['session_id'] = session_ids
-        
-        # 세션(당일 장 시작 세션)별 누적합 계산
-        df['cum_pv'] = df.groupby('session_id')['price_vol'].cumsum()
-        df['cum_vol'] = df.groupby('session_id')['volume'].cumsum()
-        
+        df['cum_pv'] = df['price_vol'].groupby(grp).cumsum()
+        df['cum_vol'] = df['volume'].groupby(grp).cumsum()
+
         # 누적 거래량이 0인 에러 방지 처리 후 VWAP 계산
-        df['vwap'] = np.where(df['cum_vol'] > 0, df['cum_pv'] / df['cum_vol'], df['close'])
-        
+        df['vwap'] = np.where(df['cum_vol'] > 0, df['cum_pv'] / df['cum_vol'].where(df['cum_vol'] > 0, 1.0), df['close'])
+
         # VWAP 표준편차 (Volume Weighted Standard Deviation) 계산
         df['price_vwap_diff_sq'] = df['volume'] * ((df['close'] - df['vwap']) ** 2)
-        df['cum_diff_sq'] = df.groupby('session_id')['price_vwap_diff_sq'].cumsum()
-        df['cum_vol_stdev'] = df.groupby('session_id')['volume'].cumsum()
-        df['vwap_stdev'] = np.sqrt(np.where(df['cum_vol_stdev'] > 0, df['cum_diff_sq'] / df['cum_vol_stdev'], 0))
-        
-        # 보조 지표 계산 (RSI & ADX)
+        df['cum_diff_sq'] = df['price_vwap_diff_sq'].groupby(grp).cumsum()
+        df['vwap_stdev'] = np.sqrt(np.where(df['cum_vol'] > 0,
+                                            df['cum_diff_sq'] / df['cum_vol'].where(df['cum_vol'] > 0, 1.0), 0))
+
+        # 보조 지표 계산 (RSI & ADX) — 받은 봉 전체로 계산 (기존과 동일)
         df['rsi'] = VwapStrategy.calculate_rsi(df, period=14)
         df['adx'] = VwapStrategy.calculate_adx(df, period=14)
 
         # 임시 컬럼 삭제
-        df.drop(columns=[
-            'price_vol', 'session_id', 'cum_pv', 'cum_vol', 
-            'price_vwap_diff_sq', 'cum_diff_sq', 'cum_vol_stdev'
-        ], inplace=True, errors='ignore')
-        
+        df.drop(columns=['price_vol', 'cum_pv', 'cum_vol', 'price_vwap_diff_sq', 'cum_diff_sq'],
+                inplace=True, errors='ignore')
         return df
 
     @staticmethod
@@ -179,7 +152,15 @@ class VwapStrategy:
         }
         """
         if df.empty or 'vwap' not in df.columns:
-            return {"signal": "WAIT", "vwap": 0.0, "current_price": 0.0}
+            return {
+                "signal": "WAIT", "vwap": 0.0, "current_price": 0.0,
+                "reason_code": "DATA_UNAVAILABLE",
+                "reason_text": "캔들/VWAP 데이터가 없어 판단 보류",
+                "filters": {
+                    "adx": {"enabled": bool(use_adx_filter), "value": 0.0, "threshold": float(adx_threshold), "blocking": False},
+                    "rsi": {"enabled": bool(use_rsi_filter), "value": 50.0, "threshold": float(rsi_threshold), "blocking": False},
+                },
+            }
 
         latest = df.iloc[-1]
         current_price = float(latest['close'])
@@ -238,6 +219,21 @@ class VwapStrategy:
         rsi_val = float(latest['rsi']) if 'rsi' in latest else 50.0
         stdev_val = float(latest['vwap_stdev']) if 'vwap_stdev' in latest else 0.0
 
+        # --- 판단 사유(관측성 전용 — 위의 signal 판정 결과를 바꾸지 않습니다) ---
+        # filters[*].blocking: "필터가 켜져 있고, 현재 지표값이면 신규 매수 진입을 막는 상태"
+        #   (보유 중이거나 현재가가 VWAP 위라 매수 판단 자체가 없을 때도 지표 상태 표시는 그대로 합니다)
+        adx_blocking = bool(use_adx_filter) and 'adx' in latest and adx_val >= adx_threshold
+        rsi_blocking = bool(use_rsi_filter) and 'rsi' in latest and rsi_val > rsi_threshold
+        filters = {
+            "adx": {"enabled": bool(use_adx_filter), "value": round(adx_val, 2),
+                    "threshold": float(adx_threshold), "blocking": bool(adx_blocking)},
+            "rsi": {"enabled": bool(use_rsi_filter), "value": round(rsi_val, 2),
+                    "threshold": float(rsi_threshold), "blocking": bool(rsi_blocking)},
+        }
+        reason_code, reason_text = VwapStrategy._explain(
+            signal, position_qty, current_price, vwap, target_buy_price, target_sell_price,
+            stop_loss_price, adx_val, adx_threshold, adx_blocking, rsi_val, rsi_threshold, rsi_blocking)
+
         return {
             "signal": signal,
             "vwap": vwap,
@@ -247,5 +243,38 @@ class VwapStrategy:
             "stop_loss_price": stop_loss_price,
             "adx": round(adx_val, 2),
             "rsi": round(rsi_val, 2),
-            "vwap_stdev": round(stdev_val, 2)
+            "vwap_stdev": round(stdev_val, 2),
+            "reason_code": reason_code,
+            "reason_text": reason_text,
+            "filters": filters,
         }
+
+    @staticmethod
+    def _explain(signal, position_qty, current_price, vwap, target_buy_price, target_sell_price,
+                 stop_loss_price, adx_val, adx_threshold, adx_blocking, rsi_val, rsi_threshold, rsi_blocking):
+        """get_signals 의 판정 결과를 (reason_code, 한글 한 문장)으로 설명합니다.
+
+        코드 목록 (전략 단계):
+          보유:   STOP_LOSS / SELL_ARMED / HOLD
+          무포지션: BUY_ARMED / FILTER_ADX / FILTER_RSI / ABOVE_VWAP
+        (WAIT_START_TIME, BUDGET_SHORT, DAILY_LOSS_STOP, DATA_UNAVAILABLE, BOT_STOPPED 등은 봇이 덮어씁니다)
+        """
+        cp, vw = current_price, vwap
+        if position_qty > 0:
+            if signal == "STOP_LOSS":
+                return "STOP_LOSS", f"현재가 {cp:.2f} ≤ 손절가 {stop_loss_price:.2f} → 시장가 손절"
+            if signal == "SELL":
+                if cp >= vw:
+                    return "SELL_ARMED", f"현재가 {cp:.2f} ≥ VWAP {vw:.2f} (상향 돌파) → 매도 지정가 {target_sell_price:.2f}"
+                return "SELL_ARMED", f"현재가 {cp:.2f} ≥ 매도 타겟 {target_sell_price:.2f} → 매도 지정가 {target_sell_price:.2f}"
+            return "HOLD", f"현재가 {cp:.2f} < VWAP {vw:.2f}, 청산 대기 — 손절가 {stop_loss_price:.2f}"
+
+        if signal == "BUY":
+            return "BUY_ARMED", f"현재가 {cp:.2f} < VWAP {vw:.2f} → 매수 지정가 {target_buy_price:.2f} 대기"
+        if cp < vw:
+            # 가격 조건은 충족했지만 필터가 진입을 막은 경우 (ADX 를 먼저 표시)
+            if adx_blocking:
+                return "FILTER_ADX", f"ADX {adx_val:.1f} ≥ {adx_threshold:g} 강한 추세 → 진입 보류"
+            if rsi_blocking:
+                return "FILTER_RSI", f"RSI {rsi_val:.1f} > {rsi_threshold:g} 과매도 아님 → 진입 보류"
+        return "ABOVE_VWAP", f"현재가 {cp:.2f} ≥ VWAP {vw:.2f} → 매수 대기 (VWAP 아래로 내려오면 진입)"

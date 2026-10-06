@@ -7,6 +7,7 @@ from core.vwap.config_manager import VwapConfigManager
 from core.vwap.bot import VWAPBot, PROJECT_ROOT
 from core.vwap.crypto import VwapCrypto
 from core.vwap.broker import TossBroker
+from core.vwap import events as vwap_events
 
 logger = logging.getLogger("vwap_bot")
 
@@ -438,7 +439,10 @@ def api_config():
         "real_max_daily_loss_limit", "real_reset_time", "real_start_time", "real_use_adx_filter", 
         "real_adx_period", "real_adx_threshold", "real_use_rsi_filter", 
         "real_rsi_period", "real_rsi_threshold", "real_use_vwap_band", 
-        "real_vwap_band_sigma"
+        "real_vwap_band_sigma",
+
+        # Discord 알림 (실거래 / 가상봇 공통)
+        "real_discord_notify", "virtual_discord_notify"
     ]
     
     for key in allowed_keys:
@@ -448,7 +452,7 @@ def api_config():
                 updated_config[key] = float(new_data[key])
             elif any(suffix in key for suffix in ["adx_period", "rsi_period"]):
                 updated_config[key] = int(new_data[key])
-            elif any(suffix in key for suffix in ["use_adx_filter", "use_rsi_filter", "use_vwap_band"]):
+            elif any(suffix in key for suffix in ["use_adx_filter", "use_rsi_filter", "use_vwap_band", "discord_notify"]):
                 val = new_data[key]
                 if isinstance(val, str):
                     updated_config[key] = val.lower() == "true"
@@ -534,37 +538,78 @@ def api_get_logs():
         return jsonify({"status": "failed", "reason": str(e)})
 
 
+EVENTS_LIMIT_MAX = 500
+
+
+@vwap_bp.route('/api/events', methods=['GET'])
+@admin_required
+def api_get_events():
+    """봇 이벤트 로그(data/vwap_events_{mode}.jsonl)를 최신순으로 반환합니다.
+
+    Query:
+      mode  : REAL | VIRTUAL_1 | VIRTUAL_2 | VIRTUAL_3 (VIRTUAL 은 VIRTUAL_1 로 취급, 기본 REAL)
+      limit : 기본 100, 1~500 로 보정
+      types : 쉼표 구분 이벤트 종류 필터 (예: FILL,STOP_LOSS). 생략 시 전체
+    Returns: {"status": "success", "mode": "REAL", "events": [최신순 이벤트...]}
+    """
+    mode = vwap_events.normalize_mode(request.args.get('mode', 'REAL'))
+    if mode not in vwap_events.VALID_MODES:
+        return jsonify({"status": "failed", "reason": "invalid_mode"}), 400
+    try:
+        limit = int(request.args.get('limit', 100))
+    except (TypeError, ValueError):
+        limit = 100
+    limit = max(1, min(limit, EVENTS_LIMIT_MAX))
+    types_raw = request.args.get('types', '') or ''
+    types = [t.strip().upper() for t in types_raw.split(',') if t.strip()]
+    try:
+        events = vwap_events.read_events(mode, limit=limit, types=types or None)
+        return jsonify({"status": "success", "mode": mode, "events": events})
+    except Exception as e:
+        logger.error(f"[api_events] 이벤트 조회 실패: {e}")
+        return jsonify({"status": "failed", "reason": "read_failed"}), 500
+
+
 @vwap_bp.route('/api/backtest', methods=['POST'])
 @admin_required
 def api_run_backtest():
     """토스 API 과거 봉 데이터를 활용해 백테스트를 실행하고 결과를 요약 반환합니다."""
     from core.vwap.backtester import VwapBacktester
     
-    data = request.get_json() or {}
-    ticker = data.get("ticker", "AAPL")
-    interval = data.get("interval", "1m")
-    n_percent = float(data.get("n_percent", 1.0))
-    m_percent = float(data.get("m_percent", 1.0))
-    x_percent = float(data.get("x_percent", 2.0))
-    k_percent = float(data.get("k_percent", 10.0))
-    use_adx_filter = bool(data.get("use_adx_filter", False))
-    adx_threshold = float(data.get("adx_threshold", 25.0))
-    use_rsi_filter = bool(data.get("use_rsi_filter", False))
-    rsi_threshold = float(data.get("rsi_threshold", 30.0))
-    use_vwap_band = bool(data.get("use_vwap_band", False))
-    vwap_band_sigma = float(data.get("vwap_band_sigma", 2.0))
+    data = request.get_json(silent=True) or {}
 
-    config = VwapConfigManager.load_config()
-    initial_balance = float(data.get("initial_balance", config.get("real_initial_balance", 10000000.0)))
+    # 입력값 파싱/검증 (실패 시 400)
+    try:
+        ticker = str(data.get("ticker") or "").strip().upper()
+        if not ticker:
+            raise ValueError("종목코드를 입력해주세요.")
+        interval = data.get("interval", "1m")
+        n_percent = float(data.get("n_percent", 1.0))
+        m_percent = float(data.get("m_percent", 1.0))
+        x_percent = float(data.get("x_percent", 2.0))
+        k_percent = float(data.get("k_percent", 10.0))
+        use_adx_filter = bool(data.get("use_adx_filter", False))
+        adx_threshold = float(data.get("adx_threshold", 25.0))
+        use_rsi_filter = bool(data.get("use_rsi_filter", False))
+        rsi_threshold = float(data.get("rsi_threshold", 30.0))
+        use_vwap_band = bool(data.get("use_vwap_band", False))
+        vwap_band_sigma = float(data.get("vwap_band_sigma", 2.0))
 
-    from core.vwap.broker import TossBroker
-    toss = TossBroker(
-        client_id=config["toss_client_id"],
-        client_secret=config["toss_client_secret"],
-        account_seq=config["toss_account_seq"]
-    )
+        config = VwapConfigManager.load_config()
+        initial_balance = float(data.get("initial_balance", config.get("real_initial_balance", 10000000.0)))
+    except (TypeError, ValueError) as e:
+        logger.warning(f"백테스트 입력 오류: {e}")
+        msg = str(e) if "종목코드" in str(e) else "입력값이 올바르지 않습니다. 숫자 항목(비율/초기 자금 등)을 확인해주세요."
+        return jsonify({"status": "failed", "message": msg}), 400
 
     try:
+        from core.vwap.broker import TossBroker
+        toss = TossBroker(
+            client_id=config["toss_client_id"],
+            client_secret=config["toss_client_secret"],
+            account_seq=config["toss_account_seq"]
+        )
+
         logger.info(f"⚡ [{ticker}] 백테스트 연산 시작 요청 접수...")
         result = VwapBacktester.run(
             toss, ticker, interval, n_percent, m_percent, x_percent, initial_balance,
@@ -575,8 +620,17 @@ def api_run_backtest():
         )
         return jsonify({"status": "success", "result": result})
     except Exception as e:
-        logger.error(f"백테스트 연산 실패: {e}")
-        return jsonify({"status": "failed", "reason": str(e)})
+        # 캔들 부족(백테스터가 던지는 ValueError)만 입력/데이터 오류(400)로 분류.
+        # requests 계열(JSONDecodeError 등 ValueError 하위 포함)은 외부 API 오류로 502 처리.
+        import requests as _requests
+        if isinstance(e, _requests.exceptions.RequestException):
+            logger.error(f"백테스트 외부 API 오류: {e!r}")
+            return jsonify({"status": "failed", "message": "시세 서버(토스) 응답 처리에 실패했습니다. 잠시 후 다시 시도해주세요."}), 502
+        if isinstance(e, ValueError) and "캔들 데이터가 충분하지 않습니다" in str(e):
+            logger.warning(f"백테스트 데이터 부족: {e}")
+            return jsonify({"status": "failed", "message": str(e)}), 400
+        logger.error(f"백테스트 연산 실패: {e!r}")
+        return jsonify({"status": "failed", "message": "백테스트 중 서버 오류가 발생했습니다. API 자격 증명/호출 한도를 확인한 뒤 다시 시도해주세요."}), 500
 
 
 @vwap_bp.route('/api/reset-trades', methods=['POST'])

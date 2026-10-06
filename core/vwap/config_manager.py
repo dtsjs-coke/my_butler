@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from dotenv import load_dotenv
 from core.vwap.crypto import VwapCrypto
 
@@ -12,6 +13,14 @@ TRADES_PATH = os.path.join(DATA_DIR, "vwap_trades.json")
 SENSITIVE_KEYS = ["toss_client_secret", "toss_account_seq"]
 
 class VwapConfigManager:
+    # add_trade 가 손상 파일을 백업했을 때의 알림 (mode -> [메시지]). 봇이 꺼내서 자기 로거에 ERROR 로 남깁니다.
+    _trade_file_warnings = {}
+
+    @classmethod
+    def pop_trade_file_warnings(cls, mode: str) -> list:
+        """해당 모드의 거래기록 파일 경고 메시지를 꺼내고 비웁니다."""
+        return cls._trade_file_warnings.pop(str(mode).upper(), [])
+
     @staticmethod
     def get_default_config() -> dict:
         """기본 설정 딕셔너리를 반환합니다."""
@@ -150,6 +159,10 @@ class VwapConfigManager:
             "real_use_vwap_band": False,
             "real_vwap_band_sigma": 2.0,
             "real_is_running": False,
+
+            # Discord 알림 (관측성) — 실거래는 기본 ON, 가상봇(1~3 공통)은 기본 OFF
+            "real_discord_notify": True,
+            "virtual_discord_notify": False,
         }
 
     @classmethod
@@ -296,18 +309,91 @@ class VwapConfigManager:
             return []
 
     @classmethod
-    def save_trades(cls, trades: list, mode: str = "VIRTUAL"):
-        """거래 이력을 저장합니다."""
+    def save_trades(cls, trades: list, mode: str = "VIRTUAL") -> bool:
+        """거래 이력을 원자적으로 저장합니다 (임시파일 작성 후 교체 — 쓰는 도중 꺼져도 기존 파일 보존).
+        Returns: 저장 성공 여부"""
         trades_path = os.path.join(DATA_DIR, f"vwap_trades_{mode.lower()}.json")
+        tmp_path = trades_path + ".tmp"
         try:
-            with open(trades_path, "w", encoding="utf-8") as f:
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(trades, f, ensure_ascii=False, indent=4)
+            os.replace(tmp_path, trades_path)
+            return True
         except Exception as e:
             print(f"[ConfigManager] Failed to save trades for {mode}: {e}")
+            return False
 
     @classmethod
-    def add_trade(cls, trade_item: dict, mode: str = "VIRTUAL"):
-        """새로운 거래 이력을 추가합니다."""
-        trades = cls.load_trades(mode)
+    def add_trade(cls, trade_item: dict, mode: str = "VIRTUAL") -> bool:
+        """새로운 거래 이력을 추가합니다.
+
+        기존 파일을 읽지 못했을 때 빈 목록으로 간주해 덮어쓰면 이력 전체가 1건으로 사라지므로:
+          - 파일은 있는데 JSON 파싱 실패(손상): 원본을 `<파일>.corrupt-YYYYmmddHHMMSS` 로 옮겨 보존한 뒤
+            새 파일에 이번 거래부터 기록하고 경고를 출력합니다 (복구는 수동).
+          - 그 외 읽기 오류(권한/IO 등): 아무것도 쓰지 않고 False 반환.
+        Returns: 기록 성공 여부
+        """
+        trades_path = os.path.join(DATA_DIR, f"vwap_trades_{mode.lower()}.json")
+        if os.path.exists(trades_path):
+            try:
+                with open(trades_path, "r", encoding="utf-8") as f:
+                    trades = json.load(f)
+                if not isinstance(trades, list):
+                    raise ValueError(f"거래기록 최상위가 list가 아님: {type(trades).__name__}")
+            except ValueError as e:  # json.JSONDecodeError 포함
+                backup_path = f"{trades_path}.corrupt-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                try:
+                    os.replace(trades_path, backup_path)
+                except Exception as be:
+                    msg = f"손상된 거래기록({trades_path}) 백업 실패, 기록을 중단합니다: {be}"
+                    print(f"[ConfigManager] ❌ {msg}")
+                    cls._trade_file_warnings.setdefault(str(mode).upper(), []).append(msg)
+                    return False
+                msg = f"거래기록 파일이 손상되어({e}) {backup_path} 로 보존하고 새 파일에 기록합니다. 수동 복구가 필요합니다."
+                print(f"[ConfigManager] ⚠️ {msg}")
+                cls._trade_file_warnings.setdefault(str(mode).upper(), []).append(msg)
+                trades = []
+            except Exception as e:
+                msg = f"거래기록({trades_path}) 읽기 실패 — 덮어쓰지 않고 기록을 중단합니다: {e}"
+                print(f"[ConfigManager] ❌ {msg}")
+                cls._trade_file_warnings.setdefault(str(mode).upper(), []).append(msg)
+                return False
+        else:
+            trades = cls.load_trades(mode)  # 레거시 vwap_trades.json 마이그레이션 경로 포함
         trades.append(trade_item)
-        cls.save_trades(trades, mode)
+        return cls.save_trades(trades, mode)
+
+    @staticmethod
+    def load_tracked_orders(mode: str = "REAL") -> dict:
+        """실거래 봇이 추적 중인 주문 상태(vwap_tracked_orders_<mode>.json)를 로드합니다.
+
+        Returns:
+            {"orders": {order_id: info}, "last_qty": {ticker: qty}} — 파일이 없거나 손상되면 빈 구조.
+        """
+        path = os.path.join(DATA_DIR, f"vwap_tracked_orders_{mode.lower()}.json")
+        empty = {"orders": {}, "last_qty": {}}
+        if not os.path.exists(path):
+            return empty
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return empty
+            orders = data.get("orders") if isinstance(data.get("orders"), dict) else {}
+            last_qty = data.get("last_qty") if isinstance(data.get("last_qty"), dict) else {}
+            return {"orders": orders, "last_qty": last_qty}
+        except Exception as e:
+            print(f"[ConfigManager] Failed to load tracked orders for {mode}: {e}")
+            return empty
+
+    @staticmethod
+    def save_tracked_orders(data: dict, mode: str = "REAL"):
+        """추적 주문 상태를 원자적으로 저장합니다 (임시파일 작성 후 교체 — 쓰는 도중 꺼져도 기존 파일 보존)."""
+        path = os.path.join(DATA_DIR, f"vwap_tracked_orders_{mode.lower()}.json")
+        tmp_path = path + ".tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            os.replace(tmp_path, path)
+        except Exception as e:
+            print(f"[ConfigManager] Failed to save tracked orders for {mode}: {e}")

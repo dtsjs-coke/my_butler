@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from core.vwap.strategy import VwapStrategy
+from core.vwap.session import SessionSpec
 
 class VwapBacktester:
     @staticmethod
@@ -19,8 +20,9 @@ class VwapBacktester:
         if df.empty or len(df) < 10:
             raise ValueError("백테스트를 위한 과거 캔들 데이터가 충분하지 않습니다. (최소 10개 이상 필요)")
 
-        # VWAP 계산 (기본 리셋 기준 시각은 22:30 적용)
-        df = VwapStrategy.calculate_vwap(df, reset_time_str="22:30")
+        # VWAP 계산 (기본 리셋 22:30 — 미국 종목이면 봇과 같이 서머타임에 따라 22:30/23:30 자동, ADR-0008)
+        df = VwapStrategy.calculate_vwap(df, reset_time_str="22:30",
+                                         session=SessionSpec.for_market(None, "22:30", ticker))
 
         cash = initial_balance
         qty = 0.0
