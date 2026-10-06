@@ -44,19 +44,22 @@
         </div>
     </div>
 
-    <!-- 3. 차수별 금액 입력 테이블 -->
+    <!-- 3. 차수별 금액/결제/참석자 비율 통합 입력 테이블 -->
     <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm overflow-hidden">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-1">
             <h3 class="text-lg font-bold flex items-center gap-2">
                 <i data-lucide="krw-sign" class="w-5 h-5 text-green-500"></i>
-                차수별 금액 및 결제 정보
+                차수별 금액・결제・참석자 비율 입력
             </h3>
             <button onclick="addNewRow()" class="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition-colors">
                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
                 차수 추가
             </button>
         </div>
-        
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            참석자 비율은 참석 시 <code class="px-1 py-0.5 bg-gray-100 dark:bg-dark-card rounded">1</code>, 불참 시 <code class="px-1 py-0.5 bg-gray-100 dark:bg-dark-card rounded">0</code>을 입력하고, 부담을 달리할 경우 원하는 배율(예: <code class="px-1 py-0.5 bg-gray-100 dark:bg-dark-card rounded">0.8</code>, <code class="px-1 py-0.5 bg-gray-100 dark:bg-dark-card rounded">0.5</code>)을 입력하세요. 비율 아래에 계산된 분담액이 바로 표시됩니다.
+        </p>
+
         <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-left text-sm border-collapse min-w-max table-auto">
                 <thead>
@@ -64,9 +67,9 @@
                         <th class="py-3 px-2 min-w-[120px] max-w-[240px]">항목 (가게 이름)</th>
                         <th class="py-3 px-2 min-w-[100px] max-w-[180px]">금액 (원)</th>
                         <th class="py-3 px-2 min-w-[90px] max-w-[140px]">결제자</th>
-                        <th class="py-3 px-2 min-w-[70px] max-w-[100px]">참여 인원</th>
                         <th class="py-3 px-2 min-w-[150px] max-w-[300px]">비고</th>
-                        <!-- 참석자별 <th> 열들이 동적으로 추가됨 -->
+                        <th class="py-3 px-2 min-w-[70px] max-w-[100px] text-center">참여 인원</th>
+                        <!-- 참석자별 비율 입력 <th> 열들이 동적으로 추가됨 -->
                         <th class="py-3 px-2 w-[50px] text-center">삭제</th>
                     </tr>
                 </thead>
@@ -129,34 +132,6 @@
         </div>
     </div>
 
-    <!-- 5. 차수별 참석자 비율(가중치) 설정 테이블 -->
-    <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm overflow-hidden">
-        <div>
-            <h3 class="text-lg font-bold flex items-center gap-2 mb-1">
-                <i data-lucide="sliders" class="w-5 h-5 text-purple-500"></i>
-                차수별 참석자 비율(가중치) 입력
-            </h3>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">참석 시 `1`, 불참 시 `0`을 입력하고, 부담을 달리할 경우 원하는 배율(예: `0.8`, `0.5`)을 입력하세요.</p>
-        </div>
-        
-        <div class="overflow-x-auto custom-scrollbar">
-            <table class="w-full text-left text-sm border-collapse min-w-max table-auto">
-                <thead>
-                    <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase" id="ratio-table-header-row">
-                        <th class="py-3 px-2 min-w-[120px] max-w-[240px]">항목 (가게 이름)</th>
-                        <th class="py-3 px-2 min-w-[100px] max-w-[180px]">금액 (원)</th>
-                        <th class="py-3 px-2 min-w-[90px] max-w-[140px]">결제자</th>
-                        <th class="py-3 px-2 min-w-[70px] max-w-[100px]">참여 인원</th>
-                        <th class="py-3 px-2 min-w-[150px] max-w-[300px]">비고</th>
-                        <!-- 참석자별 비율 <th> 열들이 동적으로 추가됨 -->
-                    </tr>
-                </thead>
-                <tbody id="ratio-table-body">
-                    <!-- JavaScript에서 동적으로 추가 -->
-                </tbody>
-            </table>
-        </div>
-    </div>
 </div>
 
 <script>
@@ -318,49 +293,34 @@
 
     // 테이블 UI 그리기
     function renderTables() {
-        // --- 1. 테이블 헤더 재구성 (참석자 1인당 1개 열 할당, min/max-width 적용) ---
-        // (금액 테이블 헤더)
+        // --- 1. 테이블 헤더 재구성 (참석자 1인당 "비율 입력 + 계산액" 1개 열 할당, min/max-width 적용) ---
         const costHeaderRow = document.getElementById('cost-table-header-row');
         let costHeaderHtml = `
             <th class="py-3 px-2 min-w-[120px] max-w-[240px]">항목 (가게 이름)</th>
             <th class="py-3 px-2 min-w-[100px] max-w-[180px]">금액 (원)</th>
             <th class="py-3 px-2 min-w-[90px] max-w-[140px]">결제자</th>
-            <th class="py-3 px-2 min-w-[70px] max-w-[100px] text-center">참여 인원</th>
             <th class="py-3 px-2 min-w-[150px] max-w-[300px]">비고</th>
+            <th class="py-3 px-2 min-w-[70px] max-w-[100px] text-center">참여 인원</th>
         `;
         participants.forEach(p => {
-            costHeaderHtml += `<th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center font-bold text-gray-700 dark:text-gray-200 min-w-[90px] max-w-[150px]">${p}</th>`;
+            costHeaderHtml += `<th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center font-bold text-gray-700 dark:text-gray-200 min-w-[100px] max-w-[160px]">${p}<br><span class="normal-case font-normal text-[10px] text-gray-400">비율 / 분담액</span></th>`;
         });
         costHeaderHtml += `<th class="py-3 px-2 w-[50px] text-center">삭제</th>`;
         costHeaderRow.innerHTML = costHeaderHtml;
 
-        // (비율 테이블 헤더)
-        const ratioHeaderRow = document.getElementById('ratio-table-header-row');
-        let ratioHeaderHtml = `
-            <th class="py-3 px-2 min-w-[120px] max-w-[240px]">항목 (가게 이름)</th>
-            <th class="py-3 px-2 min-w-[100px] max-w-[180px]">금액 (원)</th>
-            <th class="py-3 px-2 min-w-[90px] max-w-[140px]">결제자</th>
-            <th class="py-3 px-2 min-w-[70px] max-w-[100px] text-center">참여 인원</th>
-            <th class="py-3 px-2 min-w-[150px] max-w-[300px]">비고</th>
-        `;
-        participants.forEach(p => {
-            ratioHeaderHtml += `<th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center font-bold text-gray-700 dark:text-gray-200 min-w-[90px] max-w-[150px]">${p}</th>`;
-        });
-        ratioHeaderRow.innerHTML = ratioHeaderHtml;
-
-        // --- 2. 차수별 정산 테이블 바디 그리기 (일치된 min/max-width 할당) ---
+        // --- 2. 차수별 정산 테이블 바디 그리기 (항목/금액/결제자/비고 + 참석자별 비율·분담액을 한 행에 통합) ---
         const costBody = document.getElementById('cost-table-body');
         costBody.innerHTML = '';
-        
+
         items.forEach((item, idx) => {
             initRatios(item);
             let pCount = getParticipantCount(item);
             let tr = document.createElement('tr');
             tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
-            
+
             let optionsHtml = participants.map(p => `<option value="${p}" ${item.payer === p ? 'selected' : ''}>${p}</option>`).join('');
 
-            // 기본 열들 생성 (헤더와 동일한 min/max width 설정)
+            // 기본 열들 생성 (Tab 이동 순서: 항목명 -> 금액 -> 결제자 -> 비고 -> 참석자별 비율)
             let rowHtml = `
                 <td class="py-2.5 px-2 min-w-[120px] max-w-[240px]">
                     <input type="text" value="${item.name}" onchange="updateItemField('${item.id}', 'name', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none font-medium">
@@ -373,17 +333,22 @@
                         ${optionsHtml}
                     </select>
                 </td>
-                <td class="py-2.5 px-2 min-w-[70px] max-w-[100px] text-gray-500 dark:text-gray-400 text-center">${pCount}</td>
                 <td class="py-2.5 px-2 min-w-[150px] max-w-[300px]">
                     <input type="text" value="${item.note || ''}" placeholder="-" onchange="updateItemField('${item.id}', 'note', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none text-xs">
                 </td>
+                <td class="py-2.5 px-2 min-w-[70px] max-w-[100px] text-gray-500 dark:text-gray-400 text-center">${pCount}</td>
             `;
 
-            // 참석자별 개인 분담금 <td> 열 생성
+            // 참석자별 "비율 입력 + 계산된 분담액" <td> 열 생성 (하나의 열에서 입력과 결과를 함께 확인)
             participants.forEach(p => {
+                let ratioVal = item.ratios[p] !== undefined ? item.ratios[p] : 1;
+                let calcAmt = calculatedAmounts[item.id] ? (calculatedAmounts[item.id][p] || 0) : 0;
                 rowHtml += `
-                    <td class="py-2.5 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center text-xs font-semibold text-gray-600 dark:text-gray-300 min-w-[90px] max-w-[150px]">
-                        ${(calculatedAmounts[item.id][p] || 0).toLocaleString()}
+                    <td class="py-2 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center min-w-[100px] max-w-[160px]">
+                        <input type="number" step="0.1" min="0" value="${ratioVal}"
+                               onchange="updateRatio('${item.id}', '${p}', this.value)"
+                               class="w-full text-center py-1.5 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-purple-500">
+                        <div class="mt-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400">${calcAmt.toLocaleString()}원</div>
                     </td>
                 `;
             });
@@ -396,7 +361,7 @@
                     </button>
                 </td>
             `;
-            
+
             tr.innerHTML = rowHtml;
             costBody.appendChild(tr);
         });
@@ -407,12 +372,12 @@
             <td class="py-3 px-2 min-w-[120px] max-w-[240px] font-bold text-gray-700 dark:text-gray-300">[개인별 합계]</td>
             <td class="py-3 px-2 min-w-[100px] max-w-[180px] text-blue-600 dark:text-blue-400 font-bold">${totalAmount.toLocaleString()}</td>
             <td class="py-3 px-2 min-w-[90px] max-w-[140px]"></td>
-            <td class="py-3 px-2 min-w-[70px] max-w-[100px]"></td>
             <td class="py-3 px-2 min-w-[150px] max-w-[300px]"></td>
+            <td class="py-3 px-2 min-w-[70px] max-w-[100px]"></td>
         `;
         participants.forEach(p => {
             costFooterHtml += `
-                <td class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center text-xs text-blue-600 dark:text-blue-400 font-bold min-w-[90px] max-w-[150px]">
+                <td class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center text-xs text-blue-600 dark:text-blue-400 font-bold min-w-[100px] max-w-[160px]">
                     ${(participantTotals[p] || 0).toLocaleString()}
                 </td>
             `;
@@ -459,38 +424,6 @@
                 guideList.appendChild(card);
             });
         }
-
-        // --- 6. 차수별 참석 비율(가중치) 테이블 바디 그리기 ---
-        const ratioBody = document.getElementById('ratio-table-body');
-        ratioBody.innerHTML = '';
-        items.forEach(item => {
-            let pCount = getParticipantCount(item);
-            let tr = document.createElement('tr');
-            tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
-            
-            // 기본 비율 열들 생성
-            let rowHtml = `
-                <td class="py-2.5 px-2 min-w-[120px] max-w-[240px] font-medium text-gray-700 dark:text-gray-300">${item.name}</td>
-                <td class="py-2.5 px-2 min-w-[100px] max-w-[180px] text-gray-500 dark:text-gray-400">${(parseFloat(item.amount) || 0).toLocaleString()}</td>
-                <td class="py-2.5 px-2 min-w-[90px] max-w-[140px] text-gray-500 dark:text-gray-400">${item.payer}</td>
-                <td class="py-2.5 px-2 min-w-[70px] max-w-[100px] text-gray-500 dark:text-gray-400 text-center">${pCount}</td>
-                <td class="py-2.5 px-2 min-w-[150px] max-w-[300px] text-gray-500 dark:text-gray-400 text-xs">${item.note || '-'}</td>
-            `;
-
-            // 각 참석자별 비율 입력 <td> 생성 (min/max width 적용)
-            participants.forEach(p => {
-                rowHtml += `
-                    <td class="py-2 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center min-w-[90px] max-w-[150px]">
-                        <input type="number" step="0.1" min="0" value="${item.ratios[p] !== undefined ? item.ratios[p] : 1}" 
-                               onchange="updateRatio('${item.id}', '${p}', this.value)" 
-                               class="w-full text-center py-1.5 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-purple-500">
-                    </td>
-                `;
-            });
-
-            tr.innerHTML = rowHtml;
-            ratioBody.appendChild(tr);
-        });
 
         // Lucide 아이콘 갱신
         if (window.lucide) lucide.createIcons();
