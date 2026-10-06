@@ -50,3 +50,5 @@ data/*.yaml
 
 # VWAP Trading Bot Cryptography Keys
 vwap_secret.key
+# 백테스트 시세 캐시 (재생성 가능)
+backtest/data_cache/
