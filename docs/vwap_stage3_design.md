@@ -14,6 +14,7 @@
    - (c) `_cycle`/`_order_meta()`에 `cycle_id`·`df`·컨텍스트 저장
    - (d) `TossBroker.last_candles_source` 읽기 전용 속성
    - 그 밖의 REAL 경로 변경은 시니어 리뷰 없이 금지.
+   - > **정정 2026-10-07**: 이 원칙의 예외로, 사용자 결정에 따라 [ADR-0009](adr/0009-vwap-start-wait-stop-loss.md)가 `bot.py` 7-1(거래 시작 대기 중 신호 덮어쓰기 범위)과 9-2-0(대기 중 보유 SELL 주기의 매수 미체결 취소)을 바꿨다. 3단계 기능 변경이 아니라 별도 매매 동작 수정이다.
 2. 새 기능의 모든 예외는 내부에서 삼키고 이벤트·로그만 남긴다. REAL 루프가 죽거나 지연되면 안 된다. 훅 하나의 소요시간 상한은 기본 2초이고, 넘으면 경고 이벤트를 남긴다.
 3. 회귀 테스트 `scripts/test_vwap_reliability.py`(69/69)와 `scripts/test_vwap_transparency.py`(69/69)는 **모든 작업 단위가 끝날 때마다** 통과해야 한다. 운영 `data/` 해시는 전후가 같아야 한다.
 4. S9 제약: 순수 pandas/numpy만 쓴다(Numba·pyarrow·yfinance 금지). CPU를 많이 쓰는 작업은 **별도 프로세스**에서 한다. 런타임 파일은 반드시 `data/` 아래, sync 제외 목록에 있는 경로에만 쓴다.
@@ -38,11 +39,13 @@
 
 ## 2. 신규·변경 파일 목록
 
+> **정정 2026-10-07** (SR-1 구현 결과 반영): ① `rules.py` 함수 시그니처는 `is_waiting_for_start(now, start_time, reset_time, session: SessionSpec)`이고, 대기 구간 계산 `start_wait_window(...)`와 대기 중 덮어쓰기 범위 `start_wait_blocks(signal, position_qty)`(ADR-0009)가 함께 있다. ② 플러그인 테스트(T-P0~T-P5)는 `scripts/test_vwap_stage3_plugin.py`로 분리했다. `scripts/test_vwap_stage3.py`는 나머지(T-H/T-B/T-S/T-R/T-A) 담당이다.
+
 | 구분 | 파일 | 담당 | 비고 |
 |---|---|---|---|
 | 신규 | `core/vwap/strategies/__init__.py`, `base.py` | 시니어 | `TradingStrategy`, `StrategySignal`, `StrategyContext`, `PositionView` |
 | 신규 | `core/vwap/strategies/s0_current.py` | 시니어 | `S0CurrentStrategy` — `VwapStrategy` 래퍼 |
-| 신규 | `core/vwap/strategies/rules.py` | 시니어 | 순수 함수 `is_waiting_for_start(now, reset_time, start_time)` (bot 7-1 로직과 동치. bot은 아직 이 함수를 쓰지 않음) |
+| 신규 | `core/vwap/strategies/rules.py` | 시니어 | 순수 함수 `is_waiting_for_start(now, start_time, reset_time, session)`, `start_wait_window(...)`, `start_wait_blocks(signal, position_qty)` (bot 7-1 로직과 동치. bot은 아직 이 함수를 쓰지 않음) — *정정 2026-10-07* |
 | 신규 | `core/vwap/replay_engine_adapter.py` | 시니어 | `PluginEngineAdapter` (backtest.engine 전략 호환) |
 | 신규 | `core/vwap/bars_store.py` | 주니어 | 봉 적재·조회 |
 | 신규 | `core/vwap/bar_source.py` | 주니어 | 리플레이용 데이터 로더(bars_store + Yahoo requests 분할 수집 + `data/replay_cache/`) |
@@ -57,18 +60,26 @@
 | 변경 | `api/templates/vwap_dashboard.html` | ui-dev | §10 |
 | 변경 | `../sync_manager/sync_s9.py` | 주니어 | 제외 목록 추가(§7). **사용자 승인 후** (다른 프로젝트 파일) |
 | 유지 | `core/vwap/backtester.py`, `/vwap/api/backtest` | — | 하위 호환으로 남김. 리플레이가 안정화되면 삭제(별도 작업) |
-| 신규 | `scripts/test_vwap_stage3.py` | 작업별 분담 | §11 |
+| 신규 | `scripts/test_vwap_stage3.py` | 작업별 분담 | §11 (T-H/T-B/T-S/T-R/T-A) |
+| 신규 | `scripts/test_vwap_stage3_plugin.py` | 시니어 | §11 (T-P0~T-P5) — *정정 2026-10-07: 플러그인 테스트 분리* |
 | 문서 | `docs/vwap_user_guide.md` 8장, Obsidian `vwap_system_flow_guide.md` | 오케스트레이터 | 구현 완료 후 |
 
 ---
 
 ## 3. 전략 플러그인 인터페이스 (시니어)
 
+> **정정 2026-10-07** (SR-1 구현 결과 반영 — 실제 코드가 기준, 아래 본문은 정정된 내용):
+> 1. `StrategyContext`에 **`market`** 필드가 있고, 세션 규칙은 **`ctx.session_spec()`**(= `SessionSpec.for_market(market, reset_time, ticker)`, ADR-0008)로 얻는다. `prepare`·세션 날짜·대기 규칙이 모두 이것을 쓴다. 엔진 입력 `session_date`도 `get_session_date(reset_time)`이 아니라 `SessionSpec.session_key` 기준이다.
+> 2. `rules` 시그니처는 `is_waiting_for_start(now, start_time, reset_time, session)`이다(§2 정정 참고).
+> 3. `evaluate(df, j, pos, ctx, now=None)` — `now`를 생략하면 **j 봉이 마감되는 시각(`time[j] + 봉 간격`)**을 쓴다. 리플레이 엔진은 j 봉 판단을 j+1 봉에 체결시키므로 이 시각이 실시간 봇의 `now`에 해당한다. 실시간 호출자는 현재 시각을 넘긴다. (이전 본문의 `df.time[j]`는 틀림)
+> 4. 플러그인 테스트는 `scripts/test_vwap_stage3_plugin.py`로 분리했다(§11).
+> 5. (ADR-0009) 대기 중 덮어쓰기는 `rules.start_wait_blocks(signal, pos.qty)`가 True(무보유 또는 BUY)일 때만이다. 보유 중 STOP_LOSS/SELL/HOLD 는 그대로 둔다.
+
 ```python
 # core/vwap/strategies/base.py
 @dataclass(frozen=True)
 class StrategyContext:
-    ticker: str; interval: str; reset_time: str; start_time: str
+    ticker: str; market: str; interval: str; reset_time: str; start_time: str   # market: 정정 2026-10-07
     params: dict          # n/m/x/k_percent, use_adx_filter, adx_threshold, use_rsi_filter, rsi_threshold,
                           # use_vwap_band, vwap_band_sigma (설정 dict 에서 접두어 제거한 값)
 
@@ -98,18 +109,19 @@ class TradingStrategy(ABC):
     def prepare(self, df: pd.DataFrame, ctx: StrategyContext) -> pd.DataFrame:
         """인과적 지표를 한 번에 계산해 반환 (미래 행을 참조하는 컬럼 금지)."""
     @abstractmethod
-    def evaluate(self, df: pd.DataFrame, j: int, pos: PositionView, ctx: StrategyContext) -> StrategySignal:
-        """prepare 결과의 j행까지만 보고 판단."""
+    def evaluate(self, df: pd.DataFrame, j: int, pos: PositionView, ctx: StrategyContext,
+                 now: Optional[datetime] = None) -> StrategySignal:
+        """prepare 결과의 j행까지만 보고 판단. now 생략 시 j 봉 마감 시각(time[j] + 봉 간격)."""
 ```
 
-- `S0CurrentStrategy.prepare` = `VwapStrategy.calculate_vwap(df, ctx.reset_time)`.
-- `S0CurrentStrategy.evaluate` = `VwapStrategy.get_signals(df.iloc[[j]], n, m, x, pos.qty, pos.entry_price, …filters…)`를 `StrategySignal`로 변환. 여기에 `rules.is_waiting_for_start(df.time[j], …)`가 True면 `WAIT`/`WAIT_START_TIME`으로 덮어쓴다(bot 7-1과 같은 규칙).
+- `S0CurrentStrategy.prepare` = `VwapStrategy.calculate_vwap(df, ctx.reset_time, session=ctx.session_spec())`.
+- `S0CurrentStrategy.evaluate` = `VwapStrategy.get_signals(df.iloc[[j]], n, m, x, pos.qty, pos.entry_price, …filters…)`를 `StrategySignal`로 변환. 여기에 `rules.start_wait_blocks(signal, pos.qty)`가 True이고 `rules.is_waiting_for_start(now, ctx.start_time, ctx.reset_time, ctx.session_spec())`가 True면 `WAIT`/`WAIT_START_TIME`으로 덮어쓴다(bot 7-1과 같은 규칙, ADR-0009). `now` 기본값은 j 봉 마감 시각.
 - **인과성 계약**: `prepare` 결과의 j행 값은 j 이후 행이 바뀌어도 변하지 않아야 한다. S0는 누적합과 `ewm(adjust=False)`만 쓰므로 만족한다. 테스트로 검증한다(§11 T-P2).
 - 알려진 차이: 실시간은 150봉 창으로 RSI/ADX를 매번 새로 계산하고(ewm 초기값이 창마다 다름), 리플레이는 전체 구간으로 한 번 계산한다. VWAP과 표준편차는 세션 누적이라 같다. 리플레이 결과 `assumptions.not_modeled`에 명시한다.
 - `PluginEngineAdapter(strategy, ctx)`는 `backtest.engine`이 기대하는 `name/on_start/on_session_start/on_entry/decide`를 구현한다.
   - `decide(j)`가 `evaluate(j, PositionView(pos.qty, pos.entry_raw, pos.bars_held))`를 호출해 매핑한다.
   - 매핑: BUY → `Decision(buy_limit=target_buy)`, SELL → `Decision(sell_limit=target_sell)`, STOP_LOSS → `Decision(exit_market=True, note="STOP_LOSS_MKT")`, HOLD/WAIT → `Decision()`. `exit_market=True`면 → `Decision(exit_market=True, note=reason_code)`.
-  - 엔진 입력 df에는 `session_date = get_session_date(time, reset_time)`(bot.py 함수 재사용)를 붙인다.
+  - 엔진 입력 df에는 `session_date = ctx.session_spec().session_key(time)`(ADR-0008 `SessionSpec`, 봇과 같은 규칙)를 붙인다. *(정정 2026-10-07: 이전 본문의 `get_session_date(time, reset_time)`는 ADR-0008로 대체)*
 
 ---
 
@@ -256,7 +268,7 @@ class TradingStrategy(ABC):
 - `append_closed_bars(ticker, interval, df, reset_time, source)`
   - df의 **마지막 행은 제외**한다(진행 중 봉일 수 있음).
   - `(ticker, interval)`별 메모리 `last_saved_time`보다 큰 행만 기록한다. 처음 호출 시에는 해당 세션 파일 마지막 줄에서 복원한다.
-  - 행마다 `get_session_date(time, reset_time)`으로 파일을 나눈다: `data/bars/{TICKER}_{interval}_{YYYY-MM-DD}.csv`(헤더 `time,open,high,low,close,volume,source`)
+  - 행마다 `get_session_date(time, reset_time)`으로 파일을 나눈다 *(정정 2026-10-07: ADR-0008 이후 `SessionSpec.label_bars` 기준(bars_store 구현과 동일))*: `data/bars/{TICKER}_{interval}_{YYYY-MM-DD}.csv`(헤더 `time,open,high,low,close,volume,source`)
   - 모듈 Lock을 쓰고, 예외는 삼키되 경고 로그는 10분에 1회.
 - `read_range(ticker, interval, start_date, end_date) -> DataFrame`: 파일을 합치고, 손상된 줄은 건너뛰고, `time` 기준 중복 제거(마지막 값 유지)와 정렬
 - `hook(ctx)`: `ctx["df"]`가 비어 있지 않을 때만 동작하고, `candles_source`를 source로 쓴다. `bars_store_enabled=false`면 아무것도 하지 않는다.
@@ -266,6 +278,8 @@ class TradingStrategy(ABC):
 
 ## 7. 설정 키 / 파일 / sync 제외
 
+> **정정 2026-10-07**: 서버 설정 키 `ui_show_legacy_virtual`은 **삭제 확정**(QA 권고, `config_manager.py`에서 제거, 코드 참조 0건). 레거시 가상봇(V1~V3) 표시 토글은 브라우저 `localStorage`의 `vwap_ui_show_legacy_virtual`만 사용하며 서버 키는 없다. 아래 표와 bool 접미어 목록에서 해당 항목을 뺐다.
+
 | 키 | 기본값 | 설명 |
 |---|---|---|
 | `shadow_enabled` | `true` | REAL 훅에서 섀도우 실행 |
@@ -273,9 +287,8 @@ class TradingStrategy(ABC):
 | `shadow_price_tolerance_pct` | `0.05` | MATCH 판정 허용 가격차 |
 | `bars_store_enabled` | `true` | 봉 적재 |
 | `replay_timeout_sec` | `300` | 리플레이 자식 프로세스 제한시간 |
-| `ui_show_legacy_virtual` | `false` | V1~V3 탭 표시 여부(UI 전용) |
 
-- bool 키는 vwap_api 허용키 변환에서 `discord_notify`처럼 bool로 처리하도록 접미어 목록에 `_enabled`, `ui_show_legacy_virtual`을 추가한다.
+- bool 키는 vwap_api 허용키 변환에서 `discord_notify`처럼 bool로 처리하도록 접미어 목록에 `_enabled`를 추가한다.
 - **sync 제외 추가**(`sync_manager/sync_s9.py`): `data/replay`, `data/replay/*`, `data/replay_cache`, `data/replay_cache/*`, `data/vwap_shadow_state.json`, `data/vwap_shadow_state.json.tmp`. 함께 권장: `backtest/data_cache`, `backtest/data_cache/*`(F4. 9.4MB 전송 방지와 S9 런타임 캐시 삭제 방지). `data/bars`는 이미 추가됨. **다른 프로젝트 파일이므로 사용자 승인 후 진행.**
 
 ---
@@ -309,9 +322,11 @@ class TradingStrategy(ABC):
 
 ## 10. UI 요구사항 (ui-dev)
 
+> **정정 2026-10-07**: 1번 "V1~V3 숨김"의 토글 상태는 서버 설정 키가 아니라 브라우저 `localStorage`(`vwap_ui_show_legacy_virtual`)에만 저장한다. 서버 키 `ui_show_legacy_virtual`은 없다(§7 정정).
+
 공통: 기존 디자인 토큰과 탭 구조를 유지한다. 외부 차트 라이브러리는 새로 넣지 않는다(현재 대시보드는 Tailwind+lucide만 쓴다). 그래프는 **인라인 SVG polyline**으로 그린다. 모든 숫자에 통화 표기 규칙(6자리 숫자 티커 ₩, 그 외 $)을 적용한다.
 
-1. **V1~V3 숨김**: 설정 `ui_show_legacy_virtual`이 false면 가상 1~3 탭과 종합 가상 잔고 카드를 숨긴다. 설정 화면에 "구버전 가상봇 표시" 토글을 둔다. API·데이터는 그대로.
+1. **V1~V3 숨김**: 브라우저 `localStorage`의 `vwap_ui_show_legacy_virtual`이 켜져 있지 않으면 가상 1~3 탭과 종합 가상 잔고 카드를 숨긴다(기본 숨김). 설정 화면에 "구버전 가상봇 표시" 토글을 둔다. 서버 설정 키는 없고 API·데이터는 그대로.
 2. **섀도우 패널** (실거래 탭 안 또는 새 "실거래 vs 섀도우" 탭)
    - 상단 상태: "실거래 설정을 자동으로 따라가는 중" 문구, 마지막 실행 시각, 마지막 동기화 시각과 사유, 섀도우 판단 사유(`reason_text`)
    - 좌우 비교 카드(실거래 | 섀도우): 거래수, 체결수, 순손익, 승률, 평균 슬리피지%. 차이(net_pnl_gap)는 강조색
@@ -336,12 +351,15 @@ class TradingStrategy(ABC):
 
 ## 11. 테스트 계획 — `scripts/test_vwap_stage3.py` (네트워크 없음, 1단계 하네스 재사용)
 
+> **정정 2026-10-07**: 플러그인 항목(T-P0~T-P5)은 `scripts/test_vwap_stage3_plugin.py`로 분리했다. T-P0(설정 해석), T-P5(ADR-0009 대기 중 포지션 보호)가 추가됐고, T-P1c(실제 봇 `_loop_step` 대조)와 T-P3의 거래 시작 대기 항목이 있다. 나머지 항목은 `scripts/test_vwap_stage3.py`에 있다.
+
 | ID | 항목 | 담당 |
 |---|---|---|
 | T-P1 | `S0CurrentStrategy.evaluate`의 signal/target/stop/reason이 `VwapStrategy.get_signals`(같은 창)와 일치. 무작위 경로 200개 × 필터·밴드 on/off 조합 | 시니어 |
 | T-P2 | 인과성: j 이후 행을 훼손해도 `prepare` 결과 j행과 `evaluate(j)`가 불변 | 시니어 |
 | T-P3 | 엔진 동치: 합성 데이터(세션 경계 일치, 필터·밴드 off)에서 `PluginEngineAdapter(S0)` 거래 목록 == `backtest.strategies.S0_Current` 거래 목록 | 시니어 |
 | T-P4 | `rules.is_waiting_for_start`가 bot 7-1 로직과 같음(자정 경계·잘못된 형식 포함) | 시니어 |
+| T-P5 | (ADR-0009) 대기 중 실제 봇 == 플러그인(보유/무보유), 가상·REAL mock 에서 보유 손절 시장가 청산 / 무보유 BUY 차단 / 미체결 정리 — *추가 2026-10-07* | 시니어 |
 | T-H1 | 훅 격리: 예외를 던지는 훅, 3초 지연 훅이 있어도 REAL `placed/canceled` 주문 시퀀스가 훅 없을 때와 **완전히 같음**. 경고 이벤트 1회 | 시니어 |
 | T-H2 | `cycle_id`가 tracked 주문·REAL 거래 레코드·ORDER_PLACED 이벤트에 기록됨 | 시니어 |
 | T-B1 | bars_store: 마감봉만, 150봉 겹치는 입력 10회 → 중복 0, 세션 날짜 분할, 재시작 후 복원, 손상 줄 무시, 쓰기 실패 무해, 동시 기록 | 주니어 |

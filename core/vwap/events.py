@@ -34,9 +34,10 @@ logger = logging.getLogger("vwap_bot")
 EVENT_TYPES = {
     "BOT_START", "BOT_STOP", "SIGNAL_CHANGE", "ORDER_PLACED", "ORDER_REPLACED", "ORDER_CANCELED",
     "FILL", "STOP_LOSS", "PANIC", "ERROR", "CRITICAL",
+    "SHADOW_SYNC",  # 3단계: 섀도우 봇이 REAL 보유 상태로 재동기화됨
 }
 EVENT_LEVELS = {"info", "warn", "error", "critical"}
-VALID_MODES = {"REAL", "VIRTUAL_1", "VIRTUAL_2", "VIRTUAL_3"}
+VALID_MODES = {"REAL", "VIRTUAL_1", "VIRTUAL_2", "VIRTUAL_3", "VIRTUAL_SHADOW"}  # VIRTUAL_SHADOW: 3단계 섀도우 봇
 
 MAX_EVENT_FILE_BYTES = 2 * 1024 * 1024  # 2MB 초과 시 .1 로 회전
 NOTIFY_DEDUP_SEC = 60                   # 같은 type+reason 알림 중복 억제 시간

@@ -163,6 +163,13 @@ class VwapConfigManager:
             # Discord 알림 (관측성) — 실거래는 기본 ON, 가상봇(1~3 공통)은 기본 OFF
             "real_discord_notify": True,
             "virtual_discord_notify": False,
+
+            # 3단계(섀도우/리플레이/봉 적재) — docs/vwap_stage3_design.md §7
+            "shadow_enabled": True,                # REAL 훅에서 섀도우 실행
+            "shadow_fee_roundtrip_pct": 0.2,       # 섀도우 순손익 추정 수수료(왕복 %)
+            "shadow_price_tolerance_pct": 0.05,    # MATCH 판정 허용 가격차(%)
+            "bars_store_enabled": True,            # 마감 봉 적재
+            "replay_timeout_sec": 300,             # 리플레이 자식 프로세스 제한시간(초)
         }
 
     @classmethod

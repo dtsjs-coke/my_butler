@@ -764,6 +764,77 @@
         }
         .bot-layout > *, .bottom-layout > *, .grid-2 > *, .bt-layout > *, .form-row > *, .portfolio-comparison > * { min-width: 0; }
         .src-simulated { color: #94a3b8; background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.3); }
+
+        /* ===== 3단계 UI-1: 레거시 가상봇 숨김 / 섀도우 / 리플레이 ===== */
+        body.hide-legacy .legacy-virtual { display: none !important; }
+        body.hide-legacy .portfolio-comparison,
+        body.hide-legacy .ov-hold-grid { grid-template-columns: 1fr; }
+        .legacy-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); cursor: pointer; min-height: 36px; user-select: none; }
+        .legacy-toggle input { width: 16px; height: 16px; cursor: pointer; }
+
+        .s3-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+        .s3-head h2 { font-size: 15px; font-weight: 700; color: var(--accent-blue); overflow-wrap: anywhere; }
+        .sample-badge { display: none; padding: 3px 10px; border-radius: 999px; border: 1px dashed var(--accent-yellow); background: rgba(245,158,11,0.14); color: #fbbf24; font-size: 12px; font-weight: 700; }
+        body.s3-mock .sample-badge { display: inline-block; }
+        .s3-note { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+        .s3-banner { border-radius: 14px; padding: 12px 14px; border: 1px solid var(--border-color); border-left-width: 5px; font-size: 14px; line-height: 1.5; margin-bottom: 12px; overflow-wrap: anywhere; word-break: keep-all; }
+        .s3-banner strong { display: block; font-size: 15px; margin-bottom: 2px; }
+        .s3-banner.gray   { border-left-color: #64748b; background: rgba(100,116,139,0.10); }
+        .s3-banner.blue   { border-left-color: var(--accent-blue); background: rgba(59,130,246,0.10); }
+        .s3-banner.green  { border-left-color: var(--accent-green); background: rgba(16,185,129,0.10); }
+        .s3-banner.orange { border-left-color: var(--accent-yellow); background: rgba(245,158,11,0.12); }
+        .s3-banner.red    { border-left-color: var(--accent-red); background: rgba(244,63,94,0.10); }
+        .s3-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 12px; }
+        .s3-controls .form-group { min-width: 120px; }
+        .s3-btn { background: linear-gradient(135deg, var(--accent-blue) 0%, #1d4ed8 100%); color: white; border: none; border-radius: 10px; padding: 10px 18px; font-size: 14px; font-weight: 700; cursor: pointer; min-height: 44px; font-family: inherit; }
+        .s3-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .s3-adv { margin-bottom: 12px; border: 1px dashed var(--border-color); border-radius: 10px; padding: 8px 12px; }
+        .s3-adv summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); min-height: 32px; display: flex; align-items: center; }
+        .s3-adv .form-row { margin-top: 10px; grid-template-columns: repeat(3, 1fr); }
+        .s3-progress { margin-bottom: 14px; }
+        .s3-progress-bar { height: 10px; border-radius: 6px; background: rgba(255,255,255,0.08); overflow: hidden; }
+        .s3-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)); transition: width 0.4s ease; }
+        .s3-progress-txt { font-size: 13px; color: var(--text-secondary); margin-top: 6px; overflow-wrap: anywhere; }
+        .s3-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .s3-kpi { background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+        .s3-kpi .k { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-bottom: 4px; }
+        .s3-kpi .v { font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+        .s3-kpi .sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .s3-section-title { font-size: 13px; font-weight: 700; color: #cbd5e1; margin: 16px 0 8px; }
+        .s3-chart-wrap { background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; }
+        .s3-chart-wrap svg { display: block; width: 100%; height: 200px; }
+        .s3-chart-axis { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-secondary); margin-top: 4px; flex-wrap: wrap; }
+        .s3-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; margin-top: 6px; }
+        .s3-legend i { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+        .s3-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .s3-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 14px; padding: 14px; min-width: 0; }
+        .s3-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+        .s3-card.real h3 { color: var(--accent-purple); }
+        .s3-card.shadow h3 { color: var(--accent-blue); }
+        .s3-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.05); }
+        .s3-row span:first-child { color: var(--text-secondary); }
+        .s3-row span:last-child { font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+        .s3-gap { grid-column: 1 / -1; text-align: center; font-size: 14px; padding: 10px; border-radius: 12px; border: 1px solid var(--accent-yellow); background: rgba(245,158,11,0.12); font-weight: 700; overflow-wrap: anywhere; }
+        .vd-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid transparent; white-space: nowrap; }
+        .vd-ok   { color: var(--accent-green); background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); }
+        .vd-warn { color: #fbbf24; background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); }
+        .vd-bad  { color: #fb7185; background: rgba(244,63,94,0.12); border-color: rgba(244,63,94,0.3); }
+        .vd-dim  { color: var(--text-secondary); background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.3); }
+        .vd-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+        .s3-details { border: 1px solid var(--border-color); border-radius: 12px; padding: 8px 12px; margin-top: 14px; background: rgba(255,255,255,0.01); }
+        .s3-details summary { cursor: pointer; font-weight: 700; font-size: 13px; min-height: 32px; display: flex; align-items: center; }
+        .s3-details ul { padding-left: 18px; margin: 6px 0; font-size: 12px; color: #cbd5e1; line-height: 1.6; }
+        .s3-details li { overflow-wrap: anywhere; }
+        .s3-kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px 12px; margin: 8px 0; font-size: 12px; }
+        .s3-kv .k { color: var(--text-secondary); }
+        .s3-kv .v { font-weight: 600; overflow-wrap: anywhere; }
+        .s3-warn-list li { color: #fbbf24; }
+        @media (max-width: 768px) {
+            .s3-compare { grid-template-columns: 1fr; }
+            .s3-adv .form-row { grid-template-columns: 1fr; }
+            .s3-btn { width: 100%; }
+            .s3-controls .form-group { flex: 1 1 100%; }
+        }
     </style>
 </head>
 <body>
@@ -780,13 +851,16 @@
         <!-- 중앙 네비게이션 탭 -->
         <div class="nav-tabs">
             <button class="nav-tab-btn active" onclick="switchTab('overview', this)">📊 종합 자산 현황</button>
-            <button class="nav-tab-btn" onclick="switchTab('virtual_bot', this)">🤖 가상 자동매매</button>
+            <button class="nav-tab-btn legacy-virtual" onclick="switchTab('virtual_bot', this)">🤖 가상 자동매매</button>
             <button class="nav-tab-btn" onclick="switchTab('real_bot', this)">💼 실제 자동매매</button>
-            <button class="nav-tab-btn" onclick="switchTab('backtest', this)">📈 과거 백테스트</button>
+            <button class="nav-tab-btn" onclick="switchTab('shadow', this)">🔍 실거래 vs 섀도우</button>
+            <button class="nav-tab-btn" onclick="switchTab('replay', this)">▶️ 리플레이</button>
+            <button class="nav-tab-btn legacy-virtual" onclick="switchTab('backtest', this)">📈 과거 백테스트</button>
             <button class="nav-tab-btn" onclick="switchTab('manual', this)">📖 유저 매뉴얼</button>
         </div>
 
         <div class="header-actions">
+            <label class="legacy-toggle" for="legacyToggle"><input type="checkbox" id="legacyToggle" onchange="setLegacyVirtualVisible(this.checked)"> 고급: 가상봇 V1~V3 표시</label>
             <button class="btn-security-settings" onclick="openSecurityModal()">⚙️ API & 보안 설정</button>
             <button class="logout-btn" onclick="handleLogout()">로그아웃</button>
         </div>
@@ -800,7 +874,7 @@
             <div class="panel-title">전체 포트폴리오 자산 종합 평가</div>
             <div class="portfolio-comparison">
                 <!-- 가상 자산 카드 -->
-                <div class="asset-card" style="border-left: 4px solid var(--accent-blue);">
+                <div class="asset-card legacy-virtual" style="border-left: 4px solid var(--accent-blue);">
                     <div class="asset-card-header">
                         <h3 style="font-size: 15px; font-weight: bold; color: var(--accent-blue);">SANDBOX 가상 거래 자산</h3>
                         <span class="neutral-trend" style="font-size: 12px; font-weight: bold;">가상 모의 계정</span>
@@ -889,8 +963,8 @@
             </div>
 
             <!-- 보유 종목 리스트 비교 -->
-            <div class="grid-2" style="gap: 24px;">
-                <div>
+            <div class="grid-2 ov-hold-grid" style="gap: 24px;">
+                <div class="legacy-virtual">
                     <h4 style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: var(--accent-blue);">● 가상 포지션 보유 현황</h4>
                     <div class="table-container" style="max-height: 250px;">
                         <table>
@@ -935,7 +1009,7 @@
     <!-- --------------------------
          [TAB 2] 가상 자동매매 (Virtual Trading)
     -------------------------- -->
-    <div class="tab-content" id="tab-virtual_bot">
+    <div class="tab-content legacy-virtual" id="tab-virtual_bot">
         <!-- 📊 가상거래 종합 잔고 현황 (Summary) -->
         <div class="panel" style="margin-bottom: 20px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%); border: 1px solid rgba(59, 130, 246, 0.2);">
             <div class="panel-title" style="color: var(--accent-blue); display: flex; justify-content: space-between; align-items: center;">
@@ -1473,9 +1547,78 @@
     </div>
 
     <!-- --------------------------
+         [3단계 UI-1] 실거래 vs 섀도우 (목업: 샘플 데이터)
+    -------------------------- -->
+    <div class="tab-content" id="tab-shadow">
+        <div class="panel">
+            <div class="s3-head">
+                <h2>🔍 실거래 vs 섀도우 비교</h2>
+                <span class="sample-badge" title="실제 API가 연결되기 전의 화면 확인용 예시 데이터입니다">샘플 데이터</span>
+            </div>
+            <div id="sh_mock_ctl" class="s3-note" style="display:none; margin-bottom:10px;">
+                <label class="chk-single"><input type="checkbox" id="sh_mock_real_stopped" onchange="refreshShadowStatus()"> (샘플 전용) 실거래 정지 상태로 보기</label>
+            </div>
+            <div id="sh_status" aria-live="polite"><div class="ev-empty">불러오는 중...</div></div>
+        </div>
+        <div class="panel" style="margin-top:20px;">
+            <div class="s3-head">
+                <h2>체결·손익 비교</h2>
+                <div class="filter-chips" id="sh_days_chips" role="group" aria-label="비교 기간">
+                    <button type="button" class="filter-chip" data-days="1" onclick="setShadowDays(1)">1일</button>
+                    <button type="button" class="filter-chip active" data-days="7" onclick="setShadowDays(7)">7일</button>
+                    <button type="button" class="filter-chip" data-days="30" onclick="setShadowDays(30)">30일</button>
+                </div>
+            </div>
+            <div id="sh_compare" aria-live="polite"><div class="ev-empty">불러오는 중...</div></div>
+        </div>
+    </div>
+
+    <!-- --------------------------
+         [3단계 UI-1] 리플레이 (목업: 샘플 데이터)
+    -------------------------- -->
+    <div class="tab-content" id="tab-replay">
+        <div class="panel">
+            <div class="s3-head">
+                <h2>▶️ 현재 실거래 설정으로 과거 재생(리플레이)</h2>
+                <span class="sample-badge" title="실제 API가 연결되기 전의 화면 확인용 예시 데이터입니다">샘플 데이터</span>
+            </div>
+            <div class="s3-controls">
+                <div class="form-group">
+                    <label for="rp_days">기간 (최근 N일)</label>
+                    <select id="rp_days"></select>
+                </div>
+                <button type="button" class="s3-btn" id="rp_run_btn" onclick="startReplay()">현재 실거래 설정으로 리플레이</button>
+            </div>
+            <details class="s3-adv">
+                <summary>고급 설정 (수수료·슬리피지·체결 버퍼)</summary>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rp_fee">왕복 수수료 (%)</label>
+                        <input type="number" id="rp_fee" step="0.01" min="0" max="5" value="0.20">
+                    </div>
+                    <div class="form-group">
+                        <label for="rp_slip">왕복 슬리피지 (%)</label>
+                        <input type="number" id="rp_slip" step="0.01" min="0" max="5" value="0.05">
+                    </div>
+                    <div class="form-group">
+                        <label for="rp_buf">지정가 체결 버퍼 (%)</label>
+                        <input type="number" id="rp_buf" step="0.01" min="0" max="5" value="0.00">
+                    </div>
+                </div>
+            </details>
+            <div id="rp_msg" class="s3-note" style="margin-bottom:10px;" aria-live="polite"></div>
+            <div id="rp_progress" class="s3-progress" style="display:none;">
+                <div class="s3-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="rp_bar"><div class="s3-progress-fill" id="rp_bar_fill"></div></div>
+                <div class="s3-progress-txt" id="rp_progress_txt"></div>
+            </div>
+            <div id="rp_result"><div class="ev-empty">아직 리플레이 결과가 없습니다. 위 버튼을 눌러 실행하세요.</div></div>
+        </div>
+    </div>
+
+    <!-- --------------------------
          [TAB 4] 과거 백테스트
     -------------------------- -->
-    <div class="tab-content" id="tab-backtest">
+    <div class="tab-content legacy-virtual" id="tab-backtest">
         <div class="panel">
             <div class="panel-title">과거 캔들 데이터를 이용한 전략 백테스트</div>
             <div class="bt-layout">
@@ -1651,7 +1794,7 @@
                                 </tr>
                                 <tr>
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);"><strong>거래 시작 시각 (대기 설정)</strong></td>
-                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">리셋 직후부터 지정한 시각까지 매매 주문을 제출하지 않고 대기하도록 딜레이를 주는 시각입니다.</td>
+                                    <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">리셋 직후부터 지정한 시각까지는 신규 매수만 하지 않고 대기합니다. 이미 보유 중인 포지션의 손절·매도는 평소대로 실행됩니다.</td>
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">개장 30분~1시간 뒤인 <strong>23:00</strong> 또는 <strong>23:30</strong></td>
                                     <td style="padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.02);">개장 직후 30분 동안 발생하는 초단기 변동성(Opening Drive)에 의한 속임수(거짓 이격 돌파) 진입을 걸러내기 위해, 대기 시간을 주어 시장이 안정화된 뒤부터 봇이 작동하게 유도하는 고급 기법입니다. (미입력 시 즉시 작동)</td>
                                 </tr>
@@ -1779,6 +1922,7 @@
             // 탭 활성화 시 즉시 갱신
             fetchStatus(true);
             fetchLogs();
+            if (typeof onStage3TabShown === 'function') onStage3TabShown(tabName);
         }
 
         function openSecurityModal() {
@@ -2515,7 +2659,7 @@
             ['(K %)', '투자 비중: 가용 예수금 중 1회 매수에 쓸 자금의 비율입니다. (통상 10% 안팎)'],
             ['일 최대 손실한도', '당일 시작 자산 대비 평가 손실이 이 비율에 도달하면 주문 취소 + 전량 매도 후 봇을 정지합니다.'],
             ['VWAP 리셋 시각', 'VWAP 누적 계산을 0부터 다시 시작하는 시각입니다. 한국 09:00 권장. 미국 종목은 22:30 또는 23:30을 넣으면 서머타임(22:30)/표준시(23:30)에 맞춰 자동 전환됩니다. 그 밖의 시각과 국내 종목은 입력한 시각에 고정되며, 자정(00:00)에는 리셋되지 않습니다.'],
-            ['거래 시작 시각', '리셋 이후 이 시각까지는 주문을 내지 않고 대기합니다. 장 초반 변동성을 피할 때 사용 (비우면 즉시 시작).'],
+            ['거래 시작 시각', '리셋 이후 이 시각까지는 신규 매수만 하지 않고 대기합니다. 이미 보유 중인 포지션의 손절·매도는 평소대로 실행됩니다. 장 초반 변동성을 피할 때 사용 (비우면 즉시 시작).'],
             ['ADX Lmt', 'ADX가 이 값 이상이면 강한 추세로 보고 진입을 보류합니다. (권장 25~30)'],
             ['RSI Lmt', 'RSI가 이 값 이하(과매도)일 때만 매수 주문을 제출합니다. (권장 30~35)'],
             ['ADX', 'ADX 필터: 값이 임계 이상(강한 추세)이면 이격이 생겨도 진입을 보류해 급락장 추격매수를 막습니다.'],
@@ -2575,6 +2719,10 @@
             const v3_run = vBots["VIRTUAL_3"].is_running;
             
             const activeStatus = document.getElementById('botActiveStatus');
+            const realStatusHtml = `REAL: <span style="color:${r_is_running ? 'var(--accent-green)' : 'var(--text-secondary)'}; font-weight:bold;">${r_is_running ? 'RUNNING' : 'OFFLINE'}</span>`;
+            if (document.body.classList.contains('hide-legacy')) {
+                activeStatus.innerHTML = realStatusHtml;
+            } else
             activeStatus.innerHTML = `VIRTUAL (V1: <span style="color:${v1_run ? 'var(--accent-green)' : 'var(--text-secondary)'}; font-weight:bold;">${v1_run ? 'ON' : 'OFF'}</span> | 
                                       V2: <span style="color:${v2_run ? 'var(--accent-green)' : 'var(--text-secondary)'}; font-weight:bold;">${v2_run ? 'ON' : 'OFF'}</span> | 
                                       V3: <span style="color:${v3_run ? 'var(--accent-green)' : 'var(--text-secondary)'}; font-weight:bold;">${v3_run ? 'ON' : 'OFF'}</span>) | 
@@ -2935,6 +3083,691 @@
             document.addEventListener('visibilitychange', () => {
                 if (!document.hidden) { fetchStatus(true); fetchLogs(); }
             });
+        });
+    </script>
+    <script>
+        // ==========================================================================
+        // [3단계 UI-1] 레거시 가상봇 토글 / 섀도우 패널 / 리플레이 탭
+        //
+        // 구조 (UI-2에서 연결할 지점은 "API 계층" 한 곳뿐):
+        //   1) 설정 STAGE3          : useMock 스위치 (UI-2에서 false 로)
+        //   2) API 계층 s3Api*      : 실제 엔드포인트 호출 / 목업 호출을 같은 시그니처로 제공
+        //   3) 렌더 함수 render*    : 응답 JSON(§4.4, §5.6 필드명 그대로)만 받아 DOM 에 그림
+        //   4) 컨트롤러             : 버튼/폴링. API 계층 → 렌더 함수 순서로만 호출
+        // 모든 신규 필드는 옵셔널(구버전 서버 응답이면 '-' 또는 안내 문구로 폴백).
+        // ==========================================================================
+        const STAGE3 = {
+            useMock: true,            // UI-2: false 로 바꾸면 실제 API 사용
+            replayPollMs: 1500,       // 리플레이 진행 폴링 주기
+            shadowPollMs: 5000        // 섀도우 상태 폴링 주기 (섀도우 탭이 보일 때만)
+        };
+        document.body.classList.toggle('s3-mock', !!STAGE3.useMock);
+
+        // ---------- 1. 레거시 가상봇(V1~V3) 표시 토글 ----------
+        const LEGACY_LS_KEY = 'vwap_ui_show_legacy_virtual';
+        function readLegacyPref() {
+            try { return window.localStorage.getItem(LEGACY_LS_KEY) === '1'; } catch (e) { return false; }
+        }
+        function writeLegacyPref(v) {
+            try { window.localStorage.setItem(LEGACY_LS_KEY, v ? '1' : '0'); } catch (e) { /* 저장 불가(시크릿 모드 등) 무시 */ }
+        }
+        function applyLegacyVisibility(show) {
+            document.body.classList.toggle('hide-legacy', !show);
+            const cb = document.getElementById('legacyToggle');
+            if (cb) cb.checked = !!show;
+            // 숨겨진 탭이 열려 있었다면 종합 탭으로 이동
+            if (!show && (activeTab === 'virtual_bot' || activeTab === 'backtest')) {
+                const first = document.querySelector('.nav-tabs .nav-tab-btn');
+                if (first) switchTab('overview', first);
+            }
+        }
+        function setLegacyVirtualVisible(show) {
+            writeLegacyPref(show);
+            applyLegacyVisibility(show);
+            if (typeof fetchStatus === 'function') fetchStatus(true);   // 상단 상태 배지 갱신
+        }
+        applyLegacyVisibility(readLegacyPref());
+
+        // ---------- 공통 유틸 ----------
+        function s3Market(ticker) { return /^\d{6}$/.test(String(ticker || '')) ? 'KR' : 'US'; }
+        function s3Money(v, market) {
+            const n = parseFloat(v);
+            if (isNaN(n)) return '-';
+            return (n < 0 ? '-' : '') + formatCurrency(Math.abs(n), market).replace('-', '');
+        }
+        function s3SignedMoney(v, market) {
+            const n = parseFloat(v);
+            if (isNaN(n)) return '-';
+            return (n > 0 ? '+' : '') + s3Money(n, market);
+        }
+        function s3Pct(v, d, signed) {
+            const n = parseFloat(v);
+            if (isNaN(n)) return '-';
+            return (signed && n > 0 ? '+' : '') + n.toFixed(d === undefined ? 2 : d) + '%';
+        }
+        function s3Trend(v) {
+            const n = parseFloat(v);
+            if (isNaN(n) || n === 0) return 'neutral-trend';
+            return n > 0 ? 'up-trend' : 'down-trend';
+        }
+        function s3Num(v) {   // 수량 등 정수 천단위
+            const n = parseFloat(v);
+            return isNaN(n) ? '-' : n.toLocaleString();
+        }
+        function s3Int(v, lo, hi, dflt) {
+            const n = parseInt(v, 10);
+            return isNaN(n) ? dflt : Math.min(hi, Math.max(lo, n));
+        }
+        function s3Short(ts) {  // "YYYY-MM-DD HH:MM[:SS]" -> "MM-DD HH:MM"
+            const t = String(ts === undefined || ts === null ? '' : ts);
+            return t.length >= 16 ? t.substring(5, 16) : (t || '-');
+        }
+
+        // ---------- 2. API 계층 ----------
+        // 모든 함수는 { status:HTTP코드, data:JSON|null } 를 돌려준다. 예외는 던지지 않는다.
+        async function s3Fetch(url, opts) {
+            try {
+                const res = await fetch(url, opts);
+                if (res.status === 401) { window.location.reload(); return { status: 401, data: null }; }
+                let data = null;
+                try { data = await res.json(); } catch (e) { data = null; }   // 구버전/없는 엔드포인트는 HTML 404 일 수 있음
+                return { status: res.status, data: data };
+            } catch (e) {
+                return { status: 0, data: null };
+            }
+        }
+
+        // UI-2 연결 대상 엔드포인트 (STAGE3.useMock === false 일 때 사용)
+        //   POST /vwap/api/replay           body: {days, fee_roundtrip_pct, slippage_roundtrip_pct, limit_fill_buffer_pct}
+        //   GET  /vwap/api/replay/<job_id>
+        //   GET  /vwap/api/replay/latest
+        //   GET  /vwap/api/shadow/status
+        //   GET  /vwap/api/shadow/compare?days=N
+        function s3ApiReplayStart(params) {
+            if (STAGE3.useMock) return mockReplayStart(params);
+            return s3Fetch('/vwap/api/replay', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params)
+            });
+        }
+        function s3ApiReplayGet(jobId) {
+            if (STAGE3.useMock) return mockReplayGet(jobId);
+            return s3Fetch('/vwap/api/replay/' + encodeURIComponent(jobId));
+        }
+        function s3ApiReplayLatest() {
+            if (STAGE3.useMock) return mockReplayLatest();
+            return s3Fetch('/vwap/api/replay/latest');
+        }
+        function s3ApiShadowStatus() {
+            if (STAGE3.useMock) return mockShadowStatus();
+            return s3Fetch('/vwap/api/shadow/status');
+        }
+        function s3ApiShadowCompare(days) {
+            if (STAGE3.useMock) return mockShadowCompare(days);
+            return s3Fetch('/vwap/api/shadow/compare?days=' + encodeURIComponent(days));
+        }
+
+        // ---------- 3. 목업 (UI-2 이후 삭제 가능: mock* 함수와 MOCK_* 상수) ----------
+        function mockRng(seed) {   // 결정적 난수(화면이 새로고침마다 달라지지 않게)
+            let x = seed >>> 0;
+            return function () { x = (x * 1664525 + 1013904223) >>> 0; return x / 4294967296; };
+        }
+        function mockReplayResult(days, fee, slip, buf) {
+            const rnd = mockRng(20261005 + days);
+            const n = 60, init = 10000000;
+            const equity = [];
+            let st = init, bh = init;
+            for (let i = 0; i < n; i++) {
+                st *= 1 + (rnd() - 0.46) * 0.006;
+                bh *= 1 + (rnd() - 0.5) * 0.008;
+                const day = 1 + Math.floor(i / 6), hh = 9 + (i % 6);
+                equity.push({ t: '2026-09-' + String(day + 14).padStart(2, '0') + ' ' + String(hh).padStart(2, '0') + ':00',
+                              strategy: Math.round(st), buy_hold: Math.round(bh) });
+            }
+            const last = equity[n - 1];
+            const reasons = ['TAKE_PROFIT', 'TAKE_PROFIT', 'STOP_LOSS', 'SELL_VWAP', 'TAKE_PROFIT', 'SELL_VWAP'];
+            const trades = [];
+            for (let i = 0; i < 12; i++) {
+                const ep = 70000 + Math.round(rnd() * 800), r = (rnd() - 0.42) * 2.4;
+                const xp = Math.round(ep * (1 + r / 100)), q = 20 + Math.round(rnd() * 10);
+                trades.push({ entry_time: '2026-09-' + String(30 - i).padStart(2, '0') + ' 09:' + String(10 + i).padStart(2, '0'),
+                              exit_time: '2026-09-' + String(30 - i).padStart(2, '0') + ' 10:' + String(20 + i).padStart(2, '0'),
+                              entry_price: ep, exit_price: xp, qty: q, net_pnl: Math.round((xp - ep) * q - ep * q * (fee / 100)),
+                              ret_pct: +(r - fee).toFixed(2), bars_held: 20 + Math.round(rnd() * 60),
+                              exit_reason: reasons[i % reasons.length], fees: Math.round(ep * q * (fee / 100)) });
+            }
+            return {
+                summary: { trades: 34, win_rate_pct: 58.8, avg_win_pct: 0.62, avg_loss_pct: -0.84, payoff_ratio: 0.74,
+                           expectancy_pct: 0.021, expectancy_amount: 1480, net_pnl: last.strategy - init,
+                           total_return_pct: +((last.strategy / init - 1) * 100).toFixed(2), mdd_pct: -2.31,
+                           profit_factor: 1.08, avg_bars_held: 47.5, t_stat: 0.64, verdict: 'insufficient' },
+                benchmark: { buy_hold_return_pct: +((last.buy_hold / init - 1) * 100).toFixed(2), buy_hold_net_pnl: last.buy_hold - init },
+                equity: equity, trades: trades,
+                exit_reasons: [
+                    { reason: 'TAKE_PROFIT', count: 17, avg_ret_pct: 0.71, sum_ret_pct: 12.07 },
+                    { reason: 'SELL_VWAP', count: 11, avg_ret_pct: 0.18, sum_ret_pct: 1.98 },
+                    { reason: 'STOP_LOSS', count: 6, avg_ret_pct: -1.42, sum_ret_pct: -8.52 }
+                ],
+                data: { bars: 8120, sessions: days, from: '2026-09-15', to: '2026-09-30', interval: '1m',
+                        source_breakdown: { bars_store: 2400, yahoo: 5720 }, gaps: ['2026-09-22'],
+                        limits: '1분봉은 최대 30일까지 조회됩니다. Yahoo 데이터는 Toss 원본과 호가 단위가 다를 수 있습니다.' },
+                assumptions: { fee_roundtrip_pct: fee, slippage_roundtrip_pct: slip, limit_fill_buffer_pct: buf,
+                               fill_model: '보수적(다음 봉 체결, 갭은 시가, 손절 우선)', notional: 10000000,
+                               not_modeled: ['일 손실한도 패닉', '부분체결/호가 대기열', '취소·정정 지연',
+                                             '시간외 거래 여부 차이(Yahoo vs Toss)', '지표 계산 창 차이(150봉 vs 전체)'] },
+                warnings: ['표본 부족 — 판단 불가']
+            };
+        }
+        function mockReplayParams(p) {
+            return { ticker: '005930', interval: '1m', days: p.days, config_snapshot: {},
+                     fee_roundtrip_pct: p.fee_roundtrip_pct, slippage_roundtrip_pct: p.slippage_roundtrip_pct,
+                     limit_fill_buffer_pct: p.limit_fill_buffer_pct };
+        }
+        let mockJobState = null;   // {job_id, startedAt, params}
+        let mockLastDone = null;
+        function mockBuildJob(m) {
+            const el = (Date.now() - m.startedAt) / 1000, total = 4;
+            let state = 'running', stage = 'loading_data', progress = 10;
+            if (el >= total) { state = 'done'; stage = 'done'; progress = 100; }
+            else if (el >= 3.2) { stage = 'summarizing'; progress = 95; }
+            else if (el >= 1.2) { stage = 'simulating'; progress = Math.round(50 + (el - 1.2) / 2 * 40); }
+            else if (el >= 0.6) { stage = 'preparing'; progress = 40; }
+            const job = { job_id: m.job_id, state: state, progress: progress, stage: stage,
+                          message: '', error: null, created_at: '', started_at: '', finished_at: state === 'done' ? '' : null,
+                          elapsed_sec: +el.toFixed(1), params: mockReplayParams(m.params),
+                          result: null };
+            if (state === 'done') job.result = mockReplayResult(m.params.days, m.params.fee_roundtrip_pct, m.params.slippage_roundtrip_pct, m.params.limit_fill_buffer_pct);
+            return job;
+        }
+        async function mockReplayStart(params) {
+            if (mockJobState && mockBuildJob(mockJobState).state === 'running') {
+                return { status: 409, data: { status: 'failed', reason: 'job_running', job_id: mockJobState.job_id } };
+            }
+            mockJobState = { job_id: 'rp-sample-' + Date.now().toString(36), startedAt: Date.now(), params: params };
+            return { status: 202, data: { status: 'accepted', job_id: mockJobState.job_id } };
+        }
+        async function mockReplayGet(jobId) {
+            if (!mockJobState || mockJobState.job_id !== jobId) return { status: 404, data: { status: 'failed', message: '작업을 찾을 수 없습니다' } };
+            const job = mockBuildJob(mockJobState);
+            if (job.state === 'done') mockLastDone = job;
+            return { status: 200, data: { status: 'success', job: job } };
+        }
+        async function mockReplayLatest() {
+            if (mockLastDone) return { status: 200, data: { status: 'success', job: mockLastDone } };
+            const m = { job_id: 'rp-sample-latest', startedAt: Date.now() - 60000, params: { days: 10, fee_roundtrip_pct: 0.2, slippage_roundtrip_pct: 0.05, limit_fill_buffer_pct: 0 } };
+            return { status: 200, data: { status: 'success', job: mockBuildJob(m) } };
+        }
+        async function mockShadowStatus() {
+            const stopped = !!(document.getElementById('sh_mock_real_stopped') || {}).checked;
+            return { status: 200, data: { status: 'success', shadow: {
+                enabled: true, following: 'REAL', real_running: !stopped,
+                last_cycle_id: '2026-10-05 10:41:00', last_run_at: '2026-10-05 10:41:03', last_duration_ms: 142,
+                synced_at: '2026-10-05 09:00:02', sync_reason: 'BOT_START', ticker: '005930',
+                position: { qty: 25, entry_price: 71200 }, cash: 8219000,
+                reason_code: 'HOLD', reason_text: '보유 중 — 매도 목표가(VWAP+1.0%) 대기', signal: 'HOLD' } } };
+        }
+        async function mockShadowCompare(days) {
+            const side = ['BUY', 'SELL', 'BUY', 'SELL', 'BUY', 'BUY', 'SELL', 'BUY', 'SELL', 'BUY'];
+            const vds = ['MATCH', 'PRICE_GAP', 'MATCH', 'SHADOW_UNFILLED', 'REAL_UNFILLED', 'MATCH', 'REAL_ONLY_ORDER', 'SHADOW_ONLY_ORDER', 'PRICE_GAP', 'MATCH'];
+            const pairs = vds.map(function (v, i) {
+                const px = 71000 + i * 90, cid = '2026-10-0' + (5 - Math.floor(i / 4)) + ' ' + String(14 - (i % 4)).padStart(2, '0') + ':' + String(10 + i * 3) + ':00';
+                const leg = function (fill) {
+                    return { order_id: 'T-' + (1000 + i), order_price: px, fill_price: fill, filled_at: fill ? cid.substring(0, 14) + String(12 + i * 3) + ':00' : null, qty: 25 };
+                };
+                let real = leg(px), shadow = leg(px), gap = 0, tgap = 0;
+                if (v === 'PRICE_GAP') { shadow = leg(px + 60); gap = +(60 / px * 100).toFixed(3); tgap = 60; }
+                if (v === 'SHADOW_UNFILLED') shadow = leg(null);
+                if (v === 'REAL_UNFILLED') real = leg(null);
+                if (v === 'REAL_ONLY_ORDER') shadow = null;
+                if (v === 'SHADOW_ONLY_ORDER') real = null;
+                if (v === 'MATCH') { gap = 0.0; tgap = 0; }
+                return { cycle_id: cid, side: side[i], verdict: v, real: real, shadow: shadow,
+                         price_gap_pct: (real && shadow && real.fill_price && shadow.fill_price) ? gap : null,
+                         time_gap_sec: (real && shadow && real.fill_price && shadow.fill_price) ? tgap : null };
+            });
+            return { status: 200, data: { status: 'success',
+                period: { from: '2026-09-' + String(30 - days + 1).padStart(2, '0'), to: '2026-10-05', days: days },
+                summary: {
+                    real: { trades: 18, fills: 31, net_pnl: 84200, win_rate_pct: 61.1, avg_slippage_pct: 0.041 },
+                    shadow: { trades: 19, fills: 33, net_pnl: 97600, win_rate_pct: 63.2, avg_slippage_pct: 0.0, fee_roundtrip_pct: 0.2 },
+                    verdicts: { MATCH: 22, PRICE_GAP: 4, REAL_UNFILLED: 2, SHADOW_UNFILLED: 3, BOTH_UNFILLED: 15, REAL_ONLY_ORDER: 1, SHADOW_ONLY_ORDER: 1 },
+                    match_rate_pct: 75.9, net_pnl_gap: 13400 },
+                pairs: pairs } };
+        }
+
+        // ---------- 4-A. 섀도우 패널 ----------
+        const SHADOW_VERDICTS = {
+            MATCH:           { label: '일치',            cls: 'vd-ok' },
+            PRICE_GAP:       { label: '체결가 차이',     cls: 'vd-warn' },
+            REAL_UNFILLED:   { label: '실거래만 미체결', cls: 'vd-warn' },
+            SHADOW_UNFILLED: { label: '섀도우만 미체결', cls: 'vd-warn' },
+            REAL_ONLY_ORDER: { label: '실거래만 주문',   cls: 'vd-bad' },
+            SHADOW_ONLY_ORDER: { label: '섀도우만 주문', cls: 'vd-bad' },
+            BOTH_UNFILLED:   { label: '둘 다 미체결',    cls: 'vd-dim' }
+        };
+        const SIDE_LABEL = { BUY: '매수', SELL: '매도', STOP_LOSS: '손절' };
+        function verdictBadge(v) {
+            const m = SHADOW_VERDICTS[v] || { label: String(v || '-'), cls: 'vd-dim' };
+            return '<span class="vd-badge ' + m.cls + '">' + esc(m.label) + '</span>';
+        }
+
+        let shadowDays = 7;
+        let shadowStatusBusy = false, shadowCompareBusy = false;
+        let shadowPollTimer = null;
+
+        function renderShadowStatus(res) {
+            const box = document.getElementById('sh_status');
+            if (!box) return;
+            const sh = res && res.data && res.data.shadow;
+            if (!sh) {
+                const old = res && res.status === 404 || (res && res.status === 0);
+                box.innerHTML = '<div class="s3-banner gray"><strong>섀도우 정보를 불러오지 못했습니다</strong>' +
+                    (old ? '서버가 아직 섀도우 기능을 지원하지 않거나 연결되지 않았습니다.' : '잠시 후 다시 시도해 주세요.') + '</div>';
+                return;
+            }
+            const realRunning = sh.real_running === true;
+            let banner;
+            if (sh.enabled === false) {
+                banner = '<div class="s3-banner gray"><strong>섀도우가 꺼져 있습니다</strong>설정(shadow_enabled)에서 비활성화된 상태입니다.</div>';
+            } else if (!realRunning) {
+                banner = '<div class="s3-banner orange"><strong>⏸️ 섀도우는 REAL 실행 중에만 동작합니다</strong>' +
+                    '지금은 실거래 봇이 정지돼 있어 섀도우도 멈춰 있습니다. 실거래 봇을 시작하면 같은 시각에 섀도우가 함께 돌며 기록이 쌓입니다.</div>';
+            } else {
+                banner = '<div class="s3-banner blue"><strong>🔄 실거래 설정을 자동으로 따라가는 중</strong>' +
+                    '실거래 봇과 같은 봉·같은 설정으로 섀도우가 함께 판단합니다. (주문은 내지 않는 가상 기록)</div>';
+            }
+            const meta = REASON_META[sh.reason_code] || null;
+            const market = s3Market(sh.ticker);
+            const pos = sh.position && sh.position.qty ? (s3Num(sh.position.qty) + '주 @ ' + s3Money(sh.position.entry_price, market)) : '보유 없음';
+            const kv = function (k, v) { return '<div><div class="k">' + esc(k) + '</div><div class="v">' + v + '</div></div>'; };
+            const dur = hasVal(sh.last_duration_ms) ? ' (' + esc(sh.last_duration_ms) + 'ms)' : '';
+            const sync = hasVal(sh.synced_at) ? esc(sh.synced_at) + (hasVal(sh.sync_reason) ? ' · ' + esc(sh.sync_reason) : '') : '-';
+            const reason = hasVal(sh.reason_text) ? ((meta ? esc(meta.icon) + ' ' : '') + esc(sh.reason_text))
+                         : (meta ? esc(meta.icon + ' ' + meta.label) : '-');
+            box.innerHTML = banner +
+                '<div class="s3-kv">' +
+                    kv('마지막 실행', (hasVal(sh.last_run_at) ? esc(sh.last_run_at) : '-') + dur) +
+                    kv('마지막 동기화 · 사유', sync) +
+                    kv('종목', hasVal(sh.ticker) ? esc(sh.ticker) : '-') +
+                    kv('섀도우 보유', esc(pos)) +
+                    kv('섀도우 현금', hasVal(sh.cash) ? esc(s3Money(sh.cash, market)) : '-') +
+                    kv('섀도우 신호', hasVal(sh.signal) ? esc(sh.signal) : '-') +
+                '</div>' +
+                '<div class="s3-banner gray" style="margin:8px 0 0;"><strong>' + (realRunning ? '섀도우의 현재 판단' : '섀도우의 마지막 판단(정지 전 기록)') + '</strong>' + reason + '</div>';
+        }
+
+        function renderShadowCompare(res) {
+            const box = document.getElementById('sh_compare');
+            if (!box) return;
+            const d = res && res.data;
+            if (!d || d.status !== 'success' || !d.summary) {
+                const old = res && (res.status === 404 || res.status === 0);
+                box.innerHTML = '<div class="ev-empty">' + (old ? '서버가 아직 섀도우 비교를 지원하지 않거나 연결되지 않았습니다.' : '비교 결과를 불러오지 못했습니다.') + '</div>';
+                return;
+            }
+            const sm = d.summary, R = sm.real || {}, S = sm.shadow || {}, V = sm.verdicts || {};
+            const pairs = Array.isArray(d.pairs) ? d.pairs : [];
+            const totalAny = Object.keys(V).reduce(function (a, k) { return a + (parseFloat(V[k]) || 0); }, 0) + (parseFloat(R.trades) || 0) + (parseFloat(S.trades) || 0);
+            if (!totalAny && !pairs.length) {
+                box.innerHTML = '<div class="ev-empty">실거래 봇이 가동되면 같은 시각에 섀도우가 함께 돌며 기록이 쌓입니다.</div>';
+                return;
+            }
+            // 통화 표기는 첫 pair 의 종목 정보가 없으므로 status 에서 받은 종목을 사용
+            const market = shadowMarket;
+            const card = function (cls, title, o, extra) {
+                return '<div class="s3-card ' + cls + '"><h3>' + title + '</h3>' +
+                    '<div class="s3-row"><span>거래수</span><span>' + esc(s3Num(o.trades)) + '</span></div>' +
+                    '<div class="s3-row"><span>체결수</span><span>' + esc(s3Num(o.fills)) + '</span></div>' +
+                    '<div class="s3-row"><span>순손익</span><span class="' + s3Trend(o.net_pnl) + '">' + esc(s3SignedMoney(o.net_pnl, market)) + '</span></div>' +
+                    '<div class="s3-row"><span>승률</span><span>' + esc(s3Pct(o.win_rate_pct, 1)) + '</span></div>' +
+                    '<div class="s3-row"><span>평균 슬리피지</span><span>' + esc(s3Pct(o.avg_slippage_pct, 3)) + '</span></div>' +
+                    (extra || '') + '</div>';
+            };
+            const gap = hasVal(sm.net_pnl_gap)
+                ? '<div class="s3-gap">순손익 차이(섀도우 − 실거래): <span class="' + s3Trend(sm.net_pnl_gap) + '">' + esc(s3SignedMoney(sm.net_pnl_gap, market)) + '</span></div>' : '';
+            const order = ['MATCH', 'PRICE_GAP', 'REAL_UNFILLED', 'SHADOW_UNFILLED', 'REAL_ONLY_ORDER', 'SHADOW_ONLY_ORDER', 'BOTH_UNFILLED'];
+            const badges = order.filter(function (k) { return hasVal(V[k]); })
+                .map(function (k) { return verdictBadge(k) + '<strong style="margin-left:-4px;">' + esc(V[k]) + '건</strong>'; }).join('');
+            const rate = '<span class="vd-badge vd-ok" title="일치 / 양쪽 체결 쌍">일치율 ' + esc(s3Pct(sm.match_rate_pct, 1)) + '</span>';
+            const shadowFee = hasVal(S.fee_roundtrip_pct) ? '<div class="s3-row"><span>추정 왕복 수수료</span><span>' + esc(s3Pct(S.fee_roundtrip_pct, 2)) + '</span></div>' : '';
+            const period = d.period ? '<div class="s3-note" style="margin-bottom:10px;">기간: ' + esc(d.period.from) + ' ~ ' + esc(d.period.to) + ' (' + esc(d.period.days) + '일)</div>' : '';
+
+            const shown = pairs.filter(function (p) { return p && p.verdict !== 'BOTH_UNFILLED'; });
+            const leg = function (o) {
+                if (!o) return '<span class="neutral-trend">주문 없음</span>';
+                const fill = hasVal(o.fill_price) ? esc(s3Money(o.fill_price, market)) : '<span class="neutral-trend">미체결</span>';
+                return esc(s3Money(o.order_price, market)) + ' → ' + fill;
+            };
+            const rows = shown.map(function (p) {
+                const tg = hasVal(p.time_gap_sec) ? esc(p.time_gap_sec) + '초' : '-';
+                return '<tr><td>' + esc(s3Short(p.cycle_id)) + '</td><td>' + esc(SIDE_LABEL[p.side] || p.side || '-') + '</td>' +
+                    '<td>' + leg(p.real) + '</td><td>' + leg(p.shadow) + '</td>' +
+                    '<td>' + (hasVal(p.price_gap_pct) ? esc(s3Pct(p.price_gap_pct, 3)) : '-') + '</td><td>' + tg + '</td>' +
+                    '<td>' + verdictBadge(p.verdict) + '</td></tr>';
+            }).join('');
+            const table = shown.length
+                ? '<div class="table-container" style="max-height:420px;"><table><thead><tr><th>시각(cycle)</th><th>구분</th><th>실거래 (주문가→체결가)</th><th>섀도우 (주문가→체결가)</th><th>가격차</th><th>시간차</th><th>판정</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+                : '<div class="ev-empty">이 기간에 표시할 괴리 항목이 없습니다.</div>';
+
+            box.innerHTML = period +
+                '<div class="s3-compare">' +
+                    card('real', '💼 실거래', R, '') + card('shadow', '🔍 섀도우', S, shadowFee) + gap +
+                '</div>' +
+                '<div class="vd-wrap">' + rate + badges + '</div>' +
+                '<div class="s3-section-title">괴리 목록 (최신순, 둘 다 미체결은 제외)</div>' + table;
+        }
+
+        let shadowMarket = 'KR';   // status 응답의 ticker 로 갱신
+        async function refreshShadowStatus() {
+            if (shadowStatusBusy) return;
+            shadowStatusBusy = true;
+            try {
+                const res = await s3ApiShadowStatus();
+                if (res && res.data && res.data.shadow && res.data.shadow.ticker) shadowMarket = s3Market(res.data.shadow.ticker);
+                renderShadowStatus(res);
+            } finally { shadowStatusBusy = false; }
+        }
+        async function refreshShadowCompare() {
+            if (shadowCompareBusy) return;
+            shadowCompareBusy = true;
+            try { renderShadowCompare(await s3ApiShadowCompare(shadowDays)); }
+            finally { shadowCompareBusy = false; }
+        }
+        async function loadShadowTab() {
+            await refreshShadowStatus();   // 통화 표기용 종목을 먼저 확보
+            await refreshShadowCompare();
+        }
+        function setShadowDays(d) {
+            shadowDays = s3Int(d, 1, 30, 7);
+            document.querySelectorAll('#sh_days_chips .filter-chip').forEach(function (b) {
+                b.classList.toggle('active', parseInt(b.dataset.days, 10) === shadowDays);
+            });
+            refreshShadowCompare();
+        }
+
+        // ---------- 4-B. 리플레이 탭 ----------
+        const REPLAY_STAGE = { loading_data: '데이터 불러오는 중', preparing: '지표 계산 준비 중', simulating: '시뮬레이션 실행 중', summarizing: '결과 집계 중', done: '완료' };
+        const REPLAY_ERROR = { timeout: '시간 초과로 중단되었습니다', process_exited: '작업 프로세스가 종료되었습니다', server_restarted: '서버 재시작으로 중단되었습니다',
+                               no_data: '리플레이에 쓸 봉 데이터가 없습니다', exception: '실행 중 오류가 발생했습니다' };
+        const REPLAY_VERDICT = {
+            insufficient: { cls: 'gray',   title: '판단 불가', desc: '거래 표본이 30건 미만이라 기대값을 판단할 수 없습니다. 기간을 늘려 다시 확인하세요.' },
+            negative:     { cls: 'red',    title: '음(-)의 기대값',  desc: '비용을 반영하면 평균적으로 손실일 가능성이 높습니다(t-stat ≤ -2).' },
+            inconclusive: { cls: 'orange', title: '불확실', desc: '통계적으로 유의한 우위가 확인되지 않았습니다.' },
+            positive:     { cls: 'green',  title: '양(+)의 기대값 가능성', desc: '비용 반영 후에도 기대값이 양수입니다(t-stat ≥ 2). 과거 시뮬레이션이며 미래를 보장하지 않습니다.' }
+        };
+        const EXIT_LABEL = { TAKE_PROFIT: '익절', STOP_LOSS: '손절', SELL_VWAP: 'VWAP 위 매도', SELL_TARGET: '목표가 매도', FORCE_CLOSE: '강제 청산', END_OF_DATA: '데이터 종료' };
+
+        let replayJobId = null;
+        let replayTimer = null;
+        let replayMarket = 'KR';
+        let replayBusy = false;       // 단일 폴링 요청 진행 중
+        let replayRunning = false;    // 작업 실행 중(버튼 잠금)
+
+        function exitLabel(r) { return EXIT_LABEL[r] || String(r === undefined || r === null ? '-' : r); }
+
+        function buildEquitySvg(eq) {
+            if (!Array.isArray(eq) || eq.length < 2) return '<div class="ev-empty">손익곡선을 그릴 데이터가 부족합니다.</div>';
+            const vals = [];
+            eq.forEach(function (p) { [p.strategy, p.buy_hold].forEach(function (v) { const n = parseFloat(v); if (!isNaN(n)) vals.push(n); }); });
+            if (vals.length < 2) return '<div class="ev-empty">손익곡선을 그릴 데이터가 부족합니다.</div>';
+            let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+            if (hi === lo) { hi += 1; lo -= 1; }
+            const W = 600, H = 200, pad = 6;
+            const line = function (key) {
+                const pts = [];
+                eq.forEach(function (p, i) {
+                    const n = parseFloat(p[key]);
+                    if (isNaN(n)) return;
+                    pts.push((i / (eq.length - 1) * W).toFixed(1) + ',' + (pad + (1 - (n - lo) / (hi - lo)) * (H - 2 * pad)).toFixed(1));
+                });
+                return pts.join(' ');
+            };
+            let grid = '';
+            for (let g = 0; g <= 4; g++) {
+                const y = pad + g / 4 * (H - 2 * pad);
+                grid += '<line x1="0" y1="' + y + '" x2="' + W + '" y2="' + y + '" stroke="rgba(255,255,255,0.06)" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+            }
+            return '<div class="s3-chart-wrap">' +
+                '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="전략 대비 단순 보유(Buy&amp;Hold) 손익곡선">' + grid +
+                '<polyline fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke" points="' + line('buy_hold') + '"/>' +
+                '<polyline fill="none" stroke="#3b82f6" stroke-width="2.5" vector-effect="non-scaling-stroke" points="' + line('strategy') + '"/>' +
+                '</svg>' +
+                '<div class="s3-chart-axis"><span>' + esc(eq[0].t) + '</span><span>최고 ' + esc(s3Money(hi, replayMarket)) + ' / 최저 ' + esc(s3Money(lo, replayMarket)) + '</span><span>' + esc(eq[eq.length - 1].t) + '</span></div>' +
+                '<div class="s3-legend"><span><i style="border-color:#3b82f6"></i>전략(리플레이)</span><span><i style="border-color:#f59e0b; border-top-style:dashed;"></i>Buy &amp; Hold</span></div>' +
+                '</div>';
+        }
+
+        function renderReplayResult(job) {
+            const box = document.getElementById('rp_result');
+            if (!box) return;
+            const r = job && job.result;
+            if (!r) {
+                box.innerHTML = '<div class="ev-empty">표시할 결과가 없습니다.</div>';
+                return;
+            }
+            const m = replayMarket;
+            const S = r.summary || {}, B = r.benchmark || {};
+            const vd = REPLAY_VERDICT[S.verdict] || { cls: 'gray', title: String(S.verdict || '판정 없음'), desc: '' };
+            const kpi = function (k, v, cls, sub) {
+                return '<div class="s3-kpi"><div class="k">' + esc(k) + '</div><div class="v ' + (cls || '') + '">' + v + '</div>' + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+            };
+            const diff = (hasVal(S.total_return_pct) && hasVal(B.buy_hold_return_pct)) ? (parseFloat(S.total_return_pct) - parseFloat(B.buy_hold_return_pct)) : NaN;
+            const kpis = '<div class="s3-kpis">' +
+                kpi('순손익', esc(s3SignedMoney(S.net_pnl, m)), s3Trend(S.net_pnl)) +
+                kpi('수익률', esc(s3Pct(S.total_return_pct, 2, true)), s3Trend(S.total_return_pct)) +
+                kpi('기대값/거래', esc(s3Pct(S.expectancy_pct, 3, true)), s3Trend(S.expectancy_pct), hasVal(S.expectancy_amount) ? esc(s3SignedMoney(S.expectancy_amount, m)) : '') +
+                kpi('승률', esc(s3Pct(S.win_rate_pct, 1)), '', '평균 이익 ' + esc(s3Pct(S.avg_win_pct, 2)) + ' / 손실 ' + esc(s3Pct(S.avg_loss_pct, 2))) +
+                kpi('MDD', esc(s3Pct(S.mdd_pct, 2)), 'down-trend') +
+                kpi('거래수', esc(s3Num(S.trades)) + '건', '', hasVal(S.avg_bars_held) ? '평균 보유 ' + esc(fnum(S.avg_bars_held, 1)) + '봉' : '') +
+                kpi('t-stat', esc(fnum(S.t_stat, 2)), '', hasVal(S.profit_factor) ? 'Profit Factor ' + esc(fnum(S.profit_factor, 2)) : '') +
+                kpi('Buy&Hold 수익률', esc(s3Pct(B.buy_hold_return_pct, 2, true)), s3Trend(B.buy_hold_return_pct), hasVal(B.buy_hold_net_pnl) ? esc(s3SignedMoney(B.buy_hold_net_pnl, m)) : '') +
+                kpi('전략 − Buy&Hold', isNaN(diff) ? '-' : esc((diff > 0 ? '+' : '') + diff.toFixed(2) + '%p'), s3Trend(diff), '비용 반영 후 비교') +
+                '</div>';
+
+            const reasons = Array.isArray(r.exit_reasons) ? r.exit_reasons : [];
+            const reasonTable = reasons.length
+                ? '<div class="table-container compact"><table><thead><tr><th>청산 사유</th><th>건수</th><th>평균 수익률</th><th>합계 수익률</th></tr></thead><tbody>' +
+                  reasons.map(function (x) {
+                      return '<tr><td>' + esc(exitLabel(x.reason)) + '</td><td>' + esc(x.count) + '</td><td class="' + s3Trend(x.avg_ret_pct) + '">' + esc(s3Pct(x.avg_ret_pct, 2, true)) + '</td><td class="' + s3Trend(x.sum_ret_pct) + '">' + esc(s3Pct(x.sum_ret_pct, 2, true)) + '</td></tr>';
+                  }).join('') + '</tbody></table></div>'
+                : '<div class="ev-empty">청산 내역이 없습니다.</div>';
+
+            const trades = Array.isArray(r.trades) ? r.trades : [];
+            const tradeTable = trades.length
+                ? '<div class="table-container" style="max-height:380px;"><table><thead><tr><th>진입</th><th>청산</th><th>진입가</th><th>청산가</th><th>수량</th><th>순손익</th><th>수익률</th><th>보유봉</th><th>사유</th><th>수수료</th></tr></thead><tbody>' +
+                  trades.map(function (t) {
+                      return '<tr><td>' + esc(s3Short(t.entry_time)) + '</td><td>' + esc(s3Short(t.exit_time)) + '</td><td>' + esc(s3Money(t.entry_price, m)) + '</td><td>' + esc(s3Money(t.exit_price, m)) + '</td><td>' + esc(s3Num(t.qty)) + '</td>' +
+                          '<td class="' + s3Trend(t.net_pnl) + '">' + esc(s3SignedMoney(t.net_pnl, m)) + '</td><td class="' + s3Trend(t.ret_pct) + '">' + esc(s3Pct(t.ret_pct, 2, true)) + '</td><td>' + esc(hasVal(t.bars_held) ? t.bars_held : '-') + '</td><td>' + esc(exitLabel(t.exit_reason)) + '</td><td>' + esc(s3Money(t.fees, m)) + '</td></tr>';
+                  }).join('') + '</tbody></table></div>'
+                : '<div class="ev-empty">거래가 없습니다.</div>';
+
+            // ⑥ 데이터·가정 (항상 노출)
+            const D = r.data || {}, A = r.assumptions || {}, SB = D.source_breakdown || {};
+            const li = function (arr) { return arr.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join(''); };
+            const gaps = Array.isArray(D.gaps) && D.gaps.length ? D.gaps.join(', ') : '없음';
+            const notModeled = Array.isArray(A.not_modeled) ? A.not_modeled : [];
+            const warnings = Array.isArray(r.warnings) ? r.warnings : [];
+            const assume = '<details class="s3-details" open><summary>데이터 · 가정 (결과 해석 전 꼭 확인)</summary>' +
+                '<div class="s3-kv">' +
+                    '<div><div class="k">기간</div><div class="v">' + esc(D.from || '-') + ' ~ ' + esc(D.to || '-') + ' (' + esc(hasVal(D.sessions) ? D.sessions : '-') + '세션)</div></div>' +
+                    '<div><div class="k">봉 개수 · 주기</div><div class="v">' + esc(hasVal(D.bars) ? s3Num(D.bars) : '-') + '개 · ' + esc(D.interval || '-') + '</div></div>' +
+                    '<div><div class="k">데이터 출처</div><div class="v">적재분 ' + esc(hasVal(SB.bars_store) ? s3Num(SB.bars_store) : '-') + ' / Yahoo ' + esc(hasVal(SB.yahoo) ? s3Num(SB.yahoo) : '-') + '</div></div>' +
+                    '<div><div class="k">누락 세션</div><div class="v">' + esc(gaps) + '</div></div>' +
+                    '<div><div class="k">수수료 / 슬리피지 / 버퍼</div><div class="v">' + esc(s3Pct(A.fee_roundtrip_pct, 2)) + ' / ' + esc(s3Pct(A.slippage_roundtrip_pct, 2)) + ' / ' + esc(s3Pct(A.limit_fill_buffer_pct, 2)) + '</div></div>' +
+                    '<div><div class="k">체결 모델</div><div class="v">' + esc(A.fill_model || '-') + '</div></div>' +
+                    '<div><div class="k">명목금액</div><div class="v">' + esc(hasVal(A.notional) ? s3Money(A.notional, m) : '-') + '</div></div>' +
+                '</div>' +
+                (D.limits ? '<div class="s3-note" style="margin:6px 0;">' + esc(D.limits) + '</div>' : '') +
+                '<div class="s3-note" style="margin-top:8px;"><strong>모델링하지 않은 것</strong></div><ul>' + (notModeled.length ? li(notModeled) : '<li>정보 없음</li>') + '</ul>' +
+                (warnings.length ? '<div class="s3-note" style="margin-top:8px;"><strong>경고</strong></div><ul class="s3-warn-list">' + li(warnings) + '</ul>' : '') +
+                '</details>';
+
+            box.innerHTML =
+                '<div class="s3-banner ' + vd.cls + '"><strong>' + esc(vd.title) + '</strong>' + esc(vd.desc) + '</div>' +
+                kpis +
+                '<div class="s3-section-title">손익곡선 (전략 vs Buy &amp; Hold)</div>' + buildEquitySvg(r.equity) +
+                '<div class="s3-section-title">청산 사유별 요약</div>' + reasonTable +
+                '<div class="s3-section-title">거래 목록 (최근 ' + esc(trades.length) + '건)</div>' + tradeTable +
+                assume;
+        }
+
+        function renderReplayProgress(job) {
+            const wrap = document.getElementById('rp_progress');
+            if (!wrap) return;
+            if (!job || job.state === 'done') { wrap.style.display = 'none'; return; }
+            wrap.style.display = 'block';
+            const pct = Math.max(0, Math.min(100, parseFloat(job.progress) || 0));
+            document.getElementById('rp_bar_fill').style.width = pct + '%';
+            document.getElementById('rp_bar').setAttribute('aria-valuenow', String(Math.round(pct)));
+            const stage = REPLAY_STAGE[job.stage] || (job.state === 'queued' ? '대기 중' : '진행 중');
+            document.getElementById('rp_progress_txt').textContent = stage + ' · ' + Math.round(pct) + '%' + (job.message ? ' · ' + job.message : '');
+        }
+
+        function setReplayMsg(text, isErr) {
+            const el = document.getElementById('rp_msg');
+            if (!el) return;
+            el.textContent = text || '';
+            el.style.color = isErr ? 'var(--accent-red)' : 'var(--text-secondary)';
+        }
+        function setReplayRunning(on) {
+            replayRunning = on;
+            const b = document.getElementById('rp_run_btn');
+            if (b) { b.disabled = on; b.textContent = on ? '리플레이 실행 중...' : '현재 실거래 설정으로 리플레이'; }
+        }
+
+        function applyReplayJob(job) {
+            // 작업 객체 1개를 화면에 반영하고, 계속 폴링해야 하면 true
+            if (!job) return false;
+            if (job.params && job.params.ticker) replayMarket = s3Market(job.params.ticker);
+            if (job.state === 'done') {
+                renderReplayProgress(job);
+                renderReplayResult(job);
+                setReplayRunning(false);
+                setReplayMsg(hasVal(job.elapsed_sec) ? '완료 (' + job.elapsed_sec + '초 소요)' : '완료', false);
+                return false;
+            }
+            if (job.state === 'failed') {
+                renderReplayProgress(null);
+                setReplayRunning(false);
+                const why = REPLAY_ERROR[job.error] || '';
+                setReplayMsg('리플레이 실패: ' + (job.message || why || '알 수 없는 오류'), true);
+                return false;
+            }
+            setReplayRunning(true);
+            renderReplayProgress(job);
+            return true;
+        }
+
+        function scheduleReplayPoll() {
+            clearTimeout(replayTimer);
+            replayTimer = setTimeout(replayPollTick, STAGE3.replayPollMs);
+        }
+        async function replayPollTick() {
+            // 탭이 숨겨졌거나 리플레이 탭이 아니면 폴링 중지 (복귀 시 resumeReplayPolling 이 재개)
+            if (document.hidden || activeTab !== 'replay' || !replayJobId) return;
+            if (replayBusy) { scheduleReplayPoll(); return; }
+            replayBusy = true;
+            let again = false;
+            try {
+                const res = await s3ApiReplayGet(replayJobId);
+                if (res.status === 200 && res.data && res.data.job) {
+                    again = applyReplayJob(res.data.job);
+                } else if (res.status === 404) {
+                    setReplayRunning(false); renderReplayProgress(null);
+                    setReplayMsg('작업을 찾을 수 없습니다. 다시 실행해 주세요.', true);
+                } else {
+                    again = true;   // 일시적 네트워크 오류는 계속 시도
+                    setReplayMsg('진행 상황을 가져오지 못했습니다. 다시 시도 중...', true);
+                }
+            } finally { replayBusy = false; }
+            if (again) scheduleReplayPoll(); else replayJobId = null;
+        }
+        function resumeReplayPolling() {
+            if (replayJobId && replayRunning && !document.hidden && activeTab === 'replay') { clearTimeout(replayTimer); replayPollTick(); }
+        }
+
+        function buildReplayParams() {
+            const num = function (id, dflt) { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? dflt : v; };
+            const p = { days: s3Int(document.getElementById('rp_days').value, 1, 60, 10),
+                        fee_roundtrip_pct: num('rp_fee', 0.2), slippage_roundtrip_pct: num('rp_slip', 0.05), limit_fill_buffer_pct: num('rp_buf', 0) };
+            ['fee_roundtrip_pct', 'slippage_roundtrip_pct', 'limit_fill_buffer_pct'].forEach(function (k) {
+                if (p[k] < 0 || p[k] > 5) p[k] = null;
+            });
+            return p;
+        }
+        async function startReplay() {
+            if (replayRunning) return;
+            const p = buildReplayParams();
+            if (p.fee_roundtrip_pct === null || p.slippage_roundtrip_pct === null || p.limit_fill_buffer_pct === null) {
+                setReplayMsg('수수료·슬리피지·체결 버퍼는 0~5% 범위로 입력해 주세요.', true);
+                return;
+            }
+            setReplayRunning(true);
+            setReplayMsg('리플레이를 시작합니다...', false);
+            const res = await s3ApiReplayStart(p);
+            const d = res.data || {};
+            if (res.status === 202 && d.job_id) {
+                replayJobId = d.job_id;
+                renderReplayProgress({ state: 'queued', progress: 0, stage: '' });
+                setReplayMsg('', false);
+                scheduleReplayPoll();
+            } else if (res.status === 409 && d.job_id) {
+                replayJobId = d.job_id;
+                renderReplayProgress({ state: 'running', progress: 0, stage: '' });
+                setReplayMsg('이미 실행 중인 리플레이가 있습니다. 그 작업을 이어서 보여드립니다.', false);
+                scheduleReplayPoll();
+            } else {
+                setReplayRunning(false);
+                let msg;
+                if (res.status === 400) msg = d.message || '입력값이 올바르지 않습니다.';
+                else if (res.status === 404 || res.status === 0) msg = '서버가 아직 리플레이를 지원하지 않거나 연결되지 않았습니다.';
+                else msg = d.message || ('서버 응답 오류 (HTTP ' + res.status + ')');
+                setReplayMsg(msg, true);
+            }
+        }
+        async function loadReplayLatest() {
+            const res = await s3ApiReplayLatest();
+            if (res.status === 200 && res.data && res.data.job) {
+                applyReplayJob(res.data.job);
+                setReplayMsg('마지막 리플레이 결과입니다.', false);
+            } else if (res.status === 200) {
+                document.getElementById('rp_result').innerHTML = '<div class="ev-empty">아직 리플레이 결과가 없습니다. 위 버튼을 눌러 실행하세요.</div>';
+            } else if (res.status === 404 || res.status === 0) {
+                setReplayMsg('서버가 아직 리플레이를 지원하지 않거나 연결되지 않았습니다.', true);
+            }
+        }
+        function fillReplayDays() {
+            // 5m/15m 이면 최대 60일, 1m 이면 최대 30일 (§10-3). 실거래 봉 주기는 캐시된 설정에서 읽는다.
+            const sel = document.getElementById('rp_days');
+            const iv = (typeof cachedConfig !== 'undefined' && cachedConfig && cachedConfig.real_interval) || '1m';
+            const opts = (iv === '5m' || iv === '15m') ? [1, 3, 5, 10, 20, 30, 45, 60] : [1, 3, 5, 10, 20, 30];
+            const prev = sel.value ? parseInt(sel.value, 10) : 10;
+            if (sel.options.length === opts.length && String(sel.dataset.iv) === iv) return;
+            sel.innerHTML = opts.map(function (n) { return '<option value="' + n + '">최근 ' + n + '일</option>'; }).join('');
+            sel.dataset.iv = iv;
+            sel.value = String(opts.indexOf(prev) >= 0 ? prev : 10);
+        }
+
+        // ---------- 5. 탭 전환 / 폴링 연결 ----------
+        let replayLoaded = false;
+        function onStage3TabShown(tab) {
+            if (tab === 'shadow') {
+                const ctl = document.getElementById('sh_mock_ctl');
+                if (ctl) ctl.style.display = STAGE3.useMock ? 'block' : 'none';
+                loadShadowTab();
+            } else if (tab === 'replay') {
+                fillReplayDays();
+                if (!replayLoaded) { replayLoaded = true; loadReplayLatest(); }
+                resumeReplayPolling();
+            }
+        }
+        // 섀도우 상태 폴링: 섀도우 탭이 보이고 문서가 숨겨지지 않았을 때만
+        setInterval(function () {
+            if (activeTab === 'shadow' && !document.hidden) refreshShadowStatus();
+        }, STAGE3.shadowPollMs);
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) return;
+            if (activeTab === 'shadow') { refreshShadowStatus(); refreshShadowCompare(); }
+            resumeReplayPolling();
         });
     </script>
 </body>

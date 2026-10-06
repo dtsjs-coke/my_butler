@@ -1205,12 +1205,18 @@ class VWAPBot:
                 self.logger.error(f"❌ 거래 시작 시간 검증 중 에러 발생 (설정값: {start_time}): {ex}")
 
         if is_waiting_for_start:
+            self._cycle["waiting_for_start"] = True
+        # (ADR-0009) 대기 중 막는 것은 '신규 진입'뿐. 보유 포지션의 손절(STOP_LOSS)·매도(SELL)·유지(HOLD)는 평소대로 처리.
+        # (이전에는 보유 중 STOP_LOSS 까지 WAIT 로 덮어, 전 세션에서 넘어온 포지션이 대기 구간 동안 손절 보호를 못 받았음)
+        # 조건은 core/vwap/strategies/rules.start_wait_blocks 와 동치 (T-P5 가 검증).
+        if is_waiting_for_start and (qty <= 0 or signal == "BUY"):
             signal = "WAIT"
             self.logger.info(f"⏳ 대기 시간대이므로 전략 시그널을 WAIT로 강제하고 신규 매매를 보류합니다.")
-            self._cycle["waiting_for_start"] = True
             self._set_reason("WAIT_START_TIME",
                              f"거래 시작 시각 {start_time} 이전(세션 시작 {sess_start.strftime('%H:%M')}) → 신규 매매 대기 "
                              f"(전략 판단: {signals.get('reason_code') or '-'})", "WAIT")
+        elif is_waiting_for_start:
+            self.logger.info(f"⏳ 거래 시작 대기 중이지만 보유 포지션({qty}주) 관리는 계속합니다 (시그널 {signal} 그대로 처리, 신규 매수만 보류).")
 
         # (ADR-0008, 관측 전용) 대시보드/상태 API 에 현재 VWAP 세션 기준을 노출. 매매 판단에는 쓰지 않음.
         session_label = f"{session.describe()} {session.describe_bounds(now)}"
@@ -1272,6 +1278,17 @@ class VWAPBot:
             self._set_reason("DATA_UNAVAILABLE",
                              f"미체결 주문 조회 실패 → 이번 주기 신규/정정 주문 보류 (전략 판단: {self._cycle.get('reason_code') or '-'})")
             return
+
+        # 9-2-0. (ADR-0009) 거래 시작 대기 중 보유 포지션을 매도(SELL)하는 주기에는, 남아 있는 매수 미체결(부분 체결 잔량 등)이
+        # 체결되면 대기 중 '신규 진입'이 되므로 먼저 취소합니다. (HOLD/WAIT 는 9-4, STOP_LOSS 는 청산 경로가 이미 전부 취소)
+        if is_waiting_for_start and signal == "SELL":
+            for order in [o for o in open_orders if o["side"] == "BUY"]:
+                ok = self._cancel_order(broker, order["order_id"])
+                self._emit("ORDER_CANCELED", "info" if ok else "warn", "WAIT_START_TIME",
+                           f"거래 시작 대기 중 잔여 매수 주문 취소{'' if ok else ' 요청 실패'}: "
+                           f"{float(order.get('price') or 0):.2f} x {float(order.get('qty') or 0):g}주",
+                           self._reason_data(order_id=order.get("order_id"), side="BUY",
+                                             price=order.get("price"), qty=order.get("qty"), cancel_ok=bool(ok)))
 
         # 9-2. 매도 청산 시그널 (SELL)
         if signal == "SELL":

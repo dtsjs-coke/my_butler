@@ -125,3 +125,10 @@
 ### 나중에 뒤집는다면
 - 섀도우를 독립 인스턴스(A1)로 바꾸려면 `ShadowBot`에 자체 루프 스레드를 주고(일반 `start()`) 시세 소스만 실제 브로커로 돌리면 된다. 훅은 제거한다. 데이터 파일 형식은 그대로 둘 수 있다.
 - 엔진을 이동(A4)할 때는 `backtest/validate.py`의 import 경로만 바꾸고 18개 검증을 다시 돌린다.
+
+---
+
+## 정정 메모 (2026-10-07 추가 — 본문은 수정하지 않음)
+
+- **4단계 ADR 번호**: 위 25행 메모의 "4단계(전략 재연구) ADR 번호는 0009"는 정정한다. 0009 는 [ADR-0009](0009-vwap-start-wait-stop-loss.md)(거래 시작 대기 중 손절 허용)가 사용했으므로 **4단계 ADR 은 0010** 이다.
+- **`ui_show_legacy_virtual`**: 80행의 "UI에서만 기본으로 숨긴다(`ui_show_legacy_virtual=false`)"는 서버 설정 키를 뜻하지 않는다. 서버 설정 키 `ui_show_legacy_virtual`은 **삭제 확정**(2026-10-07, QA 권고 — 코드 참조 0건)이며, 레거시 가상봇 표시 토글은 브라우저 `localStorage`(`vwap_ui_show_legacy_virtual`)만 사용한다.

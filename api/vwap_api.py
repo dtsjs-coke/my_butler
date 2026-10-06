@@ -547,7 +547,7 @@ def api_get_events():
     """봇 이벤트 로그(data/vwap_events_{mode}.jsonl)를 최신순으로 반환합니다.
 
     Query:
-      mode  : REAL | VIRTUAL_1 | VIRTUAL_2 | VIRTUAL_3 (VIRTUAL 은 VIRTUAL_1 로 취급, 기본 REAL)
+      mode  : REAL | VIRTUAL_1 | VIRTUAL_2 | VIRTUAL_3 | VIRTUAL_SHADOW (VIRTUAL 은 VIRTUAL_1 로 취급, 기본 REAL)
       limit : 기본 100, 1~500 로 보정
       types : 쉼표 구분 이벤트 종류 필터 (예: FILL,STOP_LOSS). 생략 시 전체
     Returns: {"status": "success", "mode": "REAL", "events": [최신순 이벤트...]}
