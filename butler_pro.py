@@ -59,7 +59,12 @@ async def on_ready():
         # 구독 관리 작업 시작
         start_subscription_tasks(client)
 
-        # 배터리 가드 시작 (배터리 90% 이상이면 스마트플러그 OFF, 30% 이하면 ON)
+        # 배터리 가드 (배터리 90% 이상이면 스마트플러그 OFF, 30% 이하면 ON)
+        # ⏸️ 2026-09-18 현재 정지 상태입니다. SmartThings 앱의 Routine(4시간마다
+        #    플러그 ON/OFF 반복)이 대신 처리하며, 둘 다 켜면 서로 충돌합니다.
+        #    스위치는 core/smartthings/battery_guard.py의 GUARD_ENABLED 이며,
+        #    이 호출은 그대로 둡니다(함수가 스스로 정지 여부를 판단해 로그를 남김).
+        #    경위/트레이드오프: docs/adr/0003-battery-guard-to-smartthings-routine.md
         start_battery_guard(client)
 
         # Flask 서버 별도 쓰레드 실행

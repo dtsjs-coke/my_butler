@@ -1,5 +1,17 @@
 """배터리 가드 — S9 배터리 잔량에 따라 스마트플러그를 자동으로 켜고 끄는 기능
 
+⏸️ 현재 상태: 정지 (2026-09-18, ADR-0003)
+------------------------------------------
+아래 GUARD_ENABLED 스위치가 False라서 이 파일의 폴링 루프는 **시작되지 않습니다.**
+SmartThings 앱의 Routine(4시간마다 플러그 ON/OFF 반복)이 같은 일을 대신하고 있어,
+둘 다 켜두면 서로 상대가 만든 상태를 되돌리는 충돌이 생기기 때문입니다.
+
+코드는 지워두지 않았습니다. 루틴 방식(순수 시간 기반)이 S9의 실제 충전 속도와
+맞지 않는 것으로 드러나면 GUARD_ENABLED만 True로 되돌려 다시 켤 수 있습니다.
+자세한 경위와 트레이드오프는 docs/adr/0003-*.md 를 보세요.
+
+아래 설명은 이 기능이 동작할 때의 내용이며, 되살릴 때를 위해 그대로 둡니다.
+
 목적
 ----
 갤럭시 S9에는 '충전 상한 제한' 기능이 없어서, 24시간 꽂아두면 계속 100%로
@@ -63,6 +75,26 @@ from core.smartthings.client import (
 )
 from utils.system_status import get_system_status_data
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 기능 정지 스위치 (ADR-0003)
+#
+#   False -> 루프를 아예 시작하지 않습니다. (현재 값)
+#   True  -> 예전처럼 배터리 %를 폴링해 플러그를 제어합니다.
+#
+# 되살리는 방법: 이 값을 True로 바꾸고 봇을 재시작(S9에서는 `pm2 restart`)하면
+# 끝입니다. 단, 그 전에 **SmartThings 앱의 4시간 주기 Routine을 먼저 꺼야 합니다.**
+# 둘 다 켜두면 루틴이 켠 플러그를 가드가 끄고(또는 반대로) 서로 싸우게 됩니다.
+#
+# 왜 data/battery_guard.json의 enabled 대신 코드에 두었는가:
+#   그 JSON은 .gitignore + sync_s9.py 제외 대상이라 로컬에서 고쳐도 S9에 전달되지
+#   않습니다. S9에 이미 enabled=true로 저장된 파일이 남아 있어서, 기본값만 False로
+#   바꿔도 파일 값이 이겨 그대로 동작합니다(config_manager의 병합 규칙).
+#   즉 설정 파일 방식은 폰에 직접 접속해 손으로 고쳐야만 하고, 그 사실이 코드
+#   어디에도 드러나지 않습니다. 코드 스위치는 sync_s9로 그대로 전달되고
+#   git 이력에도 남으므로 "왜 안 도는지"를 나중에 추적할 수 있습니다.
+# ─────────────────────────────────────────────────────────────────────────────
+GUARD_ENABLED = False
 
 # 루프의 기본 주기(분). 실제 주기는 설정 파일의 poll_minutes를 따르며,
 # 이 값은 설정을 읽기 전 초기값으로만 쓰입니다.
@@ -401,7 +433,20 @@ async def battery_guard_loop(client):
 
 
 def start_battery_guard(client):
-    """butler_pro.py의 on_ready()에서 호출해 루프를 시작합니다."""
+    """butler_pro.py의 on_ready()에서 호출해 루프를 시작합니다.
+
+    GUARD_ENABLED가 False면 루프를 시작하지 않고 로그만 한 줄 남기고 돌아갑니다.
+    (조용히 아무것도 안 하면 나중에 "왜 안 돌지?"를 코드로 추적해야 하므로,
+     PM2 로그에 정지 상태임이 반드시 보이게 합니다)
+    """
+    if not GUARD_ENABLED:
+        _log(
+            "⏸️ 배터리 가드는 정지 상태입니다 — SmartThings 앱의 4시간 주기 "
+            "Routine이 대신 처리합니다. (ADR-0003 / 되살리려면 battery_guard.py의 "
+            "GUARD_ENABLED = True)"
+        )
+        return
+
     if battery_guard_loop.is_running():
         return
 

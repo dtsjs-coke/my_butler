@@ -1,7 +1,9 @@
 # ADR-0002: 배터리 가드 — 로컬 배터리 폴링 + SmartThings를 유일한 상태 진실 공급원으로 채택
 
+> ⚠️ **Superseded by [ADR-0003](0003-battery-guard-to-smartthings-routine.md)** (2026-09-18) — 토큰 만료로 인한 실제 방전 장애 후, 이 폴링 방식은 정지되고 SmartThings 네이티브 Routine(4시간 시간 기반 토글)으로 대체되었습니다. 아래 본문은 당시 결정 근거를 남기기 위해 그대로 보존합니다.
+
 - **날짜**: 2026-09-11
-- **상태**: Accepted
+- **상태**: Superseded by ADR-0003
 - **대상**: `my_butler` 배터리 가드 (S9 과충전 방지 자동화)
 - **관련 파일**: `core/smartthings/client.py`, `core/smartthings/battery_guard.py`, `config/config_manager.py`, `butler_pro.py`, `utils/security.py`, `test_smartthings.py`, `data/battery_guard.json`
 - **관련 커밋**: (미커밋 — 배포 후 커밋 예정)
