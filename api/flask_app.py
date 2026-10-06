@@ -10,6 +10,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 from core.news_service import load_news
+from core import liquor_manager
 from core.subscription.service import load_yaml, save_yaml, SUBSCRIPTIONS_FILE, USERS_FILE
 from utils.system_status import get_system_status_data, get_system_status_history
 from config.config_manager import (
@@ -21,7 +22,7 @@ from SRT.passenger import Adult, Child, Senior, Disability1To3
 from SRT import SeatType
 
 app = Flask(__name__)
-from api.vwap_api import vwap_bp
+from api.vwap_api import vwap_bp, admin_required
 app.register_blueprint(vwap_bp, url_prefix='/vwap')
 discord_client = None
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
@@ -372,6 +373,103 @@ def manage_settlements():
             return jsonify({"status": "success"}), 200
         except Exception as e:
             return jsonify({"status": "failed", "reason": str(e)}), 500
+
+@app.route('/liquor')
+def liquor_page():
+    return render_template('liquor.html', api_token=BUTLER_API_TOKEN)
+
+@app.route('/api/liquor_purchases', methods=['GET'])
+@token_required
+def get_liquor_purchases():
+    """조회는 누구나 가능 - admin_required를 걸지 않는다(사용자 요청, 2026-09-18)."""
+    records = liquor_manager.list_purchases_sorted()
+    dismissed_merge_pairs = liquor_manager.load_dismissed_pairs()
+    return jsonify({
+        "status": "success",
+        "count": len(records),
+        "liquor_purchases": records,
+        "dismissed_merge_pairs": dismissed_merge_pairs,
+    }), 200
+
+@app.route('/api/liquor_purchases', methods=['POST', 'PUT', 'DELETE'])
+@token_required
+@admin_required
+def write_liquor_purchases():
+    """추가/수정/삭제는 VWAP과 동일한 admin 세션(vwap_session 쿠키)이 필요하다(2026-09-18)."""
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        record, reason = liquor_manager.create_purchase(data)
+        if reason:
+            return jsonify({"status": "failed", "reason": reason}), 400
+        return jsonify({"status": "success", "id": record["id"], "record": record}), 200
+
+    elif request.method == 'PUT':
+        data = request.get_json(silent=True) or {}
+        purchase_id = data.get('id')
+        if not purchase_id:
+            return jsonify({"status": "failed", "reason": "missing_id"}), 400
+        record, reason = liquor_manager.update_purchase(purchase_id, data)
+        if reason == "not_found":
+            return jsonify({"status": "failed", "reason": "not_found"}), 404
+        return jsonify({"status": "success", "record": record}), 200
+
+    elif request.method == 'DELETE':
+        data = request.get_json(silent=True) or {}
+        purchase_id = data.get('id')
+        if not purchase_id:
+            return jsonify({"status": "failed", "reason": "missing_id"}), 400
+        ok = liquor_manager.delete_purchase(purchase_id)
+        if not ok:
+            return jsonify({"status": "failed", "reason": "not_found"}), 404
+        return jsonify({"status": "success"}), 200
+
+@app.route('/api/liquor_purchases/merge_key', methods=['POST'])
+@token_required
+@admin_required
+def merge_liquor_product_key():
+    data = request.get_json(silent=True) or {}
+    from_keys = data.get('from_keys') or []
+    to_key = (data.get('to_key') or '').strip()
+    if not from_keys or not to_key:
+        return jsonify({"status": "failed", "reason": "invalid_params"}), 400
+    updated = liquor_manager.merge_product_keys(from_keys, to_key)
+    return jsonify({"status": "success", "updated": updated, "to_key": to_key}), 200
+
+@app.route('/api/liquor_purchases/dismiss_suggestion', methods=['POST'])
+@token_required
+@admin_required
+def dismiss_liquor_merge_suggestion():
+    data = request.get_json(silent=True) or {}
+    key_a = (data.get('a') or '').strip()
+    key_b = (data.get('b') or '').strip()
+    if not key_a or not key_b:
+        return jsonify({"status": "failed", "reason": "invalid_params"}), 400
+    liquor_manager.dismiss_merge_suggestion(key_a, key_b)
+    return jsonify({"status": "success"}), 200
+
+LIQUOR_IMPORT_MAX_BYTES = 2 * 1024 * 1024  # 2MB 상한 (설계 문서 4-8)
+
+@app.route('/api/liquor_purchases/import', methods=['POST'])
+@token_required
+@admin_required
+def import_liquor_purchases():
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({"status": "failed", "reason": "missing_file"}), 400
+
+    filename = file.filename.lower()
+    if not (filename.endswith('.csv') or filename.endswith('.txt')):
+        return jsonify({"status": "failed", "reason": "invalid_file_type"}), 400
+
+    file_bytes = file.read()
+    if len(file_bytes) > LIQUOR_IMPORT_MAX_BYTES:
+        return jsonify({"status": "failed", "reason": "file_too_large"}), 413
+
+    dry_run = request.form.get('dry_run', 'true') == 'true'
+    mode = request.form.get('mode', 'append')
+
+    status_code, body = liquor_manager.import_csv(file_bytes, dry_run, mode)
+    return jsonify(body), status_code
 
 @app.route('/subscriptions/all', methods=['GET'])
 @token_required

@@ -1,0 +1,1987 @@
+{% extends 'base.html' %}
+
+{% block page_title %}주류 구매 이력{% endblock %}
+
+{% block content %}
+<!-- Chart.js 라이브러리 추가 (버전 고정: @latest 사용 금지) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<div class="space-y-8" id="liquor-app">
+
+    <!-- API 연결 오류 배너 (백엔드 미구현/연결 실패 시에만 표시) -->
+    <div id="api-error-banner" class="hidden bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-800/40 text-amber-700 dark:text-amber-300 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+        <i data-lucide="alert-triangle" class="w-4 h-4 flex-shrink-0"></i>
+        <span id="api-error-message">API 서버에 연결할 수 없습니다. 백엔드 구현이 완료되면 자동으로 정상 동작합니다.</span>
+    </div>
+
+    <!-- 1. 차트 영역 -->
+    <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+        <h3 class="text-lg font-bold flex items-center gap-2 mb-4">
+            <i data-lucide="bar-chart-3" class="w-5 h-5 text-purple-500"></i>
+            차트
+        </h3>
+
+        <!-- 탭 버튼 -->
+        <div class="flex flex-wrap gap-2 mb-5 border-b border-gray-200 dark:border-dark-border pb-3">
+            <button data-chart-tab="priceTrend" onclick="switchChartTab('priceTrend')" class="chart-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors">가격 변동</button>
+            <button data-chart-tab="spend" onclick="switchChartTab('spend')" class="chart-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors">월별・연도별 지출</button>
+            <button data-chart-tab="store" onclick="switchChartTab('store')" class="chart-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors">구매처별 비중</button>
+            <button data-chart-tab="category" onclick="switchChartTab('category')" class="chart-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors">주종별 비중</button>
+            <button data-chart-tab="avgPrice" onclick="switchChartTab('avgPrice')" class="chart-tab-btn px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors">연도별 평균 단가</button>
+        </div>
+
+        <!-- [필수] 7-1. 가격 변동 라인 차트 -->
+        <div id="chart-panel-priceTrend" class="chart-panel">
+            <div class="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+                <div class="flex-1">
+                    <input type="text" id="price-trend-product-input" list="price-trend-product-list" oninput="onPriceTrendProductInput()" placeholder="술 이름을 입력하거나 목록에서 선택하세요..." autocomplete="off" class="w-full px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    <datalist id="price-trend-product-list"></datalist>
+                </div>
+                <div class="flex gap-2">
+                    <button data-price-mode="bottle" onclick="setPriceTrendMode('bottle')" class="price-mode-btn px-3.5 py-2 rounded-xl text-xs font-bold transition-colors">병당 가격</button>
+                    <button data-price-mode="per100ml" onclick="setPriceTrendMode('per100ml')" class="price-mode-btn px-3.5 py-2 rounded-xl text-xs font-bold transition-colors">100ml당 단가</button>
+                </div>
+            </div>
+            <div class="relative" style="height: 360px;">
+                <canvas id="chart-price-trend"></canvas>
+            </div>
+            <p id="price-trend-note" class="text-xs text-gray-400 mt-2"></p>
+        </div>
+
+        <!-- [필수] 7-2. 월별/연도별 지출 + 누적 -->
+        <div id="chart-panel-spend" class="chart-panel hidden">
+            <div class="flex gap-2 mb-4">
+                <button data-spend-granularity="month" onclick="setSpendGranularity('month')" class="spend-granularity-btn px-3.5 py-2 rounded-xl text-xs font-bold transition-colors">월별</button>
+                <button data-spend-granularity="year" onclick="setSpendGranularity('year')" class="spend-granularity-btn px-3.5 py-2 rounded-xl text-xs font-bold transition-colors">연도별</button>
+            </div>
+            <div class="relative" style="height: 360px;">
+                <canvas id="chart-spend"></canvas>
+            </div>
+        </div>
+
+        <!-- [선택] 7-3. 구매처별 지출 도넛 -->
+        <div id="chart-panel-store" class="chart-panel hidden">
+            <div class="relative mx-auto" style="height: 360px; max-width: 480px;">
+                <canvas id="chart-store"></canvas>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 text-center">상위 7개 구매처 + 기타. 조각을 클릭하면 아래 표가 해당 구매처로 필터링됩니다.</p>
+        </div>
+
+        <!-- [선택] 7-4. 주종별 지출 도넛 -->
+        <div id="chart-panel-category" class="chart-panel hidden">
+            <div class="relative mx-auto" style="height: 360px; max-width: 480px;">
+                <canvas id="chart-category"></canvas>
+            </div>
+            <p class="text-xs text-gray-400 mt-2 text-center">회색 조각(미분류)이 크다면 테이블에서 주종을 정리해 주세요.</p>
+        </div>
+
+        <!-- [선택] 7-5. 연도별 평균 100ml당 단가 -->
+        <div id="chart-panel-avgPrice" class="chart-panel hidden">
+            <div class="relative" style="height: 360px;">
+                <canvas id="chart-avg-price"></canvas>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">용량(volume_ml)이 입력된 구매 건만 대상으로 계산합니다. 툴팁에 표본 수(n)가 함께 표시됩니다.</p>
+        </div>
+    </div>
+
+    <!-- 2. 필터 바 -->
+    <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold flex items-center gap-2">
+                <i data-lucide="filter" class="w-5 h-5 text-blue-500"></i>
+                필터
+            </h3>
+            <button onclick="resetFilters()" class="px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 flex items-center gap-1">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                초기화
+            </button>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">이 필터는 아래 <b>요약 카드</b>와 <b>구매 이력 테이블</b>에 적용됩니다. 차트는 전체 데이터를 기준으로 각자의 선택 옵션(술 선택, 연/월 전환 등)을 따로 갖습니다. 처음 들어오면 <b>데이터가 있는 가장 최근 연/월</b>로 자동 필터링됩니다 — 연도/월을 "전체"로 선택하면 해제됩니다.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <select id="filter-year" onchange="applyFilters()" class="px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">전체 연도</option>
+            </select>
+            <select id="filter-month" onchange="applyFilters()" class="px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">전체 월</option>
+            </select>
+            <select id="filter-category" onchange="applyFilters()" class="px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">전체 주종</option>
+            </select>
+            <select id="filter-store" onchange="storeFilterFromChart = null; applyFilters();" class="px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">전체 구매처</option>
+            </select>
+            <div>
+                <input type="text" id="filter-search" list="filter-search-datalist" oninput="applyFilters()" placeholder="술이름 검색..." autocomplete="off" class="w-full px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <datalist id="filter-search-datalist"></datalist>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 요약 카드 4개 (위 필터의 영향을 받으므로 필터 바로 아래에 배치) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white dark:bg-dark-sidebar p-5 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+            <div class="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">
+                <i data-lucide="wallet" class="w-4 h-4"></i>
+                총 지출
+            </div>
+            <p class="text-2xl font-extrabold" id="summary-total-spend">0원</p>
+        </div>
+        <div class="bg-white dark:bg-dark-sidebar p-5 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+            <div class="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">
+                <i data-lucide="package" class="w-4 h-4"></i>
+                총 병 수
+            </div>
+            <p class="text-2xl font-extrabold" id="summary-total-bottles">0병</p>
+        </div>
+        <div class="bg-white dark:bg-dark-sidebar p-5 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+            <div class="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">
+                <i data-lucide="tag" class="w-4 h-4"></i>
+                평균 병당 가격
+            </div>
+            <p class="text-2xl font-extrabold" id="summary-avg-price">0원</p>
+        </div>
+        <div class="bg-white dark:bg-dark-sidebar p-5 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm">
+            <div class="flex items-center gap-2 text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">
+                <i data-lucide="calendar" class="w-4 h-4"></i>
+                최근 구매일
+            </div>
+            <p class="text-2xl font-extrabold" id="summary-last-date">-</p>
+        </div>
+    </div>
+
+    <!-- 4. 구매 이력 테이블 -->
+    <div class="bg-white dark:bg-dark-sidebar p-6 rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold flex items-center gap-2">
+                <i data-lucide="list" class="w-5 h-5 text-green-500"></i>
+                구매 이력 (<span id="table-count">0</span>건)
+            </h3>
+            <button onclick="openAddModal()" class="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition-colors">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                새 구매 추가
+            </button>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-sm border-collapse min-w-max table-auto">
+                <thead>
+                    <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 text-xs font-bold uppercase">
+                        <th class="py-3 px-2 min-w-[100px]">일자</th>
+                        <th class="py-3 px-2 min-w-[100px]">개봉일</th>
+                        <th class="py-3 px-2 min-w-[100px]">비운날짜</th>
+                        <th class="py-3 px-2 min-w-[100px]">병옮긴날</th>
+                        <th class="py-3 px-2 min-w-[80px]">오픈기간</th>
+                        <th class="py-3 px-2 min-w-[130px]">구매장소</th>
+                        <th class="py-3 px-2 min-w-[180px]">술이름</th>
+                        <th class="py-3 px-2 min-w-[90px]">주종</th>
+                        <th class="py-3 px-2 min-w-[100px]">캐스크</th>
+                        <th class="py-3 px-2 min-w-[110px]">나라/지역</th>
+                        <th class="py-3 px-2 min-w-[100px]">분류1</th>
+                        <th class="py-3 px-2 min-w-[100px]">분류2</th>
+                        <th class="py-3 px-2 min-w-[80px]">용량</th>
+                        <th class="py-3 px-2 min-w-[130px]">상품・행사</th>
+                        <th class="py-3 px-2 min-w-[100px]">가격</th>
+                        <th class="py-3 px-2 min-w-[120px]">외화</th>
+                        <th class="py-3 px-2 min-w-[90px]">당시환율</th>
+                        <th class="py-3 px-2 min-w-[130px]">비고</th>
+                        <th class="py-3 px-2 min-w-[110px] text-center">관리</th>
+                    </tr>
+                </thead>
+                <tbody id="purchase-table-body">
+                    <!-- JavaScript에서 동적으로 추가 -->
+                </tbody>
+            </table>
+        </div>
+        <p id="table-empty-msg" class="hidden text-center text-sm text-gray-400 py-8">표시할 구매 이력이 없습니다.</p>
+    </div>
+
+    <!-- 5. 술 이름 정리 패널 -->
+    <details class="bg-white dark:bg-dark-sidebar rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm overflow-hidden group">
+        <summary class="p-6 cursor-pointer list-none flex items-center justify-between">
+            <h3 class="text-lg font-bold flex items-center gap-2">
+                <i data-lucide="wand-2" class="w-5 h-5 text-amber-500"></i>
+                술 이름 정리 (<span id="product-key-count">0</span>개 그룹)
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform group-open:rotate-180"></i>
+        </summary>
+        <div class="px-6 pb-6 space-y-5 border-t border-gray-100 dark:border-dark-border/50 pt-5">
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                표기가 흔들린 같은 술을 하나의 <code class="px-1 py-0.5 bg-gray-100 dark:bg-dark-card rounded">product_key</code>로 합쳐 정리합니다.
+                아래 "병합 제안"은 이름이 비슷한 후보를 보여줄 뿐, <b>사용자가 직접 병합 버튼을 눌러야만</b> 실제로 반영됩니다.
+            </p>
+
+            <!-- 병합 제안 -->
+            <div>
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">병합 제안 (이름 유사도 0.7 이상)</h4>
+                <div id="merge-suggestions" class="space-y-2">
+                    <p class="text-xs italic text-gray-400">제안할 항목이 없습니다.</p>
+                </div>
+            </div>
+
+            <!-- 전체 product_key 목록 -->
+            <div>
+                <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">전체 술이름 그룹 (구매 횟수순)</h4>
+                <div id="product-key-list" class="max-h-64 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar border border-gray-100 dark:border-dark-border/50 rounded-xl p-3">
+                    <!-- JavaScript에서 동적으로 추가 -->
+                </div>
+            </div>
+
+            <!-- 병합 실행 -->
+            <div class="bg-gray-50 dark:bg-dark-card/40 p-4 rounded-xl">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
+                    선택한 <span id="merge-selected-count">0</span>개 그룹을 아래 이름으로 병합
+                </label>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="merge-target-name" placeholder="대표 이름 입력 (예: 카발란 솔리스트 비노바리끄)" class="flex-1 px-4 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl text-sm focus:ring-2 focus:ring-amber-500 outline-none">
+                    <button onclick="executeMerge()" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors">
+                        <i data-lucide="merge" class="w-4 h-4"></i>
+                        선택 항목 병합
+                    </button>
+                </div>
+            </div>
+        </div>
+    </details>
+
+    <!-- 6. CSV 가져오기 패널 -->
+    <details class="bg-white dark:bg-dark-sidebar rounded-2xl border border-gray-200 dark:border-dark-border shadow-sm overflow-hidden group">
+        <summary class="p-6 cursor-pointer list-none flex items-center justify-between">
+            <h3 class="text-lg font-bold flex items-center gap-2">
+                <i data-lucide="upload" class="w-5 h-5 text-indigo-500"></i>
+                CSV 가져오기
+            </h3>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-gray-400 transition-transform group-open:rotate-180"></i>
+        </summary>
+        <div class="px-6 pb-6 space-y-5 border-t border-gray-100 dark:border-dark-border/50 pt-5">
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+                구글 시트에서 내보낸 CSV 파일을 업로드합니다. <b>먼저 미리보기로 결과를 확인한 뒤에만</b> 실제로 저장할 수 있습니다.
+            </p>
+
+            <div class="flex flex-col md:flex-row md:items-center gap-3">
+                <input type="file" id="csv-file-input" accept=".csv,.txt" onchange="onCsvFileChange()" class="flex-1 text-sm file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 dark:file:bg-indigo-900/30 file:text-indigo-600 dark:file:text-indigo-300 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-900/50">
+                <label class="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="csv-replace-mode" class="rounded">
+                    기존 데이터 전체 교체 (replace)
+                </label>
+                <button id="csv-preview-btn" onclick="previewCsvImport()" disabled class="px-4 py-2 bg-gray-200 dark:bg-dark-card text-gray-400 text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors disabled:cursor-not-allowed">
+                    <i data-lucide="eye" class="w-4 h-4"></i>
+                    미리보기
+                </button>
+            </div>
+
+            <!-- 미리보기 결과 -->
+            <div id="csv-preview-result" class="hidden space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="bg-gray-50 dark:bg-dark-card/50 p-3 rounded-xl text-center">
+                        <p class="text-[10px] text-gray-400 font-bold uppercase">정상 파싱</p>
+                        <p class="text-lg font-extrabold" id="csv-stat-parsed">0</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-dark-card/50 p-3 rounded-xl text-center">
+                        <p class="text-[10px] text-gray-400 font-bold uppercase">오류 행</p>
+                        <p class="text-lg font-extrabold text-red-500" id="csv-stat-errors">0</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-dark-card/50 p-3 rounded-xl text-center">
+                        <p class="text-[10px] text-gray-400 font-bold uppercase">가져오기 후 총 건수</p>
+                        <p class="text-lg font-extrabold" id="csv-stat-total-after">0</p>
+                    </div>
+                </div>
+
+                <div id="csv-warnings-wrap" class="hidden">
+                    <h4 class="text-xs font-bold text-amber-500 uppercase tracking-widest mb-2">경고 (가져오기는 계속 진행됩니다)</h4>
+                    <div id="csv-warnings-list" class="space-y-1 text-xs text-amber-700 dark:text-amber-300"></div>
+                </div>
+
+                <div id="csv-errors-wrap" class="hidden">
+                    <h4 class="text-xs font-bold text-red-500 uppercase tracking-widest mb-2">오류 행 (저장되지 않습니다)</h4>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 uppercase">
+                                    <th class="py-2 px-2">행번호</th>
+                                    <th class="py-2 px-2">컬럼</th>
+                                    <th class="py-2 px-2">값</th>
+                                    <th class="py-2 px-2">사유</th>
+                                </tr>
+                            </thead>
+                            <tbody id="csv-errors-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">미리보기 (앞 5건)</h4>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="border-b border-gray-200 dark:border-dark-border text-gray-400 uppercase">
+                                    <th class="py-2 px-2">일자</th>
+                                    <th class="py-2 px-2">구매장소</th>
+                                    <th class="py-2 px-2">술이름</th>
+                                    <th class="py-2 px-2">주종</th>
+                                    <th class="py-2 px-2">용량</th>
+                                    <th class="py-2 px-2">가격</th>
+                                </tr>
+                            </thead>
+                            <tbody id="csv-preview-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <button id="csv-execute-btn" onclick="onClickCsvExecute()" class="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    이 결과로 가져오기 실행
+                </button>
+            </div>
+        </div>
+    </details>
+
+</div>
+
+<!-- 관리자 인증 전용 모달. base.html의 공용 #common-modal을 재사용하지 않고 별도 엘리먼트로 분리했다 —
+     "새 구매 추가" 등 다른 모달이 열려 있는 도중 401을 받아 로그인 창이 떠도, 그 모달의 내용(입력 중이던 값)이
+     로그인 폼으로 덮어써지지 않고 뒤에 그대로 남아있게 하기 위함. z-index를 #common-modal(100)보다 높게 두어 그 위에 겹쳐 뜬다. -->
+<div id="admin-login-modal" class="fixed inset-0 z-[110] hidden items-center justify-center p-4">
+    <div id="admin-login-backdrop" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="relative bg-white dark:bg-dark-sidebar w-full max-w-md rounded-2xl shadow-2xl border border-gray-200 dark:border-dark-border overflow-hidden transform transition-all">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold">관리자 인증 필요</h3>
+                <button id="admin-login-close-btn" class="p-2 hover:bg-gray-100 dark:hover:bg-dark-card rounded-lg transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <p class="text-sm text-gray-600 dark:text-gray-300">이 작업은 관리자 인증이 필요합니다. VWAP 대시보드와 동일한 admin 비밀번호를 입력하세요.</p>
+                <input type="password" id="admin-login-password" placeholder="admin 비밀번호" autocomplete="current-password" class="w-full px-4 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <p id="admin-login-error" class="hidden text-xs text-red-500"></p>
+            </div>
+        </div>
+        <div class="bg-gray-50 dark:bg-dark-card/50 px-6 py-4 flex justify-end gap-3">
+            <button id="admin-login-cancel-btn" class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">취소</button>
+            <button id="admin-login-submit-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-colors">확인</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .chart-tab-btn { background-color: transparent; color: #9ca3af; }
+    .chart-tab-btn.active { background-color: #7c3aed; color: #fff; }
+    .dark .chart-tab-btn { color: #6b7280; }
+    .dark .chart-tab-btn.active { background-color: #7c3aed; color: #fff; }
+
+    .price-mode-btn, .spend-granularity-btn { background-color: #f3f4f6; color: #6b7280; }
+    .price-mode-btn.active, .spend-granularity-btn.active { background-color: #2563eb; color: #fff; }
+    .dark .price-mode-btn, .dark .spend-granularity-btn { background-color: #2c2e33; color: #9ca3af; }
+    .dark .price-mode-btn.active, .dark .spend-granularity-btn.active { background-color: #2563eb; color: #fff; }
+</style>
+
+<script>
+    // ============================================================
+    // 1. 전역 상태
+    // ============================================================
+    const LIQUOR_API = '/api/liquor_purchases';
+
+    let purchases = [];           // 서버에서 받은 전체 구매 이력
+    let filteredPurchases = [];   // 필터 바 적용 결과 (요약 카드 + 테이블용)
+    let editingId = null;         // 인라인 편집 중인 레코드 id
+    let selectedProductKeys = new Set(); // 술 이름 정리 패널에서 체크된 product_key
+    let dismissedMergePairs = [];        // 서버가 내려준 "병합 안 함" 처리된 이름 쌍 목록 ([keyA, keyB][])
+    let filtersInitialized = false;      // 최초 로드 시 "가장 최근 연/월" 기본 필터를 1번만 적용하기 위한 플래그
+    let lastCsvFile = null;       // 미리보기에 사용한 파일 (실행 시 재사용)
+    let lastCsvPreviewOk = false; // 미리보기가 성공적으로 끝났는지 여부
+
+    let activeChartTab = 'priceTrend';
+    let priceTrendMode = 'bottle';       // 'bottle' | 'per100ml'
+    let priceTrendSelectedKey = null;    // 가격 변동 차트에 실제로 반영된 product_key (입력값이 정확히 일치할 때만 갱신)
+    let spendGranularity = 'month';      // 'month' | 'year'
+    let storeFilterFromChart = null;     // 도넛 차트 클릭으로 테이블을 필터링할 때 사용
+
+    const chartInstances = {}; // { priceTrend, spend, store, category, avgPrice }
+
+    // ============================================================
+    // 2. API 유틸
+    // ============================================================
+    function apiHeadersJson() {
+        return { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN };
+    }
+
+    function showApiError(message) {
+        const banner = document.getElementById('api-error-banner');
+        document.getElementById('api-error-message').textContent = message;
+        banner.classList.remove('hidden');
+    }
+
+    function hideApiError() {
+        document.getElementById('api-error-banner').classList.add('hidden');
+    }
+
+    // ---- 관리자 인증 (쓰기 작업 전용, VWAP 대시보드와 동일한 admin 비밀번호 체계 재사용) ----
+    // 사용자가 admin 로그인 모달을 취소했을 때 "원래 요청은 조용히 실패"시키기 위한 신호용 에러.
+    class AuthCancelledError extends Error {}
+
+    // 쓰기 API(add/edit/delete/merge/dismiss/import) 전용 fetch 래퍼.
+    // 1) 원래 요청을 그대로 보낸다 (이미 admin 세션이 있으면 바로 성공 — 재로그인 불필요).
+    // 2) 401(unauthorized)이면 admin 비밀번호 모달을 띄우고, 로그인 성공 시 원래 요청을 그대로 재시도한다.
+    // 3) 사용자가 모달을 취소하면 AuthCancelledError를 던져 호출부가 조용히 중단하게 한다.
+    async function authedFetch(url, options) {
+        options = Object.assign({}, options, { credentials: 'same-origin' }); // vwap_session 쿠키가 자동으로 실리도록
+        let res = await fetch(url, options);
+        if (res.status !== 401) return res;
+
+        const loggedIn = await promptAdminLogin();
+        if (!loggedIn) throw new AuthCancelledError('사용자가 관리자 인증을 취소했습니다.');
+
+        return fetch(url, options); // 로그인 성공 -> 원래 요청 재시도
+    }
+
+    // admin 비밀번호 입력 모달을 띄우고, 로그인 성공 여부(boolean)를 Promise로 돌려준다.
+    // base.html의 공용 #common-modal이 아니라 페이지에 정적으로 미리 심어둔 #admin-login-modal을 연다/닫는다.
+    // (다른 모달이 열려 있는 도중 인증이 필요해져도, 그 모달의 내용을 로그인 폼으로 덮어쓰지 않고
+    //  뒤에 그대로 남겨둔 채 로그인 모달을 그 위에 겹쳐 띄우기 위함 — QA 지적사항 반영)
+    function promptAdminLogin() {
+        return new Promise((resolve) => {
+            const modalEl = document.getElementById('admin-login-modal');
+            const backdropEl = document.getElementById('admin-login-backdrop');
+            const passwordInput = document.getElementById('admin-login-password');
+            const errorEl = document.getElementById('admin-login-error');
+            const submitBtn = document.getElementById('admin-login-submit-btn');
+            const cancelBtn = document.getElementById('admin-login-cancel-btn');
+            const closeBtn = document.getElementById('admin-login-close-btn');
+
+            // 이전 호출에서 남아있을 수 있는 입력값/에러 메시지를 초기화한다.
+            passwordInput.value = '';
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            submitBtn.disabled = false;
+            submitBtn.textContent = '확인';
+
+            function openLoginModal() {
+                modalEl.classList.remove('hidden');
+                modalEl.classList.add('flex');
+                if (window.lucide) lucide.createIcons();
+                setTimeout(() => passwordInput.focus(), 50);
+            }
+
+            function closeLoginModal() {
+                modalEl.classList.add('hidden');
+                modalEl.classList.remove('flex');
+            }
+
+            let settled = false;
+            const finish = (result) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve(result);
+            };
+
+            function onCancel() {
+                closeLoginModal();
+                finish(false);
+            }
+
+            async function submit() {
+                const password = passwordInput.value;
+                if (!password) {
+                    errorEl.textContent = '비밀번호를 입력하세요.';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+                submitBtn.disabled = true;
+                const originalLabel = submitBtn.textContent;
+                submitBtn.textContent = '확인 중...';
+                try {
+                    const res = await fetch('/vwap/login', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.status === 'success') {
+                        closeLoginModal();
+                        finish(true);
+                        return;
+                    }
+                    errorEl.textContent = '비밀번호가 올바르지 않습니다.';
+                    errorEl.classList.remove('hidden');
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                } catch (e) {
+                    errorEl.textContent = '서버 연결에 실패했습니다.';
+                    errorEl.classList.remove('hidden');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalLabel;
+                }
+            }
+
+            function onKeydown(e) {
+                if (e.key === 'Enter') { e.preventDefault(); submit(); }
+            }
+
+            // 이 모달은 정적 엘리먼트라 매번 새로 만들어지지 않으므로, 리스너를 매 호출마다 새로 붙이고
+            // finish() 시점에 반드시 떼어내야 다음 호출에서 리스너가 중복으로 쌓이지 않는다.
+            function cleanup() {
+                cancelBtn.removeEventListener('click', onCancel);
+                closeBtn.removeEventListener('click', onCancel);
+                backdropEl.removeEventListener('click', onCancel);
+                submitBtn.removeEventListener('click', submit);
+                passwordInput.removeEventListener('keydown', onKeydown);
+            }
+
+            cancelBtn.addEventListener('click', onCancel);
+            closeBtn.addEventListener('click', onCancel);
+            backdropEl.addEventListener('click', onCancel);
+            submitBtn.addEventListener('click', submit);
+            passwordInput.addEventListener('keydown', onKeydown);
+
+            openLoginModal();
+        });
+    }
+
+    // ============================================================
+    // 3. 로드 & 초기화
+    // ============================================================
+    async function loadPurchases() {
+        try {
+            const res = await fetch(LIQUOR_API, { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            if (data.status !== 'success') throw new Error(data.reason || '알 수 없는 오류');
+            purchases = data.liquor_purchases || [];
+            dismissedMergePairs = data.dismissed_merge_pairs || [];
+            hideApiError();
+        } catch (e) {
+            console.error('구매 이력 로드 실패', e);
+            purchases = [];
+            dismissedMergePairs = [];
+            showApiError('구매 이력 API(/api/liquor_purchases)에 연결할 수 없습니다. 백엔드 구현이 끝나면 자동으로 데이터가 표시됩니다.');
+        }
+        buildFilterOptions();
+        if (!filtersInitialized) {
+            applyDefaultDateFilter(); // 최초 진입 시에만 "가장 최근 연/월"로 필터를 맞춘다
+            filtersInitialized = true;
+        }
+        applyFilters();
+        buildProductKeySelect();
+        renderProductKeyPanel();
+        switchChartTab(activeChartTab);
+    }
+
+    // 데이터가 있는 가장 최근 연/월을 필터 바에 기본값으로 설정한다.
+    // (오늘 날짜 기준 "이번 달"로 하면 최근 구매가 없는 달에 진입 시 빈 테이블만 보이게 되므로 이렇게 처리한다.)
+    function applyDefaultDateFilter() {
+        let latestDate = null;
+        purchases.forEach(p => {
+            if (p.date && (!latestDate || p.date > latestDate)) latestDate = p.date;
+        });
+        if (!latestDate) return;
+        document.getElementById('filter-year').value = latestDate.slice(0, 4);
+        document.getElementById('filter-month').value = latestDate.slice(5, 7);
+    }
+
+    // ============================================================
+    // 4. 요약 카드
+    // ============================================================
+    function renderSummaryCards(list) {
+        const totalSpend = list.reduce((sum, p) => sum + (Number(p.price_krw) || 0), 0);
+        const totalBottles = list.length;
+        const avgPrice = totalBottles > 0 ? Math.round(totalSpend / totalBottles) : 0;
+        let lastDate = '-';
+        list.forEach(p => {
+            if (p.date && (lastDate === '-' || p.date > lastDate)) lastDate = p.date;
+        });
+
+        document.getElementById('summary-total-spend').textContent = totalSpend.toLocaleString() + '원';
+        document.getElementById('summary-total-bottles').textContent = totalBottles.toLocaleString() + '병';
+        document.getElementById('summary-avg-price').textContent = avgPrice.toLocaleString() + '원';
+        document.getElementById('summary-last-date').textContent = lastDate;
+    }
+
+    // ============================================================
+    // 5. 필터 바
+    // ============================================================
+    function buildFilterOptions() {
+        const years = new Set();
+        const categories = new Set(['위스키', '와인', '사케', '브랜디', '기타', '미분류']);
+        const stores = new Set();
+
+        purchases.forEach(p => {
+            if (p.date && p.date.length >= 4) years.add(p.date.slice(0, 4));
+            if (p.category) categories.add(p.category);
+            if (p.store) stores.add(p.store);
+        });
+
+        fillSelect('filter-year', Array.from(years).sort().reverse(), '전체 연도');
+        buildMonthFilterOptions();
+        fillSelect('filter-category', Array.from(categories).sort(), '전체 주종');
+        fillSelect('filter-store', Array.from(stores).sort(), '전체 구매처');
+        buildFilterSearchDatalist();
+    }
+
+    // 월은 데이터에서 뽑지 않고 1~12월 고정 목록으로 만든다 (전체 월 옵션 포함).
+    function buildMonthFilterOptions() {
+        const sel = document.getElementById('filter-month');
+        const currentValue = sel.value;
+        let html = '<option value="">전체 월</option>';
+        for (let m = 1; m <= 12; m++) {
+            const mm = String(m).padStart(2, '0');
+            html += `<option value="${mm}">${m}월</option>`;
+        }
+        sel.innerHTML = html;
+        if (currentValue) sel.value = currentValue;
+    }
+
+    // 술이름 필터 입력의 datalist를 채운다 (1번 가격 변동 차트의 검색형 선택과 일관된 UX).
+    // 필터 자체는 부분 문자열 검색을 유지하고, datalist는 자동완성 후보만 제공한다.
+    function buildFilterSearchDatalist() {
+        const groups = getProductKeyGroups();
+        const datalist = document.getElementById('filter-search-datalist');
+        datalist.innerHTML = groups.map(g => `<option value="${escapeAttr(g.key)}"></option>`).join('');
+    }
+
+    function fillSelect(id, values, placeholderLabel) {
+        const sel = document.getElementById(id);
+        const currentValue = sel.value;
+        sel.innerHTML = `<option value="">${placeholderLabel}</option>` +
+            values.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join('');
+        if (values.includes(currentValue)) sel.value = currentValue;
+    }
+
+    function resetFilters() {
+        document.getElementById('filter-year').value = '';
+        document.getElementById('filter-month').value = '';
+        document.getElementById('filter-category').value = '';
+        document.getElementById('filter-store').value = '';
+        document.getElementById('filter-search').value = '';
+        storeFilterFromChart = null;
+        applyFilters();
+    }
+
+    function applyFilters() {
+        const year = document.getElementById('filter-year').value;
+        const month = document.getElementById('filter-month').value;
+        const category = document.getElementById('filter-category').value;
+        const store = document.getElementById('filter-store').value;
+        const search = document.getElementById('filter-search').value.trim().toLowerCase();
+
+        filteredPurchases = purchases.filter(p => {
+            if (year && !(p.date || '').startsWith(year)) return false;
+            if (month && (p.date || '').slice(5, 7) !== month) return false;
+            if (category && p.category !== category) return false;
+            if (store && p.store !== store) return false;
+            if (storeFilterFromChart !== null && (p.store || '(미입력)') !== storeFilterFromChart) return false;
+            if (search) {
+                const haystack = ((p.product_key || '') + ' ' + (p.name_raw || '')).toLowerCase();
+                if (!haystack.includes(search)) return false;
+            }
+            return true;
+        });
+
+        // 정렬: date 내림차순, 동일하면 created_at 내림차순 (5-2 규칙)
+        filteredPurchases.sort((a, b) => {
+            if (a.date !== b.date) return (a.date || '') < (b.date || '') ? 1 : -1;
+            return (a.created_at || '') < (b.created_at || '') ? 1 : -1;
+        });
+
+        renderSummaryCards(filteredPurchases);
+        renderTable();
+    }
+
+    // ============================================================
+    // 6. 구매 이력 테이블 (표시 / 인라인 편집)
+    // ============================================================
+    const CATEGORY_OPTIONS = ['위스키', '와인', '사케', '브랜디', '기타', '미분류'];
+
+    // "대략적인 값" 표시 대상 필드 (백엔드 approx_fields와 동일한 키를 사용해야 함)
+    const APPROX_FIELDS = ['date', 'price_krw', 'volume_ml', 'opened_date', 'emptied_date', 'fx_amount', 'fx_rate', 'cask', 'region', 'classification1', 'classification2', 'moved_date'];
+
+    function isApproxField(record, field) {
+        return Array.isArray(record.approx_fields) && record.approx_fields.includes(field);
+    }
+
+    // 테이블 셀에 "이 값은 정확하지 않고 대략 기록한 값"임을 표시 (물결표 + 물음표 아이콘 + 툴팁)
+    // safeInnerHtml은 이미 escapeHtml/escapeAttr로 이스케이프된 값이어야 한다 (여기서 다시 이스케이프하지 않음).
+    function approxWrap(record, field, safeInnerHtml) {
+        if (!isApproxField(record, field)) return safeInnerHtml;
+        return `<span class="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400" title="기억에 의존한 대략적인 값입니다">
+            <i data-lucide="help-circle" class="w-3 h-3 flex-shrink-0"></i>~${safeInnerHtml}
+        </span>`;
+    }
+
+    // "오픈기간"은 저장하지 않는 파생값이다 — opened_date ~ (emptied_date 또는 오늘)까지의 일수를 매번 계산해서 보여준다.
+    function formatOpenPeriod(record) {
+        if (!record.opened_date) return '미개봉';
+        const start = new Date(record.opened_date);
+        const end = record.emptied_date ? new Date(record.emptied_date) : new Date();
+        let days = Math.floor((end - start) / 86400000); // ms -> 일수로 변환한 뒤 내림
+        if (!isFinite(days) || days < 0) days = 0; // 날짜가 이상하게 입력된 경우를 방어적으로 0으로 클램프
+        return `${days}일`;
+    }
+
+    // 추가/수정 폼에서 특정 입력 옆에 붙이는 컴팩트한 "대략" 체크박스
+    function approxToggleHtml(prefix, field, checked) {
+        return `
+            <label class="inline-flex items-center gap-1 text-[10px] font-normal normal-case text-gray-400 hover:text-amber-500 cursor-pointer select-none" title="정확하지 않고 대략 기록한 값입니다">
+                <input type="checkbox" id="${prefix}-approx-${field}" ${checked ? 'checked' : ''} class="rounded w-3 h-3 accent-amber-500">
+                대략
+            </label>
+        `;
+    }
+
+    // 폼에서 체크된 "대략" 토글들을 모아 approx_fields 배열로 만든다.
+    function collectApproxFields(prefix) {
+        return APPROX_FIELDS.filter(field => {
+            const el = document.getElementById(`${prefix}-approx-${field}`);
+            return el && el.checked;
+        });
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('purchase-table-body');
+        tbody.innerHTML = '';
+        document.getElementById('table-count').textContent = filteredPurchases.length;
+        document.getElementById('table-empty-msg').classList.toggle('hidden', filteredPurchases.length > 0);
+
+        filteredPurchases.forEach(record => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20 align-top';
+            if (editingId === record.id) {
+                tr.innerHTML = renderEditRow(record);
+            } else {
+                tr.innerHTML = renderDisplayRow(record);
+            }
+            tbody.appendChild(tr);
+        });
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function fmtFx(record) {
+        if (record.fx_amount === null || record.fx_amount === undefined || record.fx_amount === '') return '-';
+        const cur = record.fx_currency || '';
+        return `${Number(record.fx_amount).toLocaleString()} ${escapeHtml(cur)}`.trim();
+    }
+
+    function renderDisplayRow(r) {
+        const volumeText = (r.volume_ml === null || r.volume_ml === undefined) ? '-' : `${r.volume_ml}ml`;
+        const fxRateText = (r.fx_rate === null || r.fx_rate === undefined || r.fx_rate === '') ? '-' : Number(r.fx_rate).toLocaleString();
+        const hasFxAmount = !(r.fx_amount === null || r.fx_amount === undefined || r.fx_amount === '');
+        return `
+            <td class="py-2.5 px-2">${approxWrap(r, 'date', escapeHtml(r.date))}</td>
+            <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${r.opened_date ? approxWrap(r, 'opened_date', escapeHtml(r.opened_date)) : '-'}</td>
+            <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${r.emptied_date ? approxWrap(r, 'emptied_date', escapeHtml(r.emptied_date)) : '-'}</td>
+            <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${r.moved_date ? approxWrap(r, 'moved_date', escapeHtml(r.moved_date)) : '-'}</td>
+            <td class="py-2.5 px-2 text-xs text-gray-500 dark:text-gray-400">${escapeHtml(formatOpenPeriod(r))}</td>
+            <td class="py-2.5 px-2">${escapeHtml(r.store)}</td>
+            <td class="py-2.5 px-2">
+                <div class="font-medium" title="원문: ${escapeAttr(r.name_raw)}">${escapeHtml(r.product_key)}</div>
+                <div class="text-[11px] text-gray-400">${escapeHtml(r.name_raw)}</div>
+            </td>
+            <td class="py-2.5 px-2">
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${categoryBadgeClass(r.category)}">${escapeHtml(r.category || '미분류')}</span>
+            </td>
+            <td class="py-2.5 px-2 text-xs">${r.cask ? approxWrap(r, 'cask', escapeHtml(r.cask)) : '-'}</td>
+            <td class="py-2.5 px-2 text-xs">${r.region ? approxWrap(r, 'region', escapeHtml(r.region)) : '-'}</td>
+            <td class="py-2.5 px-2 text-xs">${r.classification1 ? approxWrap(r, 'classification1', escapeHtml(r.classification1)) : '-'}</td>
+            <td class="py-2.5 px-2 text-xs">${r.classification2 ? approxWrap(r, 'classification2', escapeHtml(r.classification2)) : '-'}</td>
+            <td class="py-2.5 px-2 text-gray-500 dark:text-gray-400">${(r.volume_ml === null || r.volume_ml === undefined) ? '-' : approxWrap(r, 'volume_ml', volumeText)}</td>
+            <td class="py-2.5 px-2 text-xs">${escapeHtml(r.promo || '-')}</td>
+            <td class="py-2.5 px-2 font-semibold">${approxWrap(r, 'price_krw', (Number(r.price_krw) || 0).toLocaleString() + '원')}</td>
+            <td class="py-2.5 px-2 text-xs">${hasFxAmount ? approxWrap(r, 'fx_amount', fmtFx(r)) : '-'}</td>
+            <td class="py-2.5 px-2 text-xs">${fxRateText === '-' ? '-' : approxWrap(r, 'fx_rate', fxRateText)}</td>
+            <td class="py-2.5 px-2 text-xs">${escapeHtml(r.note || '-')}</td>
+            <td class="py-2.5 px-2 text-center whitespace-nowrap">
+                <button onclick="enterEditMode('${r.id}')" class="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg transition-colors" title="수정">
+                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                </button>
+                <button onclick="confirmDeleteRecord('${r.id}')" class="p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-colors" title="삭제">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </td>
+        `;
+    }
+
+    function categoryBadgeClass(category) {
+        const map = {
+            '위스키': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+            '와인': 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+            '사케': 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+            '브랜디': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+            '기타': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+        };
+        return map[category] || 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
+    }
+
+    function renderEditRow(r) {
+        const categoryOptionsHtml = CATEGORY_OPTIONS.map(c => `<option value="${c}" ${r.category === c ? 'selected' : ''}>${c}</option>`).join('');
+        return `
+            <td class="py-2 px-2">
+                <input type="date" id="edit-date" value="${escapeAttr(r.date)}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'date', isApproxField(r, 'date'))}
+            </td>
+            <td class="py-2 px-2">
+                <input type="date" id="edit-opened_date" value="${escapeAttr(r.opened_date || '')}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'opened_date', isApproxField(r, 'opened_date'))}
+            </td>
+            <td class="py-2 px-2">
+                <input type="date" id="edit-emptied_date" value="${escapeAttr(r.emptied_date || '')}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'emptied_date', isApproxField(r, 'emptied_date'))}
+            </td>
+            <td class="py-2 px-2">
+                <input type="date" id="edit-moved_date" value="${escapeAttr(r.moved_date || '')}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'moved_date', isApproxField(r, 'moved_date'))}
+            </td>
+            <td class="py-2 px-2 text-xs text-gray-500 dark:text-gray-400">${escapeHtml(formatOpenPeriod(r))}</td>
+            <td class="py-2 px-2"><input type="text" id="edit-store" value="${escapeAttr(r.store)}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none"></td>
+            <td class="py-2 px-2">
+                <input type="text" id="edit-product_key" value="${escapeAttr(r.product_key)}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                <div class="text-[11px] text-gray-400">원문: ${escapeHtml(r.name_raw)}</div>
+            </td>
+            <td class="py-2 px-2"><select id="edit-category" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none">${categoryOptionsHtml}</select></td>
+            <td class="py-2 px-2">
+                <input type="text" id="edit-cask" value="${escapeAttr(r.cask || '')}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'cask', isApproxField(r, 'cask'))}
+            </td>
+            <td class="py-2 px-2">
+                <input type="text" id="edit-region" value="${escapeAttr(r.region || '')}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'region', isApproxField(r, 'region'))}
+            </td>
+            <td class="py-2 px-2">
+                <input type="text" id="edit-classification1" value="${escapeAttr(r.classification1 || '')}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'classification1', isApproxField(r, 'classification1'))}
+            </td>
+            <td class="py-2 px-2">
+                <input type="text" id="edit-classification2" value="${escapeAttr(r.classification2 || '')}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'classification2', isApproxField(r, 'classification2'))}
+            </td>
+            <td class="py-2 px-2">
+                <input type="number" id="edit-volume_ml" value="${r.volume_ml === null || r.volume_ml === undefined ? '' : r.volume_ml}" placeholder="ml" class="w-20 px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'volume_ml', isApproxField(r, 'volume_ml'))}
+            </td>
+            <td class="py-2 px-2"><input type="text" id="edit-promo" value="${escapeAttr(r.promo)}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none"></td>
+            <td class="py-2 px-2">
+                <input type="number" min="0" id="edit-price_krw" value="${r.price_krw}" class="w-24 px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'price_krw', isApproxField(r, 'price_krw'))}
+            </td>
+            <td class="py-2 px-2 flex flex-col gap-1">
+                <input type="number" id="edit-fx_amount" value="${r.fx_amount === null || r.fx_amount === undefined ? '' : r.fx_amount}" placeholder="금액" class="w-24 px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none">
+                <input type="text" id="edit-fx_currency" value="${escapeAttr(r.fx_currency || '')}" placeholder="통화" class="w-24 px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none">
+                ${approxToggleHtml('edit', 'fx_amount', isApproxField(r, 'fx_amount'))}
+            </td>
+            <td class="py-2 px-2">
+                <input type="number" step="0.01" id="edit-fx_rate" value="${r.fx_rate === null || r.fx_rate === undefined ? '' : r.fx_rate}" class="w-20 px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none mb-1">
+                ${approxToggleHtml('edit', 'fx_rate', isApproxField(r, 'fx_rate'))}
+            </td>
+            <td class="py-2 px-2"><input type="text" id="edit-note" value="${escapeAttr(r.note)}" class="w-full px-2 py-1 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-md text-xs outline-none"></td>
+            <td class="py-2 px-2 text-center whitespace-nowrap">
+                <button onclick="saveEditedRow('${r.id}')" class="p-1.5 text-green-500 hover:text-green-700 rounded-lg transition-colors" title="저장">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                </button>
+                <button onclick="exitEditMode()" class="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg transition-colors" title="취소">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </td>
+        `;
+    }
+
+    function enterEditMode(id) {
+        editingId = id;
+        renderTable();
+    }
+
+    function exitEditMode() {
+        editingId = null;
+        renderTable();
+    }
+
+    async function saveEditedRow(id) {
+        const payload = {
+            id: id,
+            date: document.getElementById('edit-date').value,
+            opened_date: document.getElementById('edit-opened_date').value || null,
+            emptied_date: document.getElementById('edit-emptied_date').value || null,
+            moved_date: document.getElementById('edit-moved_date').value || null,
+            store: document.getElementById('edit-store').value,
+            product_key: document.getElementById('edit-product_key').value,
+            category: document.getElementById('edit-category').value,
+            cask: document.getElementById('edit-cask').value || null,
+            region: document.getElementById('edit-region').value || null,
+            classification1: document.getElementById('edit-classification1').value || null,
+            classification2: document.getElementById('edit-classification2').value || null,
+            volume_ml: parseOptionalNumber(document.getElementById('edit-volume_ml').value),
+            promo: document.getElementById('edit-promo').value,
+            price_krw: Math.max(0, parseInt(document.getElementById('edit-price_krw').value, 10) || 0),
+            fx_amount: parseOptionalNumber(document.getElementById('edit-fx_amount').value),
+            fx_currency: document.getElementById('edit-fx_currency').value || null,
+            fx_rate: parseOptionalNumber(document.getElementById('edit-fx_rate').value),
+            note: document.getElementById('edit-note').value,
+            approx_fields: collectApproxFields('edit')
+        };
+
+        try {
+            const res = await authedFetch(LIQUOR_API, {
+                method: 'PUT',
+                headers: apiHeadersJson(),
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                editingId = null;
+                await loadPurchases();
+            } else {
+                alert('수정 실패: ' + (data.reason || '알 수 없는 오류'));
+            }
+        } catch (e) {
+            if (e instanceof AuthCancelledError) return; // 사용자가 관리자 인증을 취소함 - 조용히 중단
+            alert('서버 연결에 실패했습니다. 백엔드 구현 상태를 확인해주세요.');
+        }
+    }
+
+    function parseOptionalNumber(v) {
+        if (v === '' || v === null || v === undefined) return null;
+        const n = Number(v);
+        return isNaN(n) ? null : n;
+    }
+
+    // ---- 삭제 (base.html의 openModal 재사용, 5-5 규칙) ----
+    function confirmDeleteRecord(id) {
+        const record = purchases.find(p => p.id === id);
+        const label = record ? `${escapeHtml(record.date)} · ${escapeHtml(record.product_key)}` : id;
+        openModal(
+            '구매 이력 삭제',
+            `<p class="text-sm text-gray-600 dark:text-gray-300">"${label}" 항목을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>`,
+            `
+                <button onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">취소</button>
+                <button onclick="performDelete('${id}')" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-colors">삭제</button>
+            `
+        );
+    }
+
+    async function performDelete(id) {
+        try {
+            const res = await authedFetch(LIQUOR_API, {
+                method: 'DELETE',
+                headers: apiHeadersJson(),
+                body: JSON.stringify({ id })
+            });
+            const data = await res.json();
+            closeModal();
+            if (data.status === 'success') {
+                await loadPurchases();
+            } else {
+                alert('삭제 실패: ' + (data.reason || '알 수 없는 오류'));
+            }
+        } catch (e) {
+            if (e instanceof AuthCancelledError) return; // 사용자가 관리자 인증을 취소함 - 조용히 중단 (모달은 이미 닫혀있음)
+            closeModal();
+            alert('서버 연결에 실패했습니다. 백엔드 구현 상태를 확인해주세요.');
+        }
+    }
+
+    // ---- 추가 (base.html의 openModal 재사용) ----
+    function openAddModal() {
+        const categoryOptionsHtml = ['', ...CATEGORY_OPTIONS].map(c => `<option value="${c}">${c || '(자동 추정)'}</option>`).join('');
+
+        // 구매장소 자동완성: 기존 구매 이력에 있는 store 값 중복 제거 목록.
+        const storeOptions = Array.from(new Set(purchases.map(p => p.store).filter(Boolean))).sort();
+        const storeDatalistHtml = storeOptions.map(s => `<option value="${escapeAttr(s)}"></option>`).join('');
+
+        // 술이름 자동완성: name_raw(원문)가 아니라 이미 정리된 product_key 목록을 제안한다.
+        // 재구매 시 기존 그룹과 같은 이름을 고르도록 유도하되, datalist는 강제 선택이 아니므로
+        // 목록에 없는 완전히 새로운 술 이름도 그대로 자유롭게 입력할 수 있다.
+        const nameDatalistHtml = getProductKeyGroups().map(g => `<option value="${escapeAttr(g.key)}"></option>`).join('');
+
+        const bodyHtml = `
+            <div class="grid grid-cols-2 gap-3">
+                <div class="col-span-2">
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">일자 *</label>
+                        ${approxToggleHtml('add', 'date', false)}
+                    </div>
+                    <input type="date" id="add-date" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">개봉일</label>
+                        ${approxToggleHtml('add', 'opened_date', false)}
+                    </div>
+                    <input type="date" id="add-opened_date" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">비운 날짜</label>
+                        ${approxToggleHtml('add', 'emptied_date', false)}
+                    </div>
+                    <input type="date" id="add-emptied_date" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">병옮긴날</label>
+                        ${approxToggleHtml('add', 'moved_date', false)}
+                    </div>
+                    <input type="date" id="add-moved_date" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-bold text-gray-400 mb-1">구매장소</label>
+                    <input type="text" id="add-store" list="add-store-datalist" autocomplete="off" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                    <datalist id="add-store-datalist">${storeDatalistHtml}</datalist>
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-bold text-gray-400 mb-1">술이름 (원문) *</label>
+                    <input type="text" id="add-name_raw" list="add-name-datalist" autocomplete="off" oninput="onAddNameRawInput()" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                    <datalist id="add-name-datalist">${nameDatalistHtml}</datalist>
+                    <p class="text-[10px] text-gray-400 mt-1">기존에 정리된 이름 중에서 고르거나, 목록에 없으면 새 이름을 자유롭게 입력하세요. 정확히 일치하는 이름을 고르면 캐스크/나라·지역/분류가 최근 기록에서 자동으로 채워집니다(비어있는 항목만).</p>
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-bold text-gray-400 mb-1">product_key (비워두면 원문으로 자동 채움)</label>
+                    <input type="text" id="add-product_key" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">주종 (비우면 자동 추정)</label>
+                    <select id="add-category" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">${categoryOptionsHtml}</select>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">용량(ml)</label>
+                        ${approxToggleHtml('add', 'volume_ml', false)}
+                    </div>
+                    <input type="number" id="add-volume_ml" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">캐스크</label>
+                        ${approxToggleHtml('add', 'cask', false)}
+                    </div>
+                    <input type="text" id="add-cask" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">나라/지역</label>
+                        ${approxToggleHtml('add', 'region', false)}
+                    </div>
+                    <input type="text" id="add-region" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">분류1</label>
+                        ${approxToggleHtml('add', 'classification1', false)}
+                    </div>
+                    <input type="text" id="add-classification1" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">분류2</label>
+                        ${approxToggleHtml('add', 'classification2', false)}
+                    </div>
+                    <input type="text" id="add-classification2" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-bold text-gray-400 mb-1">상품・행사</label>
+                    <input type="text" id="add-promo" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">가격(원) *</label>
+                        ${approxToggleHtml('add', 'price_krw', false)}
+                    </div>
+                    <input type="number" min="0" id="add-price_krw" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">당시환율</label>
+                        ${approxToggleHtml('add', 'fx_rate', false)}
+                    </div>
+                    <input type="number" step="0.01" id="add-fx_rate" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-bold text-gray-400">외화 금액</label>
+                        ${approxToggleHtml('add', 'fx_amount', false)}
+                    </div>
+                    <input type="number" id="add-fx_amount" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1">외화 통화 (자유 입력)</label>
+                    <input type="text" id="add-fx_currency" placeholder="예: USD, NT$" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-bold text-gray-400 mb-1">비고</label>
+                    <input type="text" id="add-note" class="w-full px-3 py-2 bg-gray-100 dark:bg-dark-card border-none rounded-xl text-sm outline-none">
+                </div>
+            </div>
+        `;
+        const footerHtml = `
+            <button onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">취소</button>
+            <button onclick="submitAddRecord()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-xl transition-colors">추가</button>
+        `;
+        openModal('새 구매 추가', bodyHtml, footerHtml);
+    }
+
+    // 술이름(add-name_raw)이 기존 product_key와 정확히 일치할 때만 캐스크/나라·지역/분류1·2를 자동으로 채운다.
+    // (가격 변동 차트의 onPriceTrendProductInput()과 동일한 "정확히 일치할 때만" 패턴 — 오타/부분 입력 중에는 아무 것도 하지 않는다.)
+    // 이미 값이 채워진 입력 필드는 절대 덮어쓰지 않고, 채운 뒤에도 일반 입력 그대로라 사용자가 자유롭게 고칠 수 있다.
+    function onAddNameRawInput() {
+        const typed = document.getElementById('add-name_raw').value;
+        const matched = getProductKeyGroups().find(g => g.key === typed);
+        if (!matched) return; // 오타/부분 입력이면 아무 것도 하지 않는다
+
+        // 이 product_key를 가진 과거 구매 기록을 최신순으로 정렬해, 필드별로 "가장 최근에 값이 채워진" 것을 채택한다.
+        const records = purchases
+            .filter(p => p.product_key === typed)
+            .slice()
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+        ['cask', 'region', 'classification1', 'classification2'].forEach(field => {
+            const inputEl = document.getElementById(`add-${field}`);
+            if (!inputEl || inputEl.value) return; // 사용자가 이미 입력해둔 값은 절대 덮어쓰지 않는다
+            const recordWithValue = records.find(r => r[field]);
+            if (recordWithValue) inputEl.value = recordWithValue[field];
+        });
+    }
+
+    async function submitAddRecord() {
+        const date = document.getElementById('add-date').value;
+        const nameRaw = document.getElementById('add-name_raw').value.trim();
+        const priceRaw = document.getElementById('add-price_krw').value;
+
+        if (!date) { alert('일자를 입력하세요.'); return; }
+        if (!nameRaw) { alert('술이름을 입력하세요.'); return; }
+        if (priceRaw === '' || Number(priceRaw) < 0) { alert('가격은 0 이상으로 입력하세요.'); return; }
+
+        const payload = {
+            date: date,
+            opened_date: document.getElementById('add-opened_date').value || null,
+            emptied_date: document.getElementById('add-emptied_date').value || null,
+            moved_date: document.getElementById('add-moved_date').value || null,
+            store: document.getElementById('add-store').value,
+            name_raw: nameRaw,
+            product_key: document.getElementById('add-product_key').value.trim(),
+            category: document.getElementById('add-category').value,
+            cask: document.getElementById('add-cask').value || null,
+            region: document.getElementById('add-region').value || null,
+            classification1: document.getElementById('add-classification1').value || null,
+            classification2: document.getElementById('add-classification2').value || null,
+            volume_ml: parseOptionalNumber(document.getElementById('add-volume_ml').value),
+            promo: document.getElementById('add-promo').value,
+            price_krw: parseInt(priceRaw, 10),
+            fx_amount: parseOptionalNumber(document.getElementById('add-fx_amount').value),
+            fx_currency: document.getElementById('add-fx_currency').value || null,
+            fx_rate: parseOptionalNumber(document.getElementById('add-fx_rate').value),
+            note: document.getElementById('add-note').value,
+            approx_fields: collectApproxFields('add')
+        };
+
+        try {
+            const res = await authedFetch(LIQUOR_API, {
+                method: 'POST',
+                headers: apiHeadersJson(),
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                closeModal();
+                await loadPurchases();
+            } else {
+                alert('추가 실패: ' + (data.reason || '알 수 없는 오류'));
+            }
+        } catch (e) {
+            if (e instanceof AuthCancelledError) return; // 사용자가 관리자 인증을 취소함 - 조용히 중단
+            alert('서버 연결에 실패했습니다. 백엔드 구현 상태를 확인해주세요.');
+        }
+    }
+
+    // ============================================================
+    // 7. 술 이름 정리 패널 (product_key 그룹핑 + 유사도 제안 + 병합)
+    // ============================================================
+    function getProductKeyGroups() {
+        const counts = {};
+        purchases.forEach(p => {
+            const key = p.product_key || p.name_raw || '(이름 없음)';
+            counts[key] = (counts[key] || 0) + 1;
+        });
+        return Object.entries(counts)
+            .map(([key, count]) => ({ key, count }))
+            .sort((a, b) => b.count - a.count);
+    }
+
+    // bigram Dice 계수 (3-4 참고: "혹시 같은 술인가요?" 제안용)
+    function bigrams(str) {
+        const s = (str || '').replace(/\s+/g, '');
+        const result = [];
+        for (let i = 0; i < s.length - 1; i++) result.push(s.substring(i, i + 2));
+        return result;
+    }
+
+    function diceCoefficient(a, b) {
+        const bgA = bigrams(a);
+        const bgB = bigrams(b);
+        if (bgA.length === 0 || bgB.length === 0) return 0;
+        const mapB = {};
+        bgB.forEach(bg => { mapB[bg] = (mapB[bg] || 0) + 1; });
+        let matches = 0;
+        bgA.forEach(bg => {
+            if (mapB[bg] > 0) { matches++; mapB[bg]--; }
+        });
+        return (2 * matches) / (bgA.length + bgB.length);
+    }
+
+    // 순서 무관하게 두 이름 쌍이 "병합 안 함" 처리되어 있는지 확인한다.
+    function isPairDismissed(keyA, keyB) {
+        const sorted = [keyA, keyB].slice().sort();
+        return dismissedMergePairs.some(pair => {
+            if (!Array.isArray(pair) || pair.length !== 2) return false;
+            const sortedPair = pair.slice().sort();
+            return sortedPair[0] === sorted[0] && sortedPair[1] === sorted[1];
+        });
+    }
+
+    function findMergeSuggestions(groups) {
+        const suggestions = [];
+        for (let i = 0; i < groups.length; i++) {
+            for (let j = i + 1; j < groups.length; j++) {
+                if (isPairDismissed(groups[i].key, groups[j].key)) continue; // 사용자가 "병합 안 함" 처리한 쌍은 제외
+                const score = diceCoefficient(groups[i].key, groups[j].key);
+                if (score >= 0.7) {
+                    suggestions.push({ a: groups[i], b: groups[j], score });
+                }
+            }
+        }
+        suggestions.sort((x, y) => y.score - x.score);
+        return suggestions.slice(0, 15); // 화면이 너무 길어지지 않도록 상위 15개만
+    }
+
+    function renderProductKeyPanel() {
+        const groups = getProductKeyGroups();
+        document.getElementById('product-key-count').textContent = groups.length;
+
+        // 병합 제안
+        const suggestions = findMergeSuggestions(groups);
+        const suggestWrap = document.getElementById('merge-suggestions');
+        if (suggestions.length === 0) {
+            suggestWrap.innerHTML = `<p class="text-xs italic text-gray-400">제안할 항목이 없습니다.</p>`;
+        } else {
+            suggestWrap.innerHTML = suggestions.map(s => `
+                <div class="flex items-center justify-between gap-3 px-3 py-2 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 rounded-xl text-xs">
+                    <span>
+                        <b>${escapeHtml(s.a.key)}</b> (${s.a.count}건) ↔ <b>${escapeHtml(s.b.key)}</b> (${s.b.count}건)
+                        <span class="text-gray-400 ml-1">유사도 ${(s.score * 100).toFixed(0)}%</span>
+                    </span>
+                    <span class="flex gap-1.5 flex-shrink-0">
+                        <button onclick="applySuggestion('${escapeJsAttr(s.a.key)}', '${escapeJsAttr(s.b.key)}')" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg whitespace-nowrap">
+                            병합 후보로 선택
+                        </button>
+                        <button onclick="dismissSuggestion('${escapeJsAttr(s.a.key)}', '${escapeJsAttr(s.b.key)}')" class="px-2.5 py-1 bg-gray-200 dark:bg-dark-card hover:bg-gray-300 dark:hover:bg-dark-border text-gray-600 dark:text-gray-300 font-bold rounded-lg whitespace-nowrap">
+                            병합 안 함
+                        </button>
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // 전체 목록 (체크박스)
+        selectedProductKeys.clear();
+        const listWrap = document.getElementById('product-key-list');
+        listWrap.innerHTML = groups.map(g => `
+            <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-dark-card/40 rounded-lg cursor-pointer text-sm">
+                <input type="checkbox" value="${escapeAttr(g.key)}" onchange="toggleProductKeySelection('${escapeJsAttr(g.key)}', this.checked)" class="rounded">
+                <span class="flex-1">${escapeHtml(g.key)}</span>
+                <span class="text-xs text-gray-400">${g.count}건</span>
+            </label>
+        `).join('');
+        updateMergeSelectedCount();
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function toggleProductKeySelection(key, checked) {
+        if (checked) selectedProductKeys.add(key);
+        else selectedProductKeys.delete(key);
+        updateMergeSelectedCount();
+    }
+
+    function updateMergeSelectedCount() {
+        document.getElementById('merge-selected-count').textContent = selectedProductKeys.size;
+    }
+
+    function applySuggestion(keyA, keyB) {
+        selectedProductKeys.clear();
+        selectedProductKeys.add(keyA);
+        selectedProductKeys.add(keyB);
+        // 체크박스 UI 동기화
+        document.querySelectorAll('#product-key-list input[type="checkbox"]').forEach(cb => {
+            cb.checked = selectedProductKeys.has(cb.value);
+        });
+        // 더 많이 구매한 쪽을 기본 대표 이름으로 제안
+        const groups = getProductKeyGroups();
+        const gA = groups.find(g => g.key === keyA);
+        const gB = groups.find(g => g.key === keyB);
+        const representative = (gA && gB && gB.count > gA.count) ? keyB : keyA;
+        document.getElementById('merge-target-name').value = representative;
+        updateMergeSelectedCount();
+        document.getElementById('merge-target-name').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // "병합 안 함" — 이 이름 쌍을 서버에 영구 제외 처리하고, 성공하면 화면에서도 즉시 제거한다.
+    async function dismissSuggestion(keyA, keyB) {
+        try {
+            const res = await authedFetch(LIQUOR_API + '/dismiss_suggestion', {
+                method: 'POST',
+                headers: apiHeadersJson(),
+                body: JSON.stringify({ a: keyA, b: keyB })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                dismissedMergePairs.push([keyA, keyB]);
+                renderProductKeyPanel(); // isPairDismissed()가 다음 렌더에서 이 쌍을 걸러낸다
+            } else {
+                alert('제외 실패: ' + (data.reason || '알 수 없는 오류'));
+            }
+        } catch (e) {
+            if (e instanceof AuthCancelledError) return; // 사용자가 관리자 인증을 취소함 - 조용히 중단
+            alert('서버 연결에 실패했습니다. 백엔드 구현 상태를 확인해주세요.');
+        }
+    }
+
+    async function executeMerge() {
+        const fromKeys = Array.from(selectedProductKeys);
+        const toKey = document.getElementById('merge-target-name').value.trim();
+
+        if (fromKeys.length === 0) { alert('병합할 그룹을 1개 이상 선택하세요.'); return; }
+        if (!toKey) { alert('대표 이름을 입력하세요.'); return; }
+
+        try {
+            const res = await authedFetch(LIQUOR_API + '/merge_key', {
+                method: 'POST',
+                headers: apiHeadersJson(),
+                body: JSON.stringify({ from_keys: fromKeys, to_key: toKey })
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                alert(`${data.updated}건의 product_key가 "${data.to_key}"(으)로 병합되었습니다.`);
+                document.getElementById('merge-target-name').value = '';
+                await loadPurchases();
+            } else {
+                alert('병합 실패: ' + (data.reason || '알 수 없는 오류'));
+            }
+        } catch (e) {
+            if (e instanceof AuthCancelledError) return; // 사용자가 관리자 인증을 취소함 - 조용히 중단
+            alert('서버 연결에 실패했습니다. 백엔드 구현 상태를 확인해주세요.');
+        }
+    }
+
+    // ============================================================
+    // 8. CSV 가져오기 (dry_run 미리보기 -> 실행 2단계, 4-7/6-3 규칙)
+    // ============================================================
+    function onCsvFileChange() {
+        const fileInput = document.getElementById('csv-file-input');
+        const hasFile = fileInput.files && fileInput.files.length > 0;
+        document.getElementById('csv-preview-btn').disabled = !hasFile;
+        document.getElementById('csv-preview-btn').classList.toggle('bg-gray-200', !hasFile);
+        document.getElementById('csv-preview-btn').classList.toggle('text-gray-400', !hasFile);
+        document.getElementById('csv-preview-btn').classList.toggle('bg-indigo-600', hasFile);
+        document.getElementById('csv-preview-btn').classList.toggle('text-white', hasFile);
+        document.getElementById('csv-preview-result').classList.add('hidden');
+        lastCsvPreviewOk = false;
+    }
+
+    function currentCsvMode() {
+        return document.getElementById('csv-replace-mode').checked ? 'replace' : 'append';
+    }
+
+    async function previewCsvImport() {
+        const fileInput = document.getElementById('csv-file-input');
+        if (!fileInput.files || fileInput.files.length === 0) return;
+        lastCsvFile = fileInput.files[0];
+
+        const formData = new FormData();
+        formData.append('file', lastCsvFile);
+        formData.append('dry_run', 'true');
+        formData.append('mode', currentCsvMode());
+
+        try {
+            const res = await authedFetch(LIQUOR_API + '/import', {
+                method: 'POST',
+                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }, // multipart는 Content-Type을 직접 지정하지 않음
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status !== 'success') {
+                alert('미리보기 실패: ' + (data.reason || '알 수 없는 오류') + (data.missing ? ` (누락된 컬럼: ${data.missing.join(', ')})` : ''));
+                lastCsvPreviewOk = false;
+                return;
+            }
+            renderCsvPreviewResult(data);
+            lastCsvPreviewOk = true;
+        } catch (e) {
+            if (e instanceof AuthCancelledError) return; // 사용자가 관리자 인증을 취소함 - 조용히 중단
+            alert('서버 연결에 실패했습니다. 백엔드 구현 상태를 확인해주세요.');
+            lastCsvPreviewOk = false;
+        }
+    }
+
+    function renderCsvPreviewResult(data) {
+        document.getElementById('csv-preview-result').classList.remove('hidden');
+        document.getElementById('csv-stat-parsed').textContent = data.parsed ?? 0;
+        document.getElementById('csv-stat-errors').textContent = (data.errors || []).length;
+        document.getElementById('csv-stat-total-after').textContent = data.total_after ?? '-';
+
+        const warnWrap = document.getElementById('csv-warnings-wrap');
+        const warnList = document.getElementById('csv-warnings-list');
+        if (data.warnings && data.warnings.length > 0) {
+            warnWrap.classList.remove('hidden');
+            warnList.innerHTML = data.warnings.map(w => `<p>· ${w.row}행: ${escapeHtml(w.reason)}</p>`).join('');
+        } else {
+            warnWrap.classList.add('hidden');
+        }
+
+        const errWrap = document.getElementById('csv-errors-wrap');
+        const errBody = document.getElementById('csv-errors-body');
+        if (data.errors && data.errors.length > 0) {
+            errWrap.classList.remove('hidden');
+            errBody.innerHTML = data.errors.map(err => `
+                <tr class="border-b border-gray-100 dark:border-dark-border/40">
+                    <td class="py-1.5 px-2">${err.row}</td>
+                    <td class="py-1.5 px-2">${escapeHtml(err.column)}</td>
+                    <td class="py-1.5 px-2 text-gray-400">${escapeHtml(err.value)}</td>
+                    <td class="py-1.5 px-2">${escapeHtml(err.reason)}</td>
+                </tr>
+            `).join('');
+        } else {
+            errWrap.classList.add('hidden');
+        }
+
+        const previewBody = document.getElementById('csv-preview-body');
+        previewBody.innerHTML = (data.preview || []).map(p => `
+            <tr class="border-b border-gray-100 dark:border-dark-border/40">
+                <td class="py-1.5 px-2">${escapeHtml(p.date)}</td>
+                <td class="py-1.5 px-2">${escapeHtml(p.store)}</td>
+                <td class="py-1.5 px-2">${escapeHtml(p.product_key || p.name_raw)}</td>
+                <td class="py-1.5 px-2">${escapeHtml(p.category)}</td>
+                <td class="py-1.5 px-2">${p.volume_ml ?? '-'}</td>
+                <td class="py-1.5 px-2">${(Number(p.price_krw) || 0).toLocaleString()}원</td>
+            </tr>
+        `).join('');
+    }
+
+    function onClickCsvExecute() {
+        if (!lastCsvPreviewOk || !lastCsvFile) {
+            alert('먼저 미리보기를 실행해 결과를 확인하세요.');
+            return;
+        }
+        if (currentCsvMode() === 'replace') {
+            const currentCount = purchases.length;
+            openModal(
+                '전체 교체 확인',
+                `<p class="text-sm text-gray-600 dark:text-gray-300">
+                    <b>replace 모드</b>가 선택되어 있습니다. 실행하면 기존 <b>${currentCount}건이 모두 지워지고</b> CSV 내용으로 교체됩니다.
+                    (실행 전 서버에서 <code class="px-1 py-0.5 bg-gray-100 dark:bg-dark-card rounded">liquor_purchases.bak.json</code>으로 1회 백업합니다.)
+                </p>`,
+                `
+                    <button onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">취소</button>
+                    <button onclick="closeModal(); executeCsvImport();" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition-colors">전체 교체 실행</button>
+                `
+            );
+        } else {
+            executeCsvImport();
+        }
+    }
+
+    async function executeCsvImport() {
+        const formData = new FormData();
+        formData.append('file', lastCsvFile);
+        formData.append('dry_run', 'false');
+        formData.append('mode', currentCsvMode());
+
+        try {
+            const res = await authedFetch(LIQUOR_API + '/import', {
+                method: 'POST',
+                headers: { 'X-Butler-Token': BUTLER_API_TOKEN },
+                body: formData
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                alert(`가져오기 완료: ${data.imported}건 저장 (총 ${data.total_after}건)`);
+                document.getElementById('csv-preview-result').classList.add('hidden');
+                document.getElementById('csv-file-input').value = '';
+                lastCsvPreviewOk = false;
+                lastCsvFile = null;
+                await loadPurchases();
+            } else {
+                alert('가져오기 실패: ' + (data.reason || '알 수 없는 오류'));
+            }
+        } catch (e) {
+            if (e instanceof AuthCancelledError) return; // 사용자가 관리자 인증을 취소함 - 조용히 중단
+            alert('서버 연결에 실패했습니다. 백엔드 구현 상태를 확인해주세요.');
+        }
+    }
+
+    // ============================================================
+    // 9. 차트 (Chart.js) — 탭 전환 + 다크모드 대응
+    // ============================================================
+    function isDarkMode() {
+        return document.documentElement.classList.contains('dark');
+    }
+
+    function getChartColors() {
+        const dark = isDarkMode();
+        return {
+            text: dark ? '#d1d5db' : '#374151',
+            grid: dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)',
+            palette: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#9ca3af']
+        };
+    }
+
+    function destroyChart(key) {
+        if (chartInstances[key]) {
+            chartInstances[key].destroy();
+            chartInstances[key] = null;
+        }
+    }
+
+    function switchChartTab(tab) {
+        activeChartTab = tab;
+        document.querySelectorAll('.chart-tab-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.chartTab === tab);
+        });
+        document.querySelectorAll('.chart-panel').forEach(panel => {
+            panel.classList.toggle('hidden', panel.id !== `chart-panel-${tab}`);
+        });
+
+        if (tab === 'priceTrend') renderPriceTrendChart();
+        else if (tab === 'spend') renderSpendChart();
+        else if (tab === 'store') renderStoreChart();
+        else if (tab === 'category') renderCategoryChart();
+        else if (tab === 'avgPrice') renderAvgPriceChart();
+    }
+
+    // 테마가 바뀌면(다크모드 토글) 현재 활성 탭의 차트를 새 색상으로 다시 그린다.
+    const themeObserver = new MutationObserver(() => {
+        if (document.getElementById(`chart-panel-${activeChartTab}`)) {
+            switchChartTab(activeChartTab);
+        }
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
+    // ---- 7-1. 가격 변동 라인 차트 ----
+    // <select> 대신 <input list="..."> + <datalist>를 사용해 "드롭박스 모양 + 타이핑 검색"을 구현한다.
+    // (빌드 도구 없이 외부 검색 라이브러리를 추가하지 않기 위한 선택 — HTML5 네이티브 기능만 사용)
+    function buildProductKeySelect() {
+        const groups = getProductKeyGroups();
+        const datalist = document.getElementById('price-trend-product-list');
+        datalist.innerHTML = groups.map(g => `<option value="${escapeAttr(g.key)}">${escapeHtml(g.key)} (${g.count}건)</option>`).join('');
+
+        // 기존에 선택돼 있던 술이 병합 등으로 사라졌으면, 구매 횟수가 가장 많은 술(목록 첫 번째)로 되돌아간다.
+        const stillValid = priceTrendSelectedKey !== null && groups.some(g => g.key === priceTrendSelectedKey);
+        if (!stillValid) {
+            priceTrendSelectedKey = groups.length > 0 ? groups[0].key : null;
+        }
+        document.getElementById('price-trend-product-input').value = priceTrendSelectedKey || '';
+    }
+
+    // 입력값이 실제 product_key와 정확히 일치할 때만 차트를 갱신한다 (오타/입력 중에는 이전 상태 유지).
+    function onPriceTrendProductInput() {
+        const typed = document.getElementById('price-trend-product-input').value;
+        const groups = getProductKeyGroups();
+        const matched = groups.find(g => g.key === typed);
+        if (matched) {
+            priceTrendSelectedKey = matched.key;
+            renderPriceTrendChart();
+        }
+    }
+
+    function setPriceTrendMode(mode) {
+        priceTrendMode = mode;
+        document.querySelectorAll('.price-mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.priceMode === mode);
+        });
+        renderPriceTrendChart();
+    }
+
+    function renderPriceTrendChart() {
+        const colors = getChartColors();
+        const key = priceTrendSelectedKey || '';
+        let records = purchases.filter(p => p.product_key === key);
+        records.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+        let excludedForVolume = 0;
+        if (priceTrendMode === 'per100ml') {
+            const before = records.length;
+            // 100ml당 단가는 용량이 있어야 계산 가능하므로, 이 모드에서는 용량 미입력 건을 아예 제외한다(기존 동작 유지).
+            records = records.filter(r => r.volume_ml !== null && r.volume_ml !== undefined && r.volume_ml > 0);
+            excludedForVolume = before - records.length;
+        }
+
+        const noteEl = document.getElementById('price-trend-note');
+        if (records.length === 0) {
+            noteEl.textContent = '표시할 데이터가 없습니다.';
+        } else if (records.length === 1) {
+            noteEl.textContent = '구매 1회 (선이 아닌 점으로 표시됩니다)' + (excludedForVolume > 0 ? ` · 용량 미입력 ${excludedForVolume}건 제외` : '');
+        } else {
+            noteEl.textContent = excludedForVolume > 0 ? `용량 미입력 ${excludedForVolume}건 제외 (100ml당 단가 계산 불가)` : '';
+        }
+
+        // x축(날짜) 오름차순 고유 목록. 여러 용량 계열이 같은 시간축을 공유한다.
+        const labels = Array.from(new Set(records.map(r => r.date))).sort();
+
+        // 용량(volume_ml)별로 구매 기록을 나눠 별도 dataset(계열)으로 만든다.
+        // 700ml/750ml/1000ml처럼 용량이 섞여 있으면 병당 가격만으로 비교할 수 없으므로 legend로 구분해서 보여준다.
+        // 용량이 없는(null) 구매 건은 누락시키지 않고 "용량 미상" 계열로 별도 표시한다.
+        const groupsByVolume = new Map(); // volumeLabel(string) -> record[]
+        records.forEach(r => {
+            const hasVolume = r.volume_ml !== null && r.volume_ml !== undefined && r.volume_ml > 0;
+            const volumeLabel = hasVolume ? `${r.volume_ml}ml` : '용량 미상';
+            if (!groupsByVolume.has(volumeLabel)) groupsByVolume.set(volumeLabel, []);
+            groupsByVolume.get(volumeLabel).push(r);
+        });
+
+        // 용량 오름차순으로 정렬하되 "용량 미상"은 항상 맨 뒤로 보낸다.
+        const volumeLabels = Array.from(groupsByVolume.keys()).sort((a, b) => {
+            if (a === '용량 미상') return 1;
+            if (b === '용량 미상') return -1;
+            return parseInt(a, 10) - parseInt(b, 10);
+        });
+
+        // 회색(#9ca3af)은 다른 차트에서도 "기타/미분류" 전용으로 쓰던 색이라 "용량 미상"에 그대로 예약해두고,
+        // 실제 용량 계열은 그 색을 제외한 나머지 팔레트를 순환해서 계열 간 대비를 준다.
+        const GRAY = '#9ca3af';
+        const realVolumeColors = colors.palette.filter(c => c !== GRAY);
+        let realVolumeIndex = 0;
+
+        const datasets = volumeLabels.map(volumeLabel => {
+            const groupRecords = groupsByVolume.get(volumeLabel).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+            const isUnknownVolume = volumeLabel === '용량 미상';
+            const color = isUnknownVolume ? GRAY : realVolumeColors[realVolumeIndex++ % realVolumeColors.length];
+
+            const dataPoints = groupRecords.map(r => ({
+                x: r.date,
+                y: priceTrendMode === 'per100ml' ? Math.round((r.price_krw / r.volume_ml) * 100) : r.price_krw,
+                __record: r // 툴팁 콜백에서 원본 레코드를 참조하기 위한 값 (Chart.js는 알 수 없는 키를 그냥 무시한다)
+            }));
+
+            return {
+                label: volumeLabel,
+                data: dataPoints,
+                borderColor: color,
+                backgroundColor: color + '33',
+                // 계열 안에 점이 1개뿐이면 선을 그리지 않고 점만 찍는다(기존 "구매 1회" 처리 패턴 재사용).
+                showLine: groupRecords.length > 1,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                tension: 0.25,
+                fill: false,
+                spanGaps: false
+            };
+        });
+
+        destroyChart('priceTrend');
+        const ctx = document.getElementById('chart-price-trend').getContext('2d');
+        chartInstances.priceTrend = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: colors.text } },
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: (ctx) => {
+                                const r = ctx.raw && ctx.raw.__record;
+                                if (!r) return [];
+                                const vol = (r.volume_ml === null || r.volume_ml === undefined) ? '용량 미입력' : `${r.volume_ml}ml`;
+                                return [`구매장소: ${r.store || '-'}`, `용량: ${vol}`, `상품/행사: ${r.promo || '-'}`];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { color: colors.text }, grid: { color: colors.grid } },
+                    y: { ticks: { color: colors.text, callback: (v) => v.toLocaleString() }, grid: { color: colors.grid } }
+                }
+            }
+        });
+    }
+
+    // ---- 7-2. 월별/연도별 지출 + 누적선 ----
+    function setSpendGranularity(g) {
+        spendGranularity = g;
+        document.querySelectorAll('.spend-granularity-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.spendGranularity === g);
+        });
+        renderSpendChart();
+    }
+
+    function renderSpendChart() {
+        const colors = getChartColors();
+        if (purchases.length === 0) {
+            destroyChart('spend');
+            return;
+        }
+
+        let labels = [];
+        let sums = [];
+
+        if (spendGranularity === 'month') {
+            const dates = purchases.map(p => p.date).filter(Boolean).sort();
+            const minMonth = dates[0].slice(0, 7);
+            const maxMonth = dates[dates.length - 1].slice(0, 7);
+            const monthKeys = [];
+            let [y, m] = minMonth.split('-').map(Number);
+            const [maxY, maxM] = maxMonth.split('-').map(Number);
+            while (y < maxY || (y === maxY && m <= maxM)) {
+                monthKeys.push(`${y}-${String(m).padStart(2, '0')}`);
+                m++;
+                if (m > 12) { m = 1; y++; }
+            }
+            const sumByMonth = {};
+            monthKeys.forEach(k => sumByMonth[k] = 0);
+            purchases.forEach(p => {
+                if (!p.date) return;
+                const k = p.date.slice(0, 7);
+                if (sumByMonth[k] !== undefined) sumByMonth[k] += Number(p.price_krw) || 0;
+            });
+            labels = monthKeys;
+            sums = monthKeys.map(k => sumByMonth[k]);
+        } else {
+            const years = Array.from(new Set(purchases.map(p => (p.date || '').slice(0, 4)).filter(Boolean))).sort();
+            const minY = Number(years[0]);
+            const maxY = Number(years[years.length - 1]);
+            const yearKeys = [];
+            for (let y = minY; y <= maxY; y++) yearKeys.push(String(y));
+            const sumByYear = {};
+            yearKeys.forEach(k => sumByYear[k] = 0);
+            purchases.forEach(p => {
+                const k = (p.date || '').slice(0, 4);
+                if (sumByYear[k] !== undefined) sumByYear[k] += Number(p.price_krw) || 0;
+            });
+            labels = yearKeys;
+            sums = yearKeys.map(k => sumByYear[k]);
+        }
+
+        let running = 0;
+        const cumulative = sums.map(v => { running += v; return running; });
+
+        destroyChart('spend');
+        const ctx = document.getElementById('chart-spend').getContext('2d');
+        chartInstances.spend = new Chart(ctx, {
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: '지출 합계(원)',
+                        data: sums,
+                        backgroundColor: colors.palette[0] + 'aa',
+                        yAxisID: 'y'
+                    },
+                    {
+                        type: 'line',
+                        label: '누적 지출(원)',
+                        data: cumulative,
+                        borderColor: colors.palette[2],
+                        backgroundColor: 'transparent',
+                        tension: 0.2,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: colors.text } },
+                    tooltip: {
+                        callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}원` }
+                    }
+                },
+                scales: {
+                    x: { ticks: { color: colors.text }, grid: { color: colors.grid } },
+                    y: { position: 'left', ticks: { color: colors.text, callback: (v) => v.toLocaleString() }, grid: { color: colors.grid } },
+                    y1: { position: 'right', ticks: { color: colors.text, callback: (v) => v.toLocaleString() }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    }
+
+    // ---- 7-3. 구매처별 지출 도넛 (선택) ----
+    function renderStoreChart() {
+        const colors = getChartColors();
+        const sumByStore = {};
+        purchases.forEach(p => {
+            const store = p.store || '(미입력)';
+            sumByStore[store] = (sumByStore[store] || 0) + (Number(p.price_krw) || 0);
+        });
+        const sorted = Object.entries(sumByStore).sort((a, b) => b[1] - a[1]);
+        const top7 = sorted.slice(0, 7);
+        const rest = sorted.slice(7);
+        const restSum = rest.reduce((s, [, v]) => s + v, 0);
+
+        const labels = top7.map(([k]) => k);
+        const values = top7.map(([, v]) => v);
+        if (restSum > 0) { labels.push('기타'); values.push(restSum); }
+
+        destroyChart('store');
+        const ctx = document.getElementById('chart-store').getContext('2d');
+        chartInstances.store = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: labels.map((l, i) => l === '기타' ? '#9ca3af' : colors.palette[i % colors.palette.length])
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                onClick: (evt, elements) => {
+                    if (elements.length === 0) return;
+                    const idx = elements[0].index;
+                    const label = labels[idx];
+                    if (label === '기타') return; // 개별 매장으로 특정할 수 없어 필터링하지 않음
+                    storeFilterFromChart = label;
+                    // 필터 바의 구매처 드롭다운은 빈 store("(미입력)")를 옵션으로 갖지 않으므로,
+                    // 실제 값이 목록에 있을 때만 드롭다운 표시를 동기화한다. 필터 자체는 storeFilterFromChart로 항상 적용된다.
+                    const storeSelect = document.getElementById('filter-store');
+                    storeSelect.value = Array.from(storeSelect.options).some(o => o.value === label) ? label : '';
+                    applyFilters();
+                    alert(`구매 이력 테이블을 "${label}" 기준으로 필터링했습니다. (필터 바의 "초기화" 버튼으로 해제할 수 있습니다)`);
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: colors.text, boxWidth: 12, font: { size: 11 } } },
+                    tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed.toLocaleString()}원` } }
+                }
+            }
+        });
+    }
+
+    // ---- 7-4. 주종별 지출 도넛 (선택) ----
+    function renderCategoryChart() {
+        const colors = getChartColors();
+        const sumByCategory = {};
+        purchases.forEach(p => {
+            const cat = p.category || '미분류';
+            sumByCategory[cat] = (sumByCategory[cat] || 0) + (Number(p.price_krw) || 0);
+        });
+        const labels = Object.keys(sumByCategory);
+        const values = labels.map(l => sumByCategory[l]);
+
+        destroyChart('category');
+        const ctx = document.getElementById('chart-category').getContext('2d');
+        chartInstances.category = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: labels.map((l, i) => l === '미분류' ? '#9ca3af' : colors.palette[i % colors.palette.length])
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: colors.text, boxWidth: 12, font: { size: 11 } } },
+                    tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed.toLocaleString()}원` } }
+                }
+            }
+        });
+    }
+
+    // ---- 7-5. 연도별 평균 100ml당 단가 (선택) ----
+    function renderAvgPriceChart() {
+        const colors = getChartColors();
+        const withVolume = purchases.filter(p => p.volume_ml !== null && p.volume_ml !== undefined && p.volume_ml > 0 && p.date);
+        const byYear = {};
+        withVolume.forEach(p => {
+            const y = p.date.slice(0, 4);
+            if (!byYear[y]) byYear[y] = { sum: 0, count: 0 };
+            byYear[y].sum += (p.price_krw / p.volume_ml) * 100;
+            byYear[y].count += 1;
+        });
+        const years = Object.keys(byYear).sort();
+        const avgs = years.map(y => Math.round(byYear[y].sum / byYear[y].count));
+        const counts = years.map(y => byYear[y].count);
+
+        destroyChart('avgPrice');
+        const ctx = document.getElementById('chart-avg-price').getContext('2d');
+        chartInstances.avgPrice = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: years,
+                datasets: [{
+                    label: '연도별 평균 100ml당 단가(원)',
+                    data: avgs,
+                    borderColor: colors.palette[4],
+                    backgroundColor: colors.palette[4] + '33',
+                    tension: 0.25,
+                    fill: true,
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: colors.text } },
+                    tooltip: {
+                        callbacks: {
+                            afterLabel: (ctx) => `표본 수: ${counts[ctx.dataIndex]}건`
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { color: colors.text }, grid: { color: colors.grid } },
+                    y: { ticks: { color: colors.text, callback: (v) => v.toLocaleString() }, grid: { color: colors.grid } }
+                }
+            }
+        });
+    }
+
+    // ============================================================
+    // 10. 유틸
+    // ============================================================
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function escapeAttr(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    // 홑따옴표(')로 감싼 인라인 onclick/onchange의 JS 문자열 리터럴 안에 값을 넣을 때 쓰는 헬퍼.
+    // 1) JS 문자열 리터럴 기준으로 백슬래시와 홑따옴표를 이스케이프하고,
+    // 2) 그 결과를 다시 escapeAttr()로 감싸 바깥 HTML 속성(큰따옴표)까지 안전하게 만든다.
+    // 예: product_key에 아포스트로피가 있는 "Writers' Tears" 같은 값도 onclick 파싱이 깨지지 않는다.
+    function escapeJsAttr(value) {
+        if (value === null || value === undefined) return '';
+        const jsEscaped = String(value)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'");
+        return escapeAttr(jsEscaped);
+    }
+
+    // ============================================================
+    // 11. 초기화
+    // ============================================================
+    window.addEventListener('DOMContentLoaded', () => {
+        // 초기 탭/토글 버튼 활성 표시
+        document.querySelector('.chart-tab-btn[data-chart-tab="priceTrend"]').classList.add('active');
+        document.querySelector('.price-mode-btn[data-price-mode="bottle"]').classList.add('active');
+        document.querySelector('.spend-granularity-btn[data-spend-granularity="month"]').classList.add('active');
+        loadPurchases();
+    });
+</script>
+{% endblock %}
