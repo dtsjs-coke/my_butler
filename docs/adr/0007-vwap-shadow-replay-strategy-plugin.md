@@ -133,3 +133,16 @@
 - **4단계 ADR 번호**: 위 25행 메모의 "4단계(전략 재연구) ADR 번호는 0009"는 정정한다. 0009 는 [ADR-0009](0009-vwap-start-wait-stop-loss.md)(거래 시작 대기 중 손절 허용)가 사용했으므로 **4단계 ADR 은 0010** 이다.
 - **`ui_show_legacy_virtual`**: 80행의 "UI에서만 기본으로 숨긴다(`ui_show_legacy_virtual=false`)"는 서버 설정 키를 뜻하지 않는다. 서버 설정 키 `ui_show_legacy_virtual`은 **삭제 확정**(2026-10-07, QA 권고 — 코드 참조 0건)이며, 레거시 가상봇 표시 토글은 브라우저 `localStorage`(`vwap_ui_show_legacy_virtual`)만 사용한다.
 - **4단계 ADR 번호 재정정 (2026-10-07)**: 위 "4단계 ADR 은 0010" 도 다시 정정한다. 0010 은 [ADR-0010](0010-vwap-real-untrusted-candles.md)(REAL 신뢰 불가 캔들 보호)가 사용했으므로 **4단계(전략 재연구) ADR 은 0011** 이다.
+
+## SR-3 메모 (2026-10-07 추가 — Phase C 섀도우 시니어 리뷰 결과, 본문은 수정하지 않음)
+
+- **REAL `bot.py` 변경 1건 추가 — 판단 시각 위임 `VWAPBot._now()`**
+  - 변경: `_loop_step_body`의 `now = datetime.now()`를 `now = self._now()`로 바꾸고, 기본 구현은 `return datetime.now()`로 둔다. `ShadowBot._now()`는 그 주기 REAL의 판단 시각(ctx `candles_asof`)을 돌려준다.
+  - 원칙 0-1 해당 여부: (b) `_load_config()` 위임과 같은 종류인 **비매매 위임**으로 판단했다. 기본 구현이 기존 식과 같아서 REAL·가상 봇의 동작은 바뀌지 않는다. 모듈 전역 `datetime`을 호출 시점에 해석하므로 기존 테스트의 시계 고정 패치도 그대로 적용된다.
+  - 동치 근거: 회귀 9종이 전부 통과했다. `test_vwap_stage3_shadow.py`의 "REAL 동치" 3건은 다음을 확인한다. ① `_now()`가 패치된 `datetime.now()`와 같다. ② `_loop_step_body`에서 판단 시각을 읽는 곳은 `self._now()` 1곳뿐이고, 남은 `datetime.now()`는 상태 캐시의 `last_updated` 1곳뿐이다. ③ REAL 주기의 세션 시작과 cycle_id가 고정 시계 기준과 같다.
+  - 이유: 섀도우는 REAL보다 수 ms~수백 ms 늦게 실행된다. 그 사이에 세션 리셋이나 거래 시작 시각을 넘으면 세션 날짜, 시작 대기, 손실한도 기준일이 REAL과 달라진다. JR-3은 이런 주기를 건너뛰는 방식(`CLOCK_BOUNDARY`)을 썼는데, 그러면 매 세션 경계 주기의 비교가 빠지고 경계 판정 여유(250ms)라는 근거 약한 상수가 남는다. 위임으로 바꾸면 섀도우가 REAL과 **같은 봉, 같은 설정, 같은 시각**으로 판단하므로 건너뛸 이유가 없어진다. `CLOCK_BOUNDARY`는 제거하고, `candles_asof`가 없을 때만 `NO_ASOF`로 건너뛴다.
+  - 되돌리기: `self._now()`를 `datetime.now()`로 되돌리고 섀도우에 `CLOCK_BOUNDARY` 건너뛰기를 복원하면 된다(약 1시간).
+- **섀도우 건너뜀 규칙 정정**: REAL 주기가 `DATA_UNAVAILABLE`로 끝나도 섀도우는 **실행한다**. 빈 캔들은 `NO_CANDLES`로 따로 걸러진다. 잔고나 미체결 조회 실패는 REAL 쪽 사정이라, 섀도우가 그 주기를 건너뛰면 그 봉의 가상 체결 판정이 영구히 사라져 `SHADOW_UNFILLED` 오탐이 생긴다. 건너뛰는 것은 `DATA_UNTRUSTED`와 `LOOP_ERROR`뿐이다.
+- **compare `summary.excluded`(`{"REAL_PANIC": n}`)와 pair의 `excluded_reason`을 계약에 포함한다.** REAL 패닉 청산 주기는 Q1(a)에 따라 섀도우가 일부러 돌지 않는 주기다. 그래서 `REAL_ONLY_ORDER`(버그 신호)로 세면 오탐이 된다. 이 건은 verdict 집계와 `match_rate_pct`에서 빼고 pairs에는 표시한다.
+- **섀도우 현금 음수 허용**: REAL 보유 원가가 기준 자본금보다 크면 섀도우 현금은 `기준자본 − 보유원가` 그대로 음수가 된다. 0으로 자르면 청산 뒤 현금(기준자본 + 손익)이 REAL 장부와 어긋난다. 보유 중에는 전략이 BUY를 내지 않으므로 청산 전까지 판단 차이도 없다. 이 경우 `SHADOW_SYNC`를 `warn`, `over_allocated=true`로 남긴다.
+- **상태 판단**: Phase C는 구현과 시니어 리뷰를 마쳤지만, QA, UI-2 섀도우 탭 연결, 커밋·배포가 남아 있다. 그래서 상태는 **Proposed를 유지**한다. Phase C/D가 QA를 통과하고 사용자 요청으로 커밋·배포되면 Accepted로 바꾼다. 사용자 결정(Q1(a)·Q2(a))은 이미 확정됐으므로 남은 조건은 배포뿐이다.

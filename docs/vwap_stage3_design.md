@@ -15,6 +15,7 @@
    - (d) `TossBroker.last_candles_source` 읽기 전용 속성
    - 그 밖의 REAL 경로 변경은 시니어 리뷰 없이 금지.
    - > **정정 2026-10-07**: 이 원칙의 예외로, 사용자 결정에 따라 [ADR-0009](adr/0009-vwap-start-wait-stop-loss.md)가 `bot.py` 7-1(거래 시작 대기 중 신호 덮어쓰기 범위)과 9-2-0(대기 중 보유 SELL 주기의 매수 미체결 취소)을 바꿨다. 3단계 기능 변경이 아니라 별도 매매 동작 수정이다.
+   - > **정정 2026-10-07 (SR-3)**: (b)와 같은 종류의 비매매 위임 1건을 추가했다. `_loop_step_body`의 판단 시각을 `self._now()`로 읽고, 기본 구현은 `datetime.now()`다(REAL 동작은 바뀌지 않는다). `ShadowBot`은 이 메서드에서 REAL의 `candles_asof`를 돌려준다. 근거와 동치 테스트: [ADR-0007 SR-3 메모](adr/0007-vwap-shadow-replay-strategy-plugin.md).
 2. 새 기능의 모든 예외는 내부에서 삼키고 이벤트·로그만 남긴다. REAL 루프가 죽거나 지연되면 안 된다. 훅 하나의 소요시간 상한은 기본 2초이고, 넘으면 경고 이벤트를 남긴다.
 3. 회귀 테스트 `scripts/test_vwap_reliability.py`(69/69)와 `scripts/test_vwap_transparency.py`(69/69)는 **모든 작업 단위가 끝날 때마다** 통과해야 한다. 운영 `data/` 해시는 전후가 같아야 한다.
 4. S9 제약: 순수 pandas/numpy만 쓴다(Numba·pyarrow·yfinance 금지). CPU를 많이 쓰는 작업은 **별도 프로세스**에서 한다. 런타임 파일은 반드시 `data/` 아래, sync 제외 목록에 있는 경로에만 쓴다.
@@ -207,6 +208,11 @@ class TradingStrategy(ABC):
 - `cycle_id` = 이번 주기 df 마지막 행의 `time`(문자열 `YYYY-MM-DD HH:MM:SS`). `_order_meta()`에 포함되어 tracked 주문과 거래 레코드(`cycle_id` 필드)에 저장된다.
 
 ### 5.2 `ShadowBot(VWAPBot)` — mode `VIRTUAL_SHADOW`
+> **정정 2026-10-07 (SR-3, 실제 코드가 기준)**:
+> 1. 시계: `ShadowBot._now()`가 REAL의 `candles_asof`를 돌려준다. 그래서 세션 경계 주기도 건너뛰지 않는다(JR-3의 `CLOCK_BOUNDARY`는 제거). `candles_asof`가 없으면 `NO_ASOF`로 건너뛴다.
+> 2. 건너뜀: `DATA_UNTRUSTED`·`LOOP_ERROR`·REAL 정지(`running=false`)·빈 캔들·비신뢰 출처·기준자본 없음·`NO_ASOF`·섀도우 자체 패닉 후 같은 세션·`POSITION_UNKNOWN`(재동기화가 필요한데 REAL 보유를 모를 때). REAL `DATA_UNAVAILABLE` 주기는 **실행한다**.
+> 3. 실주문 방어: 실행 전과 후에 시세 소스(`real_broker`)와 `VirtualBroker.source_broker`가 같은 `StaticCandleBroker`인지 확인한다. 아니면 섀도우 봇을 폐기하고(`BROKER_SWAPPED`) 다음 주기에 `FIRST_SYNC`로 다시 맞춘다.
+> 4. 재동기화 사유: `FIRST_SYNC`/`BOT_START`(generation 또는 프로세스 `boot_id` 변경)/`SESSION_START`/`CONFIG_CHANGE`/`REENABLED`. REAL 보유 원가가 기준자본보다 크면 현금이 음수가 된다(자르지 않음). 이때 `SHADOW_SYNC`는 `warn`, `over_allocated=true`.
 - `_load_config()` 오버라이드: 훅에서 받은 REAL 설정을 복사한 뒤 `real_X` → `virtual_shadow_X`로 키를 매핑해 반환한다. 비밀값은 빈 문자열로 둔다.
 - 시세: `self.real_broker = StaticCandleBroker(df)`로 미리 넣어둔다. `client_id/secret/account_seq` 속성을 매핑된 설정값(빈 문자열)과 맞춰서 bot 본체가 TossBroker를 새로 만들지 않게 한다. `get_candles`는 주입된 df를 돌려주고, 네트워크 메서드는 호출되면 예외를 낸다(테스트로 0회 보장).
 - 알림: `_refresh_notify_flag` 오버라이드 → 항상 False.
@@ -248,6 +254,7 @@ class TradingStrategy(ABC):
 `data/vwap_trades_virtual_shadow.json`, `data/vwap_events_virtual_shadow.jsonl(.1)`, `data/vwap_shadow_state.json(.tmp)`. 앞의 둘은 기존 sync 제외 패턴에 포함된다. state 파일은 §7에서 추가한다.
 
 ### 5.6 API
+> **정정 2026-10-07 (SR-3)**: 최종 계약은 아래 예시에 다음 필드를 더한 것이다. `status`에 `session_date`, `halted`, `skip`(`{reason,text,at,cycle_id}|null`)이 있고, `cash`는 음수일 수 있다. `compare`에는 최상위 `ticker`(현재 REAL 설정, UI 통화 판정용)와 `tickers`, `summary.real.unkeyed_fills`, `summary.excluded`(`{"REAL_PANIC": n}`), `summary.definitions`가 있다. pair에는 선택 필드 `excluded_reason`(`"REAL_PANIC"`)이 붙는다. excluded 건은 verdict 집계와 일치율에서는 빠지고 pairs에는 보인다. 섀도우 초기화에 실패하면 두 API 모두 `503 {"status":"failed","reason":"shadow_unavailable"}`를 돌려준다.
 `GET /vwap/api/shadow/status`
 ```json
 {"status":"success","shadow":{"enabled":bool,"following":"REAL","real_running":bool,"last_cycle_id","last_run_at","last_duration_ms",

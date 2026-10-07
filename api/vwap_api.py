@@ -23,6 +23,20 @@ virtual_bots = {
 virtual_bot = virtual_bots["VIRTUAL_1"]  # 하위 호환용 매핑
 real_bot = VWAPBot("REAL")
 
+# (3단계 Phase C) 섀도우: REAL 주기가 끝날 때마다 훅으로 같은 봉·같은 설정의 가상 봇을 동기 1회 실행(Q1(a): REAL 과 함께만 동작).
+# shadow_enabled 는 등록 시점이 아니라 훅 안에서 매 주기 확인하므로 설정 변경이 곧바로 반영됩니다.
+# (SR-3) 섀도우 초기화가 어떤 이유로 실패해도 REAL 자동 복구(restore_active_bots)는 반드시 진행되어야 하므로 격리합니다.
+# 실패 시 shadow_runner=None → 섀도우 API 는 503(shadow_unavailable), REAL 은 섀도우 없이 평소대로 동작.
+# shadow 모듈 import 자체도 이 블록 안에서 합니다(import 실패가 vwap_api 전체 로드·restore_active_bots 를 막지 않도록). 실패 시 vwap_shadow=None.
+try:
+    from core.vwap import shadow as vwap_shadow
+    shadow_runner = vwap_shadow.ShadowRunner()
+    real_bot.add_post_cycle_hook("shadow", shadow_runner.hook)
+except Exception as _e:  # pragma: no cover - 방어 코드
+    vwap_shadow = None
+    shadow_runner = None
+    logger.error(f"[섀도우] 초기화 실패 — 섀도우 없이 REAL 진행: {_e!r}")
+
 # 실제 자산 실시간 데이터 캐시 (조회 버튼을 누를 때만 업데이트)
 real_assets_cache = {
     "cash": 0.0,
@@ -742,6 +756,49 @@ def api_replay_get(job_id):
     if job is None:
         return jsonify({"status": "failed", "reason": "not_found"}), 404
     return jsonify({"status": "success", "job": job})
+
+
+@vwap_bp.route('/api/shadow/status', methods=['GET'])
+@admin_required
+def api_shadow_status():
+    """섀도우 상태(REAL 을 따라가는 가상 봇). 응답: {"status":"success","shadow":{enabled, following, real_running,
+    last_cycle_id, last_run_at, last_duration_ms, synced_at, sync_reason, ticker, session_date, position, cash,
+    reason_code, reason_text, signal, halted, skip}}"""
+    try:
+        if shadow_runner is None:
+            return jsonify({"status": "failed", "reason": "shadow_unavailable"}), 503
+        config = VwapConfigManager.load_config()
+        shadow = shadow_runner.status(real_running=real_bot.running, enabled=bool(config.get("shadow_enabled", True)))
+        return jsonify({"status": "success", "shadow": shadow})
+    except Exception as e:
+        logger.error(f"[api_shadow] status 조회 실패: {e!r}")
+        return jsonify({"status": "failed", "reason": "read_failed"}), 500
+
+
+SHADOW_COMPARE_MAX_DAYS = 30
+
+
+@vwap_bp.route('/api/shadow/compare', methods=['GET'])
+@admin_required
+def api_shadow_compare():
+    """REAL vs 섀도우 비교. Query: days=1~30 (기본 7, 범위 밖·숫자 아님은 400).
+    응답: {"status":"success","ticker","tickers","period","summary","pairs"} — ticker 는 UI 통화 판정용(6자리 숫자=₩, 그 외 $)."""
+    raw = request.args.get('days', '7')
+    try:
+        days = int(str(raw).strip())
+        if not 1 <= days <= SHADOW_COMPARE_MAX_DAYS:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"status": "failed", "reason": "invalid_params",
+                        "message": f"days 는 1~{SHADOW_COMPARE_MAX_DAYS} 사이의 정수여야 합니다."}), 400
+    if shadow_runner is None or vwap_shadow is None:
+        return jsonify({"status": "failed", "reason": "shadow_unavailable"}), 503
+    try:
+        result = vwap_shadow.compare(days, config=VwapConfigManager.load_config())
+        return jsonify({"status": "success", **result})
+    except Exception as e:
+        logger.error(f"[api_shadow] compare 실패: {e!r}")
+        return jsonify({"status": "failed", "reason": "compare_failed"}), 500
 
 
 @vwap_bp.route('/api/reset-trades', methods=['POST'])

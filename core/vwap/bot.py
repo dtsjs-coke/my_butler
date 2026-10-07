@@ -222,6 +222,11 @@ class VWAPBot:
         ShadowBot 이 오버라이드해 REAL 설정을 섀도우 키로 매핑해 돌려줍니다."""
         return VwapConfigManager.load_config()
 
+    def _now(self) -> datetime:
+        """(3단계 SR-3, ADR-0007 메모) 주기 판단 시각 위임 지점. 기본은 datetime.now() 그대로(REAL·가상 동작 무변경).
+        ShadowBot 이 오버라이드해 REAL 의 판단 시각(ctx candles_asof)을 돌려줍니다 — 세션 경계에서 두 봇의 시각이 갈리지 않게."""
+        return datetime.now()
+
     def add_post_cycle_hook(self, name: str, fn) -> bool:
         """주기 종료 훅 등록 (같은 이름이 있으면 교체). fn(ctx) 의 반환값은 무시되고 예외는 봇 밖으로 나가지 않습니다."""
         if not callable(fn):
@@ -1266,7 +1271,7 @@ class VWAPBot:
         # (ADR-0008) 세션 경계의 단일 기준. 미국 종목 + 리셋 22:30/23:30 → 서머타임에 맞춰 22:30↔23:30 자동,
         # 그 외(국내 종목, 다른 리셋 시각) → 설정한 reset_time 고정. 어느 쪽이든 자정으로는 세션을 끊지 않음.
         session = SessionSpec.for_market(market, reset_time, ticker)
-        now = datetime.now()
+        now = self._now()
         # (3단계 §5.1, 관측 전용) 훅 컨텍스트 — 매매 판단에는 쓰지 않음
         self._hook_note(config=config, ticker=ticker, market=market, interval=interval, reset_time=reset_time)
         start_time = config.get(f"{mode_prefix}_start_time", "")
