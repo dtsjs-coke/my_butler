@@ -1,7 +1,7 @@
 # ADR-0007: VWAP 3단계 — 섀도우 모드 / 원클릭 리플레이 / 봉 데이터 적재 / 전략 플러그인 인터페이스
 
 - **날짜**: 2026-10-05
-- **상태**: **Proposed** (설계만 확정, 코드 미작성. S9 배포 중이라 이번 턴에는 코드 무변경)
+- **상태**: **Proposed** 유지 (상태 갱신 2026-10-07: Phase A 커밋 `0c05162`, Phase B 커밋 `4fa93a0` 배포 완료. Phase C(섀도우)는 미구현)
 - **대상**: `my_butler` VWAP 자동매매 서브시스템
 - **선행 ADR**: [ADR-0006](0006-vwap-signal-redesign.md) — 신호 재설계 보류, 연구 하네스 `backtest/` 도입, "봉 적재" 권고
 - **구현 명세**: [`docs/vwap_stage3_design.md`](../vwap_stage3_design.md) (파일/API/UI/테스트/작업 분할)
@@ -132,3 +132,4 @@
 
 - **4단계 ADR 번호**: 위 25행 메모의 "4단계(전략 재연구) ADR 번호는 0009"는 정정한다. 0009 는 [ADR-0009](0009-vwap-start-wait-stop-loss.md)(거래 시작 대기 중 손절 허용)가 사용했으므로 **4단계 ADR 은 0010** 이다.
 - **`ui_show_legacy_virtual`**: 80행의 "UI에서만 기본으로 숨긴다(`ui_show_legacy_virtual=false`)"는 서버 설정 키를 뜻하지 않는다. 서버 설정 키 `ui_show_legacy_virtual`은 **삭제 확정**(2026-10-07, QA 권고 — 코드 참조 0건)이며, 레거시 가상봇 표시 토글은 브라우저 `localStorage`(`vwap_ui_show_legacy_virtual`)만 사용한다.
+- **4단계 ADR 번호 재정정 (2026-10-07)**: 위 "4단계 ADR 은 0010" 도 다시 정정한다. 0010 은 [ADR-0010](0010-vwap-real-untrusted-candles.md)(REAL 신뢰 불가 캔들 보호)가 사용했으므로 **4단계(전략 재연구) ADR 은 0011** 이다.

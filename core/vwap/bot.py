@@ -42,6 +42,30 @@ ERROR_EVENT_REPEAT_SEC = 600
 HOOK_WARN_SEC = 2.0
 # 훅 ctx["config"] 에서 비우는 비밀값 키 (훅은 비밀값이 필요 없음 — 실수로 기록/전송되는 것 방지)
 HOOK_SECRET_KEYS = ("toss_client_id", "toss_client_secret", "toss_account_seq", "admin_password_hash")
+# (ADR-0010) REAL 봇이 매매 판단에 쓸 수 있는 캔들 출처. 그 외("mock"=난수 봉, ""=출처 불명)는 판단 전체 보류
+TRUSTED_CANDLE_SOURCES = ("toss", "yahoo")
+# (ADR-0010) 신뢰 불가 캔들로 판단을 보류한 주기가 연속 이 횟수에 이르면 CRITICAL(손절 보호 공백) 이벤트 + Discord
+UNTRUSTED_STREAK_CRITICAL = 3
+# (ADR-0010) 이 사유들은 '아직 신뢰할 판단을 못 함' — 신뢰 불가 연속 횟수를 끊지 않음 (그 외 사유가 나오면 0 으로)
+_UNTRUSTED_GAP_CODES = ("DATA_UNTRUSTED", "DATA_UNAVAILABLE", "LOOP_ERROR")
+# (ADR-0010 정정) 신뢰 불가 '구간 시작' Discord 알림의 최소 간격(초). 이 안에 새 구간이 또 시작되면(신뢰/불가 깜빡임)
+# 이벤트는 매번 기록하되 Discord 는 미루고, 다음 알림(구간 시작/CRITICAL/정상 복귀 요약)에 횟수를 묶어 보냄
+UNTRUSTED_EPISODE_ALERT_MIN_SEC = 600
+# (ADR-0010 정정) 신뢰 불가가 계속되면 첫 CRITICAL 이후 이 간격(초)마다 CRITICAL 재알림
+UNTRUSTED_CRITICAL_REPEAT_SEC = 1800
+
+
+def _monotonic() -> float:
+    """알림 억제/재알림 간격 계산용 시각. 테스트가 고정 시각으로 바꿔 끼울 수 있게 함수로 둠."""
+    return time.monotonic()
+
+
+def _fmt_duration(sec: float) -> str:
+    """경과 시간(초)을 '약 N분' / 'N시간 M분' 한글로."""
+    m = int(max(0.0, sec) // 60)
+    if m < 60:
+        return f"약 {m}분"
+    return f"{m // 60}시간 {m % 60}분"
 
 
 def get_session_start(now: datetime, reset_time: str) -> datetime:
@@ -157,7 +181,10 @@ class VWAPBot:
         self._cycle = None              # 현재 주기의 판단 사유/스냅샷 (_loop_step 에서 생성)
         self._last_signal_key = None    # 직전 주기 (signal, reason_code) — SIGNAL_CHANGE 중복 억제
         self._fail_streak = 0           # 연속 조회 실패 주기 수
-        self._error_last = {}           # ERROR 이벤트 키별 마지막 기록 시각 (반복 억제)
+        self._untrusted_streak = 0      # (ADR-0010, REAL) 신뢰 불가 캔들로 판단 보류한 연속 주기 수
+        self._last_trusted_position_qty = None  # (ADR-0010, 알림 문구용) 신뢰 주기에서 마지막으로 확인한 보유 수량
+        self._reset_untrusted_alert_state()
+        self._error_last = {}          # ERROR 이벤트 키별 마지막 기록 시각 (반복 억제)
         self._notify_enabled = (self.mode == "REAL")  # 설정 real/virtual_discord_notify 로 매 주기 갱신
         self._stop_note = ""            # 정지 사유 (패닉 자동정지 등) — 정지 상태 reason_text 에 표시
 
@@ -226,6 +253,8 @@ class VWAPBot:
             # (이전 세대 주기가 아직 돌고 있을 수 있으므로)
             self._last_signal_key = None
             self._fail_streak = 0
+            self._untrusted_streak = 0
+            self._reset_untrusted_alert_state()
             self._stop_note = ""
             # (관측성) 첫 주기 이벤트보다 먼저 남도록 스레드 시작 전에 기록 (예외는 _emit 내부에서 처리)
             self._refresh_notify_flag()
@@ -286,7 +315,7 @@ class VWAPBot:
     def _emit_error(self, key: str, message: str, data: dict = None, level: str = "warn",
                     reason_code: str = "", notify: bool = False):
         """같은 key 의 ERROR 이벤트는 ERROR_EVENT_REPEAT_SEC 안에 한 번만 기록합니다 (반복 오류 묶기)."""
-        now = time.monotonic()
+        now = _monotonic()
         last = self._error_last.get(key)
         if last is not None and now - last < ERROR_EVENT_REPEAT_SEC:
             return False
@@ -398,8 +427,11 @@ class VWAPBot:
                     self._emit("ERROR", "error", code,
                                f"{ERROR_STREAK_NOTIFY}주기 연속 조회/실행 실패 — 봇이 매매 판단을 못 하고 있습니다",
                                self._reason_data(streak=self._fail_streak), notify=True)
-            else:
+            elif code != "DATA_UNTRUSTED":  # (ADR-0010) 신뢰 불가 주기는 별도 연속 카운터(_untrusted_streak)로 다룸
                 self._fail_streak = 0
+            if code not in _UNTRUSTED_GAP_CODES:
+                self._untrusted_streak = 0
+                self._flush_untrusted_summary()
 
             values = c.get("values") or {}
             with self._lock:
@@ -1004,6 +1036,131 @@ class VWAPBot:
         except Exception:
             return ""
 
+    def _untrusted_candles_cause(self, broker):
+        """(ADR-0010, REAL 전용) 이번 주기 시세를 매매 판단에 쓰면 안 되는 이유. 써도 되면 None.
+        Returns: None 또는 (cause, source, 설명)
+          - "broker_mock_only": 토스 키 미설정 → 브로커가 시세 조회용 Mock (잔고는 가짜, 주문은 가짜 ID 만 돌려줌)
+          - "candles_mock"    : 난수 봉 (키 미설정 + Yahoo 실패)
+          - "candles_unknown" : 출처가 비었거나 알 수 없는 값 (출처를 남기지 않는 브로커 포함)"""
+        src = self._candles_source_of(broker)
+        if bool(getattr(broker, "is_mock_only", False)):
+            return ("broker_mock_only", src, "토스 API 키 미설정(모의 브로커 — 잔고·주문이 가짜)")
+        if src in TRUSTED_CANDLE_SOURCES:
+            return None
+        if src == "mock":
+            return ("candles_mock", src, "난수(mock) 봉")
+        return ("candles_unknown", src, f"출처 불명('{src}')" if src else "출처 불명(빈 값)")
+
+    def _reset_untrusted_alert_state(self):
+        """(ADR-0010 정정) 신뢰 불가 알림용 관측 상태 초기화 (생성자/start). 매매 판단에는 쓰이지 않음."""
+        self._untrusted_episode_seq = 0          # 신뢰 불가 구간 일련번호 (Discord 중복 억제 키 분리용)
+        self._untrusted_episode_started = None   # 현재 구간 첫 주기 시각(_monotonic)
+        self._untrusted_critical_last = None     # 현재 구간 마지막 CRITICAL 시각
+        self._untrusted_critical_count = 0       # 현재 구간 CRITICAL 횟수 (1=첫 알림, 2~=재알림)
+        self._untrusted_alert_last = None        # 마지막 '구간 시작/요약' Discord 시각
+        self._untrusted_alert_pending = 0        # 최소 간격 때문에 Discord 를 미룬 구간 시작 횟수
+        self._untrusted_pending_since = None     # 미룬 첫 구간 시작 시각
+
+    def _take_untrusted_pending_note(self) -> str:
+        """미룬 구간 시작 횟수를 알림 문구로 꺼내고 0 으로 돌립니다 (없으면 빈 문자열)."""
+        k = self._untrusted_alert_pending
+        if k <= 0:
+            return ""
+        since = self._untrusted_pending_since
+        self._untrusted_alert_pending = 0
+        self._untrusted_pending_since = None
+        span = f" (최근 {_fmt_duration(_monotonic() - since)})" if since is not None else ""
+        return f" · 알림 간격 제한으로 생략된 신뢰 불가 구간 시작 {k}회{span}"
+
+    def _flush_untrusted_summary(self):
+        """(ADR-0010 정정) 신뢰 주기에서 호출: 미룬 구간 시작 알림이 있고 최소 간격이 지났으면 요약 1건을 보냅니다.
+        짧은 구간(CRITICAL 전 회복)이 깜빡이다 멈춰도 사람에게 한 번은 전달되게 하는 장치입니다."""
+        if self._untrusted_alert_pending <= 0:
+            return
+        now = _monotonic()
+        if self._untrusted_alert_last is not None and now - self._untrusted_alert_last < UNTRUSTED_EPISODE_ALERT_MIN_SEC:
+            return
+        k = self._untrusted_alert_pending
+        note = self._take_untrusted_pending_note()
+        self._untrusted_alert_last = now
+        self._emit("ERROR", "warn", "DATA_UNTRUSTED",
+                   f"REAL 시세 신뢰 불가 구간 요약 — 현재는 신뢰 시세로 정상 판단 중{note}",
+                   {"summary": True, "deferred_episodes": k, "episode": self._untrusted_episode_seq},
+                   notify=True, dedup_extra=("untrusted_summary", self._untrusted_episode_seq))
+
+    def _on_untrusted_candles(self, ticker: str, cause: str, src: str, desc: str):
+        """(ADR-0010) 신뢰 불가 시세 주기 처리. 매매/주문 호출은 하지 않습니다.
+        알림 정책(2026-10-07 정정, M1/M2):
+          - 구간(연속 구간) 시작 주기: warn 이벤트를 반드시 기록(키 억제 무시). Discord 는 직전 구간 시작/요약 알림 후
+            UNTRUSTED_EPISODE_ALERT_MIN_SEC 가 지났으면 즉시, 아니면 미뤄서 다음 알림에 횟수로 묶음
+          - 같은 구간의 이후 주기: 같은 키 warn 이벤트 10분 1회(ERROR_EVENT_REPEAT_SEC), Discord 없음
+          - 연속 UNTRUSTED_STREAK_CRITICAL 주기째 CRITICAL 1회, 이후 계속되면 UNTRUSTED_CRITICAL_REPEAT_SEC 마다 재알림
+            (지속 시간·마지막 신뢰 보유 수량·원인 포함)"""
+        now = _monotonic()
+        self._untrusted_streak += 1
+        n = self._untrusted_streak
+        if n == 1:
+            self._untrusted_episode_seq += 1
+            self._untrusted_episode_started = now
+            self._untrusted_critical_last = None
+            self._untrusted_critical_count = 0
+        seq = self._untrusted_episode_seq
+        started = self._untrusted_episode_started if self._untrusted_episode_started is not None else now
+        duration = now - started
+        last_qty = self._last_trusted_position_qty  # 신뢰 주기에서 마지막으로 확인한 보유 수량 (없으면 None)
+        qty_note = f"마지막으로 확인된 보유 {last_qty:g}주" if last_qty is not None else "이번 가동 중 보유 수량 확인 이력 없음"
+        text = (f"{ticker} 시세 신뢰 불가 — {desc} → 이번 주기 매매 판단 전체 보류 "
+                f"(신규 매수·지정가 매도/정정·손절·손실한도 판정 안 함, 기존 미체결 유지) [연속 {n}주기]")
+        self._set_reason("DATA_UNTRUSTED", text, "WAIT")
+        self.logger.error(f"🧪 [REAL 보호] {text}")
+        data = self._reason_data(ticker=ticker, candles_source=src or "", cause=cause, streak=n)
+        data["last_known_position_qty"] = last_qty
+        data["episode"] = seq
+        data["duration_sec"] = round(duration, 1)
+
+        key = f"DATA_UNTRUSTED:{cause}:{src}"
+        if n == 1:
+            # M1: 새 구간의 첫 경고는 이전 구간의 10분 키 억제에 걸리지 않게 직접 기록
+            self._error_last[key] = now
+            throttled = (self._untrusted_alert_last is not None
+                         and now - self._untrusted_alert_last < UNTRUSTED_EPISODE_ALERT_MIN_SEC)
+            msg = f"REAL 시세 신뢰 불가({desc}) — 매매 판단 보류 (새 신뢰 불가 구간 시작)"
+            start_data = dict(data)
+            if throttled:
+                if self._untrusted_alert_pending == 0:
+                    self._untrusted_pending_since = now
+                self._untrusted_alert_pending += 1
+                start_data["discord_deferred"] = True
+            else:
+                msg += self._take_untrusted_pending_note()
+                self._untrusted_alert_last = now
+            self._emit("ERROR", "warn", "DATA_UNTRUSTED", msg, start_data,
+                       notify=not throttled, dedup_extra=("untrusted_start", seq))
+        else:
+            self._emit_error(key, f"REAL 시세 신뢰 불가({desc}) — 매매 판단 보류 (구간 지속, {_fmt_duration(duration)})",
+                             data, level="warn", reason_code="DATA_UNTRUSTED", notify=False)
+
+        # M2: CRITICAL 첫 알림 + 지속 시 재알림
+        first_crit = (n == UNTRUSTED_STREAK_CRITICAL)
+        repeat_crit = (n > UNTRUSTED_STREAK_CRITICAL and self._untrusted_critical_last is not None
+                       and now - self._untrusted_critical_last >= UNTRUSTED_CRITICAL_REPEAT_SEC)
+        if first_crit or repeat_crit:
+            self._untrusted_critical_count += 1
+            self._untrusted_critical_last = now
+            k = self._untrusted_critical_count
+            crit_data = dict(data)
+            crit_data["critical_seq"] = k
+            if first_crit:
+                head = f"{UNTRUSTED_STREAK_CRITICAL}주기 연속 시세 신뢰 불가({desc}, {_fmt_duration(duration)} 경과)"
+            else:
+                head = (f"[재알림 {k - 1}회째] 시세 신뢰 불가 {_fmt_duration(duration)} 지속"
+                        f"(연속 {n}주기, 원인: {desc})")
+            self._emit("CRITICAL", "critical", "DATA_UNTRUSTED",
+                       f"{head} — 손절 판정이 멈춰 있습니다. "
+                       f"보유 포지션이 있으면 토스 앱에서 직접 확인하세요 ({qty_note})"
+                       f"{self._take_untrusted_pending_note()}",
+                       crit_data, notify=True, dedup_extra=("untrusted_critical", seq, k))
+
     def _build_hook_ctx(self) -> dict:
         """훅에 넘길 이번 주기 컨텍스트(공통 원본). 훅마다 _run_post_cycle_hooks 가 복사본을 만듭니다."""
         c = self._cycle or {}
@@ -1174,6 +1331,16 @@ class VWAPBot:
             self._set_reason("DATA_UNAVAILABLE", f"{ticker} 캔들(시세) 조회 실패 → 이번 주기 판단 보류", "WAIT")
             return
 
+        # 3-1. (ADR-0010) REAL 보호: 캔들 출처가 "toss"/"yahoo" 가 아니거나(난수 봉·출처 불명) 브로커가 키 미설정 Mock 이면
+        # 이 주기에는 아무 매매 판단도 하지 않습니다 — 신규 매수, 지정가 매도/정정, 미체결 정리, 손절, 손실한도(패닉) 전부.
+        # 손절도 보류하는 이유: 난수 봉 가격은 실제 시세와 무관해, 그 값으로 손절가 이탈을 판정하면 실제 포지션을
+        # 근거 없이 시장가로 청산할 수 있음. 대신 연속 N주기면 CRITICAL 로 사람에게 알림. 가상 봇은 이 검사를 하지 않음.
+        if mode == "REAL":
+            untrusted = self._untrusted_candles_cause(broker)
+            if untrusted is not None:
+                self._on_untrusted_candles(ticker, *untrusted)
+                return
+
         # 4. 실시간 VWAP 계산
         df = VwapStrategy.calculate_vwap(df, reset_time, session=session)
         latest_row = df.iloc[-1]
@@ -1217,6 +1384,10 @@ class VWAPBot:
         holding_info = holdings.get(ticker, {"qty": 0.0, "entry_price": 0.0})
         qty = holding_info["qty"]
         entry_price = holding_info["entry_price"]
+        try:
+            self._last_trusted_position_qty = float(qty)  # (ADR-0010, 관측 전용) 신뢰 불가 CRITICAL 알림 문구용
+        except Exception:
+            pass
         self._cycle["values"].update({"position_qty": float(qty),
                                       "entry_price": round(float(entry_price), 2) if qty > 0 else 0.0})
         self._hook_note(position_raw=(qty, entry_price), cash_raw=cash)  # (관측 전용) 변환은 훅 실행부에서

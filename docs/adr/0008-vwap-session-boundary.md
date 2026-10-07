@@ -1,7 +1,7 @@
 # ADR-0008: VWAP 세션 경계 — 자정 리셋 제거, 미국장 리셋 시각 서머타임 자동 전환, 세션 전체 봉 사용
 
 - **날짜**: 2026-10-07 (최초 작성 2026-10-06)
-- **상태**: **Accepted** — 로컬 구현·테스트 완료, **S9 미배포**. 사용자 결정("세션 경계 수정을 먼저 마무리")에 따른 작업이다. 2026-10-07 사용자가 F1b(세션 전체 봉 사용, D3) 유지를 결정했다.
+- **상태**: **Accepted** — 구현·테스트 완료, 커밋 `a72d12d`로 S9 배포 완료(상태 갱신 2026-10-07). 사용자 결정("세션 경계 수정을 먼저 마무리")에 따른 작업이다. 2026-10-07 사용자가 F1b(세션 전체 봉 사용, D3) 유지를 결정했다.
 - **대상**: `my_butler` VWAP 자동매매 서브시스템 (REAL·가상 1~3·`/api/vwap/backtest`)
 - **선행 문서**: [ADR-0007](0007-vwap-shadow-replay-strategy-plugin.md)의 F1·F2, [`docs/vwap_stage3_design.md`](../vwap_stage3_design.md) §8
 - **관련 파일**: `core/vwap/session.py`(신규), `core/vwap/strategy.py`(`calculate_vwap`만), `core/vwap/bot.py`, `core/vwap/broker.py`(`TossBroker.get_candles`), `core/vwap/backtester.py`(1줄), `scripts/test_vwap_session.py`(신규)
@@ -96,3 +96,4 @@
 
 - 9행 "번호 메모"의 "4단계 ADR은 0009"와 60행(근거 절)의 "4단계(ADR-0009)"는 정정한다. 0009 는 [ADR-0009](0009-vwap-start-wait-stop-loss.md)(거래 시작 대기 중 손절 허용)가 사용했으므로 **4단계(전략 재연구) ADR 은 0010** 이다.
 - D5(서머타임 종료 후 거래 시작 시각 보정)의 대기 구간 계산은 그대로다. 다만 대기 구간에서 **무엇을 막는지**는 ADR-0009 가 바꿨다: 신규 매수만 막고 보유 포지션의 손절·매도는 평소대로 처리한다.
+- **4단계 ADR 번호 재정정 (2026-10-07)**: 위 "4단계 ADR 은 0010" 도 다시 정정한다. 0010 은 [ADR-0010](0010-vwap-real-untrusted-candles.md)(REAL 신뢰 불가 캔들 보호)가 사용했으므로 **4단계(전략 재연구) ADR 은 0011** 이다.

@@ -112,6 +112,10 @@ class TossBroker(Broker):
         
         # 키가 설정되어 있지 않은 경우 Mock(가상) 모드로 자동 폴백(Fallback)하기 위한 플래그
         self.is_mock_only = not (self.client_id and self.client_secret)
+        # (ADR-0010) mock_mode 는 '키 미설정 또는 마지막 토큰 발급 실패'를 알리는 표시용 플래그입니다(대시보드 api_active 등).
+        # 주문/조회/시세의 모의(mock) 분기는 오직 is_mock_only(키 미설정)로만 결정합니다.
+        # 예전에는 mock_mode 로 분기해서, 다른 스레드(Flask 상태 조회)의 토큰 실패가 이 플래그를 켜는 순간
+        # 봇 스레드의 실주문 경로가 가짜 주문ID('mock_order_…')를 돌려받을 수 있었습니다.
         self.mock_mode = self.is_mock_only
         if self.mock_mode:
             print("[TossBroker] API Key 누락으로 인해 시세 조회용 가상 Mock 모드로 작동합니다.")
@@ -225,7 +229,8 @@ class TossBroker(Broker):
                 logger = logging.getLogger("vwap_bot")
                 err_msg = f"[TossBroker] 토큰 발급 실패 (HTTP {res.status_code}): {res.text}"
                 logger.error(err_msg)
-                # 발급 실패 시 시세 수집을 위해 임시로 Mock 모드 플래그 가동
+                # 발급 실패 표시(대시보드용). (ADR-0010) 키가 있으면 아래에서 예외를 던지므로 호출부는 실패를 그대로 봅니다
+                # — 모의 분기로 '조용히' 넘어가지 않습니다(분기는 is_mock_only 기준).
                 self.mock_mode = True
                 if not self.is_mock_only:
                     raise Exception(err_msg)
@@ -303,20 +308,23 @@ class TossBroker(Broker):
 
     def get_candles(self, ticker: str, interval: str = "1m", limit: int = 100) -> pd.DataFrame:
         self._ensure_token()
-        self.last_candles_source = "yahoo" if not self.mock_mode else "mock"
+        # (ADR-0010) 출처는 각 반환 경로에서 명시적으로 지정합니다. ""(빈 값) = 빈 결과/출처 불명.
+        # REAL 봇은 "toss"/"yahoo" 가 아닌 주기에 매매 판단을 보류하므로 이 값이 정확해야 합니다.
+        self.last_candles_source = ""
         self.last_candles_complete = True
-        
-        # 1. 5분봉/15분봉이거나 mock_mode 인 경우에는 야후 파이낸스로 스위칭(토스 API는 1m/1d만 지원)
+
+        # 1. 5분봉/15분봉이거나 키 미설정(is_mock_only)인 경우에는 야후 파이낸스로 스위칭(토스 API는 1m/1d만 지원)
+        #    (ADR-0010) mock_mode(토큰 실패 표시)로는 분기하지 않음 — 키가 있으면 토큰 실패는 위 _ensure_token 이 예외로 알림
         is_unsupported_interval = interval not in ["1m", "1d"]
-        if self.mock_mode or is_unsupported_interval:
+        if self.is_mock_only or is_unsupported_interval:
             df = self._fetch_yahoo_candles(ticker, interval, limit)
             if not df.empty:
-                # (3단계 §6, 관측 전용) mock_mode 여도 실제로는 Yahoo 시세이므로 출처를 yahoo 로. "mock" 은 아래 난수 봉에만
+                # (3단계 §6, 관측 전용) 키가 없어도 실제로는 Yahoo 시세이므로 출처를 yahoo 로. "mock" 은 아래 난수 봉에만
                 self.last_candles_source = "yahoo"
                 return df
-            
-            # 가상 모드인데 야후 API도 실패하면 난수 폴백 처리
-            if self.mock_mode:
+
+            # 키 미설정(시세 조회용 Mock)인데 야후 API도 실패하면 난수 폴백 처리
+            if self.is_mock_only:
                 self.last_candles_source = "mock"  # 난수 봉 — bars_store 는 이 출처를 적재하지 않음
                 now = datetime.now()
                 times = [now - pd.Timedelta(minutes=i) for i in range(limit)]
@@ -424,6 +432,7 @@ class TossBroker(Broker):
                 # 실거래 모드에서도 토스 API 에러 시 최종 폴백으로 야후 파이낸스 한번 더 시도
                 df = self._fetch_yahoo_candles(ticker, interval, limit)
                 if not df.empty:
+                    self.last_candles_source = "yahoo"
                     return df
                 return pd.DataFrame()
         except Exception as e:
@@ -431,6 +440,7 @@ class TossBroker(Broker):
             # 예외 시 야후 파이낸스 폴백
             df = self._fetch_yahoo_candles(ticker, interval, limit)
             if not df.empty:
+                self.last_candles_source = "yahoo"
                 return df
             return pd.DataFrame()
 
@@ -452,7 +462,7 @@ class TossBroker(Broker):
         self.last_place_order_outcome = "unknown"
         self.last_client_order_id = client_order_id or str(uuid.uuid4())
         self._ensure_token()
-        if self.mock_mode:
+        if self.is_mock_only:  # (ADR-0010) 키 미설정일 때만 모의 주문 — mock_mode(토큰 실패 표시)로 분기 금지
             print(f"[TossBroker MOCK] {ticker} {side} {qty}주 주문 성공 (가격: {price})")
             return f"mock_order_{uuid.uuid4().hex[:8]}"
             
@@ -499,7 +509,7 @@ class TossBroker(Broker):
 
     def cancel_order(self, order_id: str) -> bool:
         self._ensure_token()
-        if self.mock_mode:
+        if self.is_mock_only:  # (ADR-0010)
             print(f"[TossBroker MOCK] 주문 취소 성공 (ID: {order_id})")
             return True
             
@@ -521,7 +531,7 @@ class TossBroker(Broker):
         # 봇은 이 플래그로 "진짜 미체결 0건"과 "조회 실패"를 구분합니다.
         self.last_open_orders_failed = False
         self._ensure_token()
-        if self.mock_mode:
+        if self.is_mock_only:  # (ADR-0010)
             return []
 
         headers = {
@@ -578,7 +588,7 @@ class TossBroker(Broker):
         except Exception as e:
             print(f"[TossBroker] get_order 토큰 확보 실패: {e}")
             return None
-        if self.mock_mode:
+        if self.is_mock_only:  # (ADR-0010)
             return None
 
         headers = {
@@ -617,7 +627,7 @@ class TossBroker(Broker):
 
     def get_current_price(self, ticker: str) -> float:
         self._ensure_token()
-        if self.mock_mode:
+        if self.is_mock_only:  # (ADR-0010)
             # 야후 파이낸스 최신 1분봉의 종가를 활용
             df = self.get_candles(ticker, "1m", 1)
             return float(df.iloc[-1]['close']) if not df.empty else 0.0
@@ -653,7 +663,7 @@ class TossBroker(Broker):
         self._ensure_token()
         
         # Mock 모드일 경우 각 ticker별 get_current_price 순회
-        if self.mock_mode:
+        if self.is_mock_only:  # (ADR-0010)
             return {t: self.get_current_price(t) for t in tickers}
             
         headers = {

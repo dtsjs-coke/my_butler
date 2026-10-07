@@ -1,7 +1,7 @@
 # ADR-0009: VWAP 거래 시작 시각 대기 중에도 보유 포지션 손절·매도 허용 (신규 매수만 차단)
 
 - **날짜**: 2026-10-07
-- **상태**: **Accepted** — 사용자 결정("지금 고치기", 2026-10-07). 로컬 구현·테스트 완료, **S9 미배포**.
+- **상태**: **Accepted** — 사용자 결정("지금 고치기", 2026-10-07). 구현·테스트 완료, 커밋 `0c05162`로 S9 배포 완료(상태 갱신 2026-10-07).
 - **대상**: `my_butler` VWAP 자동매매 서브시스템 (REAL·가상 1~3·섀도우 — 모두 같은 `bot.py _loop_step` 사용)
 - **선행 문서**: [ADR-0007](0007-vwap-shadow-replay-strategy-plugin.md)(전략 플러그인), [ADR-0008](0008-vwap-session-boundary.md)(세션 경계, D5 거래 시작 시각 보정)
 - **관련 파일**: `core/vwap/bot.py`(7-1, 9-2-0), `core/vwap/strategies/rules.py`(`start_wait_blocks` 추가), `core/vwap/strategies/s0_current.py`, `scripts/test_vwap_stage3_plugin.py`(T-P1c·T-P3·T-P4 갱신, T-P5 신규)
@@ -94,3 +94,9 @@ D1 로 9-4 에 들어오는 경우가 "무보유 대기(WAIT)"와 "보유 HOLD"�
 | C3 | 대기 중 STOP_LOSS 만 허용, SELL·HOLD 모두 기존처럼 WAIT(미체결 전부 취소) | **기각.** 대기 중 걸어둔 익절 매도까지 매 주기 취소된다. 손절만 살리고 매도 보호는 계속 깨진 상태로 남는다. |
 | C4 | 거래 시작 시각 기능 자체 제거 | **기각.** 사용자 기능 삭제이고 설정·UI·API 화이트리스트를 같이 바꿔야 한다. 범위 밖. |
 | C5 | bot.py 가 `rules.start_wait_blocks`를 직접 호출 | **보류.** 중복은 없어지지만 REAL 경로가 플러그인 패키지에 의존하게 된다(ADR-0007 D1: REAL 연결은 4단계에서 결정). 동치 테스트로 대신한다. |
+
+---
+
+## 정정 메모 (2026-10-07 추가 — 본문은 수정하지 않음)
+
+- **4단계 ADR 번호**: 9행 "번호 메모"의 "4단계 ADR 은 0010"과 65행의 "4단계(ADR-0010)"는 정정한다. 0010 은 [ADR-0010](0010-vwap-real-untrusted-candles.md)(REAL 신뢰 불가 캔들 보호)가 사용했으므로 **4단계(전략 재연구) ADR 은 0011** 이다.

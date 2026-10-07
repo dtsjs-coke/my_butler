@@ -95,7 +95,12 @@ def check(name, cond, detail=""):
 
 def reset_data_dir():
     for name in os.listdir(TMP_DIR):
-        os.remove(os.path.join(TMP_DIR, name))
+        p = os.path.join(TMP_DIR, name)
+        # (ADR-0010) 가짜 브로커가 출처 "toss" 를 남기면서 봉 적재 훅이 임시 폴더에 bars/ 를 만들 수 있음 → 폴더도 정리
+        if os.path.isdir(p):
+            shutil.rmtree(p, ignore_errors=True)
+        else:
+            os.remove(p)
 
 
 def trades(mode):
@@ -131,6 +136,9 @@ class FakeTossBroker:
         self.account_seq = account_seq
         self.mock_mode = False
         self.is_mock_only = False
+        # (ADR-0010) 실제 TossBroker 처럼 캔들 출처를 남김. 이 가짜는 '토스 API 가 정상 봉을 준' 상황을 흉내내므로 "toss".
+        # 출처가 없으면 REAL 봇은 '출처 불명'으로 보고 매매 판단을 보류합니다(의도된 보호 동작).
+        self.last_candles_source = "toss"
         self.candles = make_candles([100.0] * 30)
         self.balance = {"cash": 0.0, "holdings": {}}
         self.open_orders = []
