@@ -1,7 +1,7 @@
 # ADR-0007: VWAP 3단계 — 섀도우 모드 / 원클릭 리플레이 / 봉 데이터 적재 / 전략 플러그인 인터페이스
 
 - **날짜**: 2026-10-05
-- **상태**: **Proposed** 유지 (상태 갱신 2026-10-07: Phase A 커밋 `0c05162`, Phase B 커밋 `4fa93a0` 배포 완료. Phase C(섀도우)는 미구현)
+- **상태**: **Accepted** (상태 갱신 2026-10-07: Phase A 커밋 `0c05162`, Phase B 커밋 `4fa93a0`, Phase C 커밋 `9ead037` 모두 QA 통과 후 S9 배포 완료. 설계와 달라진 점은 하단 정정 메모·SR-3 메모 참고)
 - **대상**: `my_butler` VWAP 자동매매 서브시스템
 - **선행 ADR**: [ADR-0006](0006-vwap-signal-redesign.md) — 신호 재설계 보류, 연구 하네스 `backtest/` 도입, "봉 적재" 권고
 - **구현 명세**: [`docs/vwap_stage3_design.md`](../vwap_stage3_design.md) (파일/API/UI/테스트/작업 분할)
