@@ -101,16 +101,20 @@ def git_push_changes(new_url):
         return False
 
 
-def notify_via_butler(message, retries=3, retry_delay=5):
+def notify_via_butler(message, retries=3, retry_delay=5, channel_id=None):
     """Butler를 통해 디스코드에 알림 전송 (Flask API 호출).
     pm2 resurrect 등으로 butler(Flask)와 butler-tunnel이 동시에 뜰 때
-    Flask가 아직 기동 전이라 실패하는 레이스컨디션이 있어 재시도한다."""
-    # 상태 확인 채널 ID 가져오기 (기본값 0)
-    try:
-        status_channel_id = int(os.getenv("STATUS_CHANNEL_ID", 0))
-    except (TypeError, ValueError):
-        print("⚠️ STATUS_CHANNEL_ID 환경변수가 올바르지 않습니다. 기본값 0 사용.")
-        status_channel_id = 0
+    Flask가 아직 기동 전이라 실패하는 레이스컨디션이 있어 재시도한다.
+    channel_id: None(기본)이면 STATUS_CHANNEL_ID 채널로 보낸다 (기존 동작)."""
+    if channel_id:
+        status_channel_id = channel_id
+    else:
+        # 상태 확인 채널 ID 가져오기 (기본값 0)
+        try:
+            status_channel_id = int(os.getenv("STATUS_CHANNEL_ID", 0))
+        except (TypeError, ValueError):
+            print("⚠️ STATUS_CHANNEL_ID 환경변수가 올바르지 않습니다. 기본값 0 사용.")
+            status_channel_id = 0
     api_token = os.getenv("BUTLER_API_TOKEN", "REDACTED_OLD_TOKEN")
 
     # S9의 실제 로컬 IP를 사용하여 통신 안정성 확보

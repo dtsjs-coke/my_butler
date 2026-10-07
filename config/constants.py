@@ -7,6 +7,18 @@ NEWS_CHANNEL_ID = int(os.getenv("NEWS_CHANNEL_ID", 0))
 SRT_CHANNEL_ID = int(os.getenv("SRT_CHANNEL_ID", 0))
 STATUS_CHANNEL_ID = int(os.getenv("STATUS_CHANNEL_ID", 0))
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
+
+
+def _env_int_safe(name, default=0):
+    """환경변수를 정수로 읽되, 형식이 잘못되면 죽지 않고 default 를 돌려준다."""
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+# VWAP 자동매매 알림 전용 채널. 0(미설정/잘못된 값)이면 STATUS_CHANNEL_ID 로 대체 전송된다.
+VWAP_CHANNEL_ID = _env_int_safe("VWAP_CHANNEL_ID", 0)
 CLI_CHANNEL_ID = int(os.getenv("CLI_CHANNEL_ID", 1504087135827918898))
 DISCORD_ADMIN_USER_ID = int(os.getenv("DISCORD_ADMIN_USER_ID", 1451625941427159124))
 NOTI_CHANNEL_ID = CHAT_CHANNEL_ID
@@ -33,6 +45,7 @@ ENVIRONMENT_INFO:
 - Key Channels (Access via os.getenv):
   - CHAT_CHANNEL_ID: {CHAT_CHANNEL_ID}
   - STATUS_CHANNEL_ID: {STATUS_CHANNEL_ID}
+  - VWAP_CHANNEL_ID: {VWAP_CHANNEL_ID if VWAP_CHANNEL_ID else "미설정 -> 상태 채널(STATUS_CHANNEL_ID) 사용"}
 - Available Tools: termux-api, crontab, python3
 - AI Capability: Gemini 3 Reasoning (Thinking Level support)
 - A2A System: Role-based model routing (Pro for Manager, Flash for Coder)

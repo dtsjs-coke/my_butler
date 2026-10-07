@@ -157,7 +157,9 @@ RSI와 ADX 보조 지표를 활용하여 추세가 너무 강한 급락장에서
 `slippage`(체결가와 의도한 가격의 차이, **불리하면 +**: 매수는 `체결가-의도가`, 매도/손절은 `의도가-체결가`. 의도가는 지정가면 주문가, 시장가 청산이면 결정 시점 현재가), `slippage_pct`, `holding_minutes`(매도/손절 시 포지션 진입부터의 분), `reason_code`·`filters`·`config_snapshot`(주문 당시 판단/설정), `intended_price`. 기존 필드는 그대로입니다.
 
 ### Discord 알림
-* 기존 Butler 알림 경로(상태 채널, `STATUS_CHANNEL_ID`)로 보냅니다. 실거래는 `ORDER_PLACED`, `FILL`, `STOP_LOSS`, `PANIC`, `CRITICAL`, 5주기 연속 조회 실패(`ERROR`), 시세 신뢰 불가(`ERROR` — 신뢰 불가 구간이 새로 시작될 때마다. 단 10분 안에 반복되면 묶어서 요약, 3주기 계속되면 `CRITICAL`, 그 뒤에도 계속되면 30분마다 `CRITICAL` 재알림 — 10장), `BOT_START/STOP`을 알립니다.
+* **어느 채널로 가나요?** VWAP 알림은 **VWAP 전용 채널(`VWAP_CHANNEL_ID`)** 로 갑니다. 이 값을 설정하지 않았거나 `0`이면 예전처럼 서버 상태 공지 채널(`STATUS_CHANNEL_ID`)로 갑니다. 그래서 설정을 깜빡해도 알림이 사라지지는 않습니다.
+* **설정 방법(초보자용)**: ① Discord에서 VWAP 알림을 받을 채널을 만들고, 채널을 우클릭 → "채널 ID 복사"를 합니다(설정 > 고급 > 개발자 모드가 켜져 있어야 보입니다). ② S9의 `my_butler` 폴더 안 `.env` 파일에 `VWAP_CHANNEL_ID=복사한숫자` 한 줄을 추가합니다. ③ 봇을 재시작합니다(`pm2 restart butler`). 재시작해야 새 값이 적용됩니다. 채널 ID는 비밀번호가 아니지만, 이 문서에는 적지 않습니다.
+* 알림 전송은 기존 Butler 알림 경로를 그대로 사용하며, 채널만 위와 같이 정해집니다. 실거래는 `ORDER_PLACED`, `FILL`, `STOP_LOSS`, `PANIC`, `CRITICAL`, 5주기 연속 조회 실패(`ERROR`), 시세 신뢰 불가(`ERROR` — 신뢰 불가 구간이 새로 시작될 때마다. 단 10분 안에 반복되면 묶어서 요약, 3주기 계속되면 `CRITICAL`, 그 뒤에도 계속되면 30분마다 `CRITICAL` 재알림 — 10장), `BOT_START/STOP`을 알립니다.
 * 설정: `real_discord_notify`(기본 켬), `virtual_discord_notify`(기본 끔, 가상봇 1~3 공통). 같은 종류·사유의 알림은 60초 안에 한 번만 보냅니다(체결은 체결마다 따로).
 
 ---

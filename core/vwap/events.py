@@ -15,7 +15,7 @@
 [Discord 알림]
   새 전송 경로를 만들지 않고 기존 utils/tunnel_manager.notify_via_butler 를 재사용합니다.
   (같은 프로세스의 Flask `/send` 엔드포인트 → asyncio.run_coroutine_threadsafe 로 Discord 루프에 위임,
-   STATUS_CHANNEL_ID 채널, SecurityChecker 민감정보 필터 적용)
+   VWAP_CHANNEL_ID 채널(미설정/0 이면 STATUS_CHANNEL_ID 채널), SecurityChecker 민감정보 필터 적용)
   - 전송은 전용 데몬 워커 스레드 + 크기 제한 큐로 처리해 봇 루프를 절대 막지 않습니다(큐가 차면 버림).
   - 같은 (mode, type, reason_code[, dedup_extra]) 알림은 NOTIFY_DEDUP_SEC 초 안에 한 번만 보냅니다.
 """
@@ -154,7 +154,17 @@ def _default_sender(message: str):
     """기존 Butler 알림 경로 재사용 (utils/tunnel_manager.notify_via_butler).
     지연 import — 테스트/단독 실행 시 불필요한 의존을 피하고, import 실패도 봇에 영향 없게."""
     from utils.tunnel_manager import notify_via_butler
-    return notify_via_butler(message, retries=2, retry_delay=3)
+    return notify_via_butler(message, retries=2, retry_delay=3, channel_id=_vwap_channel_id())
+
+
+def _vwap_channel_id():
+    """VWAP 알림 채널. VWAP_CHANNEL_ID 가 설정(0 아님)되면 그 값, 아니면 None(→ 상태 채널 STATUS_CHANNEL_ID)."""
+    try:
+        from config import constants
+        cid = int(constants.VWAP_CHANNEL_ID or 0)
+        return cid if cid > 0 else None
+    except Exception:
+        return None
 
 
 class DiscordNotifier:
