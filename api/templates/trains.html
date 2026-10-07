@@ -186,12 +186,9 @@
         if(window.lucide) lucide.createIcons();
 
         try {
-            const res = await fetch('/api/srt/reserve', {
+            const res = await butlerFetch('/api/srt/reserve', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Butler-Token': BUTLER_API_TOKEN 
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(srtData)
             });
             const result = await res.json();
@@ -213,9 +210,7 @@
 
     async function loadQueue() {
         try {
-            const res = await fetch('/api/srt/queue', {
-                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
-            });
+            const res = await butlerFetch('/api/srt/queue');
             const data = await res.json();
             const container = document.getElementById('queue-list');
             
@@ -236,13 +231,13 @@
                                     <i data-lucide="train"></i>
                                 </div>
                                 <div>
-                                    <p class="text-sm font-bold">${task.dep} → ${task.arr}</p>
-                                    <p class="text-[10px] text-gray-400">${task.date} ${timeLabel} | ${userLabel}</p>
+                                    <p class="text-sm font-bold">${escapeHtml(task.dep)} → ${escapeHtml(task.arr)}</p>
+                                    <p class="text-[10px] text-gray-400">${escapeHtml(task.date)} ${escapeHtml(timeLabel)} | ${escapeHtml(userLabel)}</p>
                                 </div>
                             </div>
                             <div class="flex items-center gap-4">
-                                <span class="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-[10px] font-bold rounded-lg">${task.status || '대기'}</span>
-                                <button onclick="deleteQueueTask('${user}', ${idx})" class="p-2 text-gray-400 hover:text-red-500 transition-colors" title="삭제">
+                                <span class="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 text-[10px] font-bold rounded-lg">${escapeHtml(task.status || '대기')}</span>
+                                <button data-queue-user="${escapeHtml(user)}" data-queue-idx="${idx}" class="p-2 text-gray-400 hover:text-red-500 transition-colors" title="삭제">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>
                             </div>
@@ -251,6 +246,9 @@
                 });
             }
             container.innerHTML = html;
+            container.querySelectorAll('button[data-queue-user]').forEach(btn => {
+                btn.addEventListener('click', () => deleteQueueTask(btn.dataset.queueUser, parseInt(btn.dataset.queueIdx, 10)));
+            });
             if(window.lucide) lucide.createIcons();
         } catch (e) { 
             console.error("Queue load failed", e);
@@ -261,12 +259,9 @@
     async function deleteQueueTask(userId, taskIdx) {
         if (!confirm("이 예약 작업을 대기열에서 삭제하시겠습니까?")) return;
         try {
-            const res = await fetch('/api/srt/queue', {
+            const res = await butlerFetch('/api/srt/queue', {
                 method: 'DELETE',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Butler-Token': BUTLER_API_TOKEN 
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: userId, index: taskIdx })
             });
             const result = await res.json();

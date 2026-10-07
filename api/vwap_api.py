@@ -1,7 +1,7 @@
 import os
 import time
 import logging
-from flask import Blueprint, request, jsonify, render_template, make_response
+from flask import Blueprint, request, jsonify, render_template, make_response, redirect
 from functools import wraps
 from core.vwap.config_manager import VwapConfigManager
 from core.vwap.bot import VWAPBot, PROJECT_ROOT
@@ -9,6 +9,8 @@ from core.vwap.crypto import VwapCrypto
 from core.vwap.broker import TossBroker
 from core.vwap import events as vwap_events
 from core.vwap import replay as vwap_replay
+from api import auth as butler_auth
+from api import login_throttle as login_throttle_mod
 
 logger = logging.getLogger("vwap_bot")
 
@@ -74,6 +76,10 @@ except Exception as _e:
     logger.error(f"[서버 초기화] 리플레이 작업 정리 실패(무시): {_e}")
 
 
+# (ADR-0011 D9) 로그인 시도 제한 상태(프로세스 메모리, 재시작 시 초기화). 테스트는 이 객체를 고정 시계 인스턴스로 바꿔 끼운다.
+login_throttle = login_throttle_mod.LoginThrottle()
+
+
 def admin_required(f):
     """Admin 세션 토큰을 검증하는 API 데코레이터입니다."""
     @wraps(f)
@@ -98,6 +104,11 @@ def vwap_home():
     """로그인 상태면 대시보드를, 아니면 로그인 게이트웨이 화면을 서빙합니다."""
     token = request.cookies.get('vwap_session', '')
     if VwapCrypto.verify_session_token(token):
+        # (ADR-0011) 비공개 페이지에서 로그인하러 왔으면 원래 페이지로 돌려보낸다. 로그인 화면은 성공 시 reload 하므로
+        # 같은 URL(/vwap/?next=...)이 세션과 함께 다시 들어와 여기서 리다이렉트된다.
+        nxt = butler_auth.safe_next(request.args.get('next'))
+        if nxt:
+            return redirect(nxt)
         return render_template('vwap_dashboard.html')
     return render_template('vwap_login.html')
 
@@ -105,17 +116,41 @@ def vwap_home():
 @vwap_bp.route('/login', methods=['POST'])
 def vwap_login():
     """Admin 비밀번호를 검증하여 암호화된 세션 토큰 쿠키를 발급합니다."""
-    data = request.get_json() or {}
-    password = data.get('password', '')
-    
-    config = VwapConfigManager.load_config()
-    pw_hash = VwapCrypto.hash_password(password)
-    
-    if pw_hash == config.get("admin_password_hash"):
+    # (ADR-0011 D9) 시도 제한: 잠겨 있으면 비밀번호를 검사하지 않고 429 (올바른 비밀번호여도 마찬가지)
+    key = login_throttle_mod.client_key(request.headers, request.remote_addr)
+    allowed, retry_after, ticket = login_throttle.acquire(key, exempt_global=butler_auth.is_direct_local_request())
+    if not allowed:
+        resp = jsonify({"status": "failed", "reason": "too_many_attempts", "retry_after": retry_after})
+        resp.headers["Retry-After"] = str(retry_after)
+        return resp, 429
+
+    data = request.get_json(silent=True)
+    password = data.get('password', '') if isinstance(data, dict) else ''
+
+    ok = False
+    try:
+        config = VwapConfigManager.load_config()
+        stored = config.get("admin_password_hash") or ""
+        # (ADR-0011 D10) salt 포함 KDF 해시와 상수 시간 비교. 옛 SHA-256 형식이면 needs_rehash=True
+        ok, needs_rehash = VwapCrypto.verify_password(password, stored)
+        if ok and needs_rehash:
+            try:
+                new_hash = VwapCrypto.hash_password(password)
+                if VwapConfigManager.update_admin_password_hash(new_hash, expected_old=stored):
+                    logger.info("[로그인] admin 비밀번호 해시를 새 형식으로 갱신했습니다.")
+                else:
+                    logger.warning("[로그인] admin 비밀번호 해시 갱신을 건너뛰었습니다(다음 로그인 때 재시도).")
+            except Exception as e:  # 갱신 실패가 로그인을 막지 않게
+                logger.error(f"[로그인] admin 비밀번호 해시 갱신 실패: {type(e).__name__}")
+    finally:
+        login_throttle.report(key, ticket, ok)
+
+    if ok:
         token = VwapCrypto.generate_session_token("admin")
         
-        response = make_response(jsonify({"status": "success", "token": token}))
-        response.set_cookie('vwap_session', token, max_age=86400, path='/')
+        # (ADR-0011) 토큰은 HttpOnly 쿠키로만 전달한다(본문에 싣지 않음 — 스크립트가 읽을 수 없게).
+        response = make_response(jsonify({"status": "success"}))
+        butler_auth.set_session_cookie(response, token)
         return response
     else:
         return jsonify({"status": "failed", "reason": "invalid_password"}), 401
@@ -125,7 +160,7 @@ def vwap_login():
 def vwap_logout():
     """로그아웃 처리하고 세션 쿠키를 만료시킵니다."""
     response = make_response(jsonify({"status": "success"}))
-    response.set_cookie('vwap_session', '', expires=0, path='/')
+    butler_auth.clear_session_cookie(response)
     return response
 
 
@@ -527,9 +562,14 @@ def api_config():
             updated_config[key] = val
 
     # Admin 패스워드 직접 변경 요청 처리
+    # (ADR-0011 D10) 새 형식(scrypt/pbkdf2 + salt)으로 저장
     new_pw = new_data.get("new_admin_password", "")
     if new_pw:
-        updated_config["admin_password_hash"] = VwapCrypto.hash_password(new_pw)
+        new_hash = VwapCrypto.hash_password(new_pw) if isinstance(new_pw, str) else ""
+        if not new_hash:
+            return jsonify({"status": "failed", "reason": "invalid_value",
+                            "message": "새 비밀번호 형식이 올바르지 않습니다(문자열, 1024자 이하)."}), 400
+        updated_config["admin_password_hash"] = new_hash
 
     # 영구 저장
     VwapConfigManager.save_config(updated_config)

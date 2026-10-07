@@ -241,7 +241,7 @@
 
     async function loadNewsGroupOptions() {
         try {
-            const res = await fetch('/api/keyword_groups', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+            const res = await fetch('/api/keyword_groups', { credentials: 'same-origin' });
             const data = await res.json();
             const groups = data.groups || {};
             window.__newsGroups = groups;

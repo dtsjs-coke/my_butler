@@ -1,8 +1,13 @@
 import os
 import json
+import tempfile
+import logging
+import threading
 from datetime import datetime
 from dotenv import load_dotenv
 from core.vwap.crypto import VwapCrypto
+
+_auth_logger = logging.getLogger("butler_auth")
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
@@ -12,9 +17,32 @@ TRADES_PATH = os.path.join(DATA_DIR, "vwap_trades.json")
 # 암호화하여 저장할 민감한 필드 목록
 SENSITIVE_KEYS = ["toss_client_secret", "toss_account_seq"]
 
+# 설정 파일 쓰기 직렬화(Flask 요청 스레드 + 봇 스레드). RLock: update_admin_password_hash 가 잡은 채로 다시 쓴다.
+_config_write_lock = threading.RLock()
+
+
+def _write_json_atomic(path: str, data) -> None:
+    """같은 폴더의 임시 파일에 쓴 뒤 os.replace 로 교체합니다(쓰는 도중 꺼져도 기존 파일 보존). 실패 시 예외."""
+    with _config_write_lock:
+        fd, tmp_path = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp",
+                                        dir=os.path.dirname(path) or ".")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
+
 class VwapConfigManager:
     # add_trade 가 손상 파일을 백업했을 때의 알림 (mode -> [메시지]). 봇이 꺼내서 자기 로거에 ERROR 로 남깁니다.
     _trade_file_warnings = {}
+    # (ADR-0011 정정 2026-10-07) admin 비밀번호 미설정 경고를 이미 남겼는지. load_config 는 봇 주기마다 불리므로
+    # '설정됨 → 미설정'으로 바뀔 때 한 번만 경고한다(프로세스 메모리, 재시작하면 다시 한 번).
+    _admin_pw_unset_warned = False
 
     @classmethod
     def pop_trade_file_warnings(cls, mode: str) -> list:
@@ -192,11 +220,12 @@ class VwapConfigManager:
             config["toss_client_secret"] = env_client_secret
         if env_account_seq:
             config["toss_account_seq"] = env_account_seq
-        if env_admin_pw:
-            config["admin_password_hash"] = VwapCrypto.hash_password(env_admin_pw)
-        else:
-            # 기본 비밀번호는 'REDACTED_DEFAULT_PW'
-            config["admin_password_hash"] = VwapCrypto.hash_password("REDACTED_DEFAULT_PW")
+        # (ADR-0011 D10) 여기는 설정 파일에 해시가 없을 때의 대체값이다. load_config 는 봇 주기마다 불리므로
+        # 느린 KDF 대신 옛 형식(SHA-256)을 쓰고, 이 값으로 로그인에 성공하면 새 형식으로 바꿔 파일에 저장한다.
+        # (ADR-0011 정정 2026-10-07) 코드에 기본 비밀번호를 두지 않는다(공개 저장소). .env 에도 없으면 해시는 ""
+        # 로 남고, verify_password 는 빈 해시를 어떤 입력과도 불일치로 처리하므로 로그인이 항상 실패한다(fail-closed).
+        if env_admin_pw and env_admin_pw.strip():
+            config["admin_password_hash"] = VwapCrypto.legacy_hash_password(env_admin_pw)
 
         # 2. vwap_config.json 파일이 있으면 병합
         if os.path.exists(CONFIG_PATH):
@@ -261,7 +290,22 @@ class VwapConfigManager:
             except Exception as e:
                 print(f"[ConfigManager] Failed to load json config: {e}")
 
+        cls._check_admin_password_set(config)
         return config
+
+    @classmethod
+    def _check_admin_password_set(cls, config: dict) -> None:
+        """(ADR-0011 정정 2026-10-07) 최종 해시가 비어 있으면(없음/None/공백/문자열 아님) "" 로 맞추고 경고를 한 번 남긴다.
+        로그인 응답은 그대로 401(invalid_password)이다 — '미설정' 여부를 외부에 알리지 않는다."""
+        stored = config.get("admin_password_hash")
+        if isinstance(stored, str) and stored.strip():
+            cls._admin_pw_unset_warned = False
+            return
+        config["admin_password_hash"] = ""
+        if not cls._admin_pw_unset_warned:
+            cls._admin_pw_unset_warned = True
+            _auth_logger.warning("[로그인] 관리자 비밀번호가 설정되지 않아 로그인이 비활성화됨 — "
+                                 ".env VWAP_ADMIN_PASSWORD 설정 후 재시작")
 
     @classmethod
     def save_config(cls, config_data: dict):
@@ -289,10 +333,43 @@ class VwapConfigManager:
 
         # 패스워드 해시는 파일에 굳이 안 써도 되나, 대시보드 저장 시 유지
         try:
-            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=4)
+            _write_json_atomic(CONFIG_PATH, save_data)
         except Exception as e:
             print(f"[ConfigManager] Failed to save config: {e}")
+
+    @classmethod
+    def update_admin_password_hash(cls, new_hash: str, expected_old: str) -> bool:
+        """(ADR-0011 D10) 로그인 성공 시 옛 형식 해시를 새 형식으로 바꿔 저장합니다(자동 마이그레이션).
+
+        save_config 와 같은 파일·같은 원자적 쓰기를 쓰되, 파일의 원본 JSON 에서 admin_password_hash 한 키만 바꿉니다.
+        load_config 결과를 통째로 저장하지 않는 이유: load_config 는 .env 값을 섞고, 파일이 손상돼 읽지 못하면
+        기본값을 돌려주므로 그대로 저장하면 설정 파일을 덮어쓸 수 있습니다.
+          - 파일이 없거나 JSON 객체가 아니면 저장하지 않습니다(False). 로그인 자체는 이미 성공한 상태입니다.
+          - 그 사이 파일의 해시가 바뀌었으면(다른 요청이 비밀번호를 변경) 덮어쓰지 않습니다(False).
+        Returns: 저장 여부
+        """
+        if not new_hash:
+            return False
+        with _config_write_lock:
+            try:
+                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                    file_config = json.load(f)
+            except Exception as e:
+                print(f"[ConfigManager] 비밀번호 해시 갱신 생략(설정 파일 읽기 실패): {type(e).__name__}")
+                return False
+            if not isinstance(file_config, dict):
+                return False
+            current = file_config.get("admin_password_hash") or ""
+            # 파일에 해시가 비어 있으면 load_config 는 .env 대체 해시를 썼다 → 그 값과 일치한 경우 파일에 새로 기록
+            if current and current != expected_old:
+                return False
+            file_config["admin_password_hash"] = new_hash
+            try:
+                _write_json_atomic(CONFIG_PATH, file_config)
+                return True
+            except Exception as e:
+                print(f"[ConfigManager] 비밀번호 해시 갱신 저장 실패: {type(e).__name__}")
+                return False
 
     @staticmethod
     def load_trades(mode: str = "VIRTUAL") -> list:

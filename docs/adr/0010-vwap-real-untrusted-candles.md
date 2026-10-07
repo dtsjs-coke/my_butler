@@ -142,3 +142,9 @@ QA 경미 이슈 M1·M2(보류 중 손절 공백을 사람에게 알리는 알�
 ### 관련 변경
 - `core/vwap/bot.py`: 상수 `UNTRUSTED_EPISODE_ALERT_MIN_SEC`, `UNTRUSTED_CRITICAL_REPEAT_SEC`, 함수 `_monotonic`/`_fmt_duration`, 메서드 `_reset_untrusted_alert_state`/`_take_untrusted_pending_note`/`_flush_untrusted_summary`, `_on_untrusted_candles` 알림부, `_finish_cycle` 리셋 지점에서 요약 플러시
 - `scripts/test_vwap_untrusted_candles.py`: U8(M1 재현, 깜빡임 요약), U9(M2 재알림), 시각 고정
+
+---
+
+## 정정 메모 (2026-10-07, ADR-0011 작성 시 추가 — 본문은 수정하지 않음)
+
+- **4단계 ADR 번호 재정정**: 이 문서에서 "4단계(전략 재연구) ADR 은 0011"이라고 적은 부분은 정정한다. 0011 은 [ADR-0011](0011-butler-auth-boundary.md)(Butler 대시보드·API 인증 경계)이 사용했으므로 **4단계 ADR 은 0012** 이다.

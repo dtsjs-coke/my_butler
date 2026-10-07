@@ -226,6 +226,18 @@
     </div>
 
     <script>
+        // 다른 페이지에서 로그인 요구로 넘어온 경우(?next=...) 안내만 표시한다. next 값 자체는 서버가 검증해 이동시킨다.
+        (function () {
+            const next = new URLSearchParams(location.search).get('next');
+            if (next) {
+                document.querySelector('h1').textContent = '관리자 로그인';
+                document.querySelector('.subtitle').textContent = '로그인 후 원래 페이지로 돌아갑니다.';
+            }
+        })();
+
+        let lockUntil = 0;
+        let lockTimer = null;
+
         async function handleLogin(event) {
             event.preventDefault();
             const passwordInput = document.getElementById('password');
@@ -239,16 +251,33 @@
             try {
                 const response = await fetch('/vwap/login', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ password: passwordInput.value })
                 });
 
+                if (response.status === 429) {
+                    // 시도 횟수 초과: 남은 시간을 분 단위로 안내하고 그동안 버튼을 잠근다(자동 재요청 없음).
+                    const data = await response.json().catch(() => ({}));
+                    const ra = parseInt(data.retry_after || response.headers.get('Retry-After'), 10);
+                    const secs = (ra > 0) ? ra : 60;
+                    const mins = Math.max(1, Math.ceil(secs / 60));
+                    errorMsg.textContent = "로그인 시도가 너무 많습니다. " + mins + "분 후 다시 시도하세요.";
+                    errorMsg.classList.add('visible');
+                    passwordInput.value = "";
+                    lockUntil = Date.now() + secs * 1000;
+                    submitBtn.disabled = true;
+                    clearTimeout(lockTimer);
+                    lockTimer = setTimeout(() => { submitBtn.disabled = false; }, secs * 1000);
+                    return;
+                }
                 if (response.ok) {
                     // 로그인 성공 시 쿠키가 세팅되므로 바로 홈 리로드
                     window.location.reload();
                 } else {
+                    errorMsg.textContent = "비밀번호가 올바르지 않습니다.";
                     errorMsg.classList.add('visible');
                     passwordInput.value = "";
                     passwordInput.focus();
@@ -258,7 +287,7 @@
                 errorMsg.textContent = "네트워크 오류가 발생했습니다.";
                 errorMsg.classList.add('visible');
             } finally {
-                submitBtn.disabled = false;
+                submitBtn.disabled = Date.now() < lockUntil;
                 submitBtn.textContent = "인증 및 대시보드 진입";
             }
         }

@@ -41,7 +41,7 @@ ENVIRONMENT_INFO:
 - Device: Samsung Galaxy S9 (Android)
 - Terminal: Termux (Linux)
 - Bot Framework: discord.py
-- Local API (For standalone scripts): http://localhost:5000/send (POST, JSON: {{"channel_id": int, "content": "str"}})
+- Local API (For standalone scripts): http://localhost:5000/send (POST, JSON: {{"channel_id": int, "content": "str"}}) - requires header X-Butler-Token (read from env BUTLER_API_TOKEN, no default), local-only
 - Key Channels (Access via os.getenv):
   - CHAT_CHANNEL_ID: {CHAT_CHANNEL_ID}
   - STATUS_CHANNEL_ID: {STATUS_CHANNEL_ID}

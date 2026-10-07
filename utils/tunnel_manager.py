@@ -27,14 +27,13 @@ def update_subscription_manager_code(new_url):
     """subscription-manager의 소스 코드를 새 URL로 수정 및 빌드 트리거 생성"""
     config_path = os.path.join(SUB_MGR_PATH, "src", "config.py")
     trigger_path = os.path.join(SUB_MGR_PATH, "reboot_trigger.txt")
-    api_token = os.getenv("BUTLER_API_TOKEN", "REDACTED_OLD_TOKEN")
-    
+
     try:
         # 1. src/config.py 업데이트
         with open(config_path, "w", encoding="utf-8") as f:
             f.write(f'BUTLER_API_URL = "{new_url}"\n')
-            f.write(f'BUTLER_API_TOKEN = "{api_token}"\n')
-        print(f"✅ Updated API URL and Token in: {config_path}")
+            # 공개 저장소에 push되므로 URL 한 줄만 쓴다 (토큰 금지, ADR-0011 D8)
+        print(f"✅ Updated API URL in: {config_path}")
             
         # 2. reboot_trigger.txt 업데이트 (Streamlit Cloud 강제 갱신 유도)
         with open(trigger_path, "w", encoding="utf-8") as f:
@@ -78,7 +77,8 @@ def git_push_changes(new_url):
             print("ℹ️ No code changes detected in config.py.")
 
         # 4. 변경사항 커밋
-        subprocess.run(["git", "add", "."], cwd=SUB_MGR_PATH, check=True)
+        # 의도한 파일만 add (토큰/비밀 파일이 우연히 올라가는 것 방지)
+        subprocess.run(["git", "add", "src/config.py", "reboot_trigger.txt"], cwd=SUB_MGR_PATH, check=True)
         commit_msg = f"fix: auto-update tunnel url ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})"
         res_commit = subprocess.run(["git", "commit", "-m", commit_msg], cwd=SUB_MGR_PATH, capture_output=True, text=True)
         
@@ -86,10 +86,6 @@ def git_push_changes(new_url):
         print(f"🚀 Pushing updated URL ({new_url}) to GitHub...")
         res_push = subprocess.run(["git", "push", "origin", "main"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
         
-        if res_push.returncode != 0:
-            print(f"⚠️ Regular push failed, attempting force push... Error: {res_push.stderr}")
-            res_push = subprocess.run(["git", "push", "origin", "main", "--force"], cwd=SUB_MGR_PATH, capture_output=True, text=True)
-
         if res_push.returncode == 0:
             print("🚀 Git Push Success from S9!")
             return True
@@ -115,7 +111,10 @@ def notify_via_butler(message, retries=3, retry_delay=5, channel_id=None):
         except (TypeError, ValueError):
             print("⚠️ STATUS_CHANNEL_ID 환경변수가 올바르지 않습니다. 기본값 0 사용.")
             status_channel_id = 0
-    api_token = os.getenv("BUTLER_API_TOKEN", "REDACTED_OLD_TOKEN")
+    api_token = os.getenv("BUTLER_API_TOKEN", "")
+    if not api_token.strip():
+        print("⚠️ BUTLER_API_TOKEN 이 비어 있어 Butler 알림을 보내지 않습니다.")
+        return False
 
     # S9의 실제 로컬 IP를 사용하여 통신 안정성 확보
     url = "http://127.0.0.1:5000/send"

@@ -303,7 +303,7 @@
             <th class="py-3 px-2 min-w-[70px] max-w-[100px] text-center">참여 인원</th>
         `;
         participants.forEach(p => {
-            costHeaderHtml += `<th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center font-bold text-gray-700 dark:text-gray-200 min-w-[100px] max-w-[160px]">${p}<br><span class="normal-case font-normal text-[10px] text-gray-400">비율 / 분담액</span></th>`;
+            costHeaderHtml += `<th class="py-3 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center font-bold text-gray-700 dark:text-gray-200 min-w-[100px] max-w-[160px]">${escapeHtml(p)}<br><span class="normal-case font-normal text-[10px] text-gray-400">비율 / 분담액</span></th>`;
         });
         costHeaderHtml += `<th class="py-3 px-2 w-[50px] text-center">삭제</th>`;
         costHeaderRow.innerHTML = costHeaderHtml;
@@ -318,23 +318,25 @@
             let tr = document.createElement('tr');
             tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
 
-            let optionsHtml = participants.map(p => `<option value="${p}" ${item.payer === p ? 'selected' : ''}>${p}</option>`).join('');
+            // 모든 데이터는 escapeHtml 을 거쳐 속성/텍스트에 넣고, 이벤트는 data-* + 위임(addEventListener)으로 처리한다.
+            const eid = escapeHtml(item.id);
+            let optionsHtml = participants.map(p => `<option value="${escapeHtml(p)}" ${item.payer === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('');
 
             // 기본 열들 생성 (Tab 이동 순서: 항목명 -> 금액 -> 결제자 -> 비고 -> 참석자별 비율)
             let rowHtml = `
                 <td class="py-2.5 px-2 min-w-[120px] max-w-[240px]">
-                    <input type="text" value="${item.name}" onchange="updateItemField('${item.id}', 'name', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none font-medium">
+                    <input type="text" value="${escapeHtml(item.name)}" data-id="${eid}" data-field="name" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none font-medium">
                 </td>
                 <td class="py-2.5 px-2 min-w-[100px] max-w-[180px]">
-                    <input type="number" value="${item.amount}" onchange="updateItemField('${item.id}', 'amount', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none">
+                    <input type="number" value="${escapeHtml(item.amount)}" data-id="${eid}" data-field="amount" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none">
                 </td>
                 <td class="py-2.5 px-2 min-w-[90px] max-w-[140px]">
-                    <select onchange="updateItemField('${item.id}', 'payer', this.value)" class="px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none outline-none cursor-pointer">
+                    <select data-id="${eid}" data-field="payer" class="px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none outline-none cursor-pointer">
                         ${optionsHtml}
                     </select>
                 </td>
                 <td class="py-2.5 px-2 min-w-[150px] max-w-[300px]">
-                    <input type="text" value="${item.note || ''}" placeholder="-" onchange="updateItemField('${item.id}', 'note', this.value)" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none text-xs">
+                    <input type="text" value="${escapeHtml(item.note || '')}" placeholder="-" data-id="${eid}" data-field="note" class="w-full px-2 py-1 bg-transparent hover:bg-gray-100 dark:hover:bg-dark-card rounded-md border-none focus:bg-white dark:focus:bg-dark-card outline-none text-xs">
                 </td>
                 <td class="py-2.5 px-2 min-w-[70px] max-w-[100px] text-gray-500 dark:text-gray-400 text-center">${pCount}</td>
             `;
@@ -345,8 +347,8 @@
                 let calcAmt = calculatedAmounts[item.id] ? (calculatedAmounts[item.id][p] || 0) : 0;
                 rowHtml += `
                     <td class="py-2 px-2 border-l border-gray-100 dark:border-dark-border/30 text-center min-w-[100px] max-w-[160px]">
-                        <input type="number" step="0.1" min="0" value="${ratioVal}"
-                               onchange="updateRatio('${item.id}', '${p}', this.value)"
+                        <input type="number" step="0.1" min="0" value="${escapeHtml(ratioVal)}"
+                               data-id="${eid}" data-ratio-p="${escapeHtml(p)}"
                                class="w-full text-center py-1.5 bg-gray-50 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-xs outline-none focus:ring-1 focus:ring-purple-500">
                         <div class="mt-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400">${calcAmt.toLocaleString()}원</div>
                     </td>
@@ -356,7 +358,7 @@
             // 마지막 삭제 버튼 열 생성
             rowHtml += `
                 <td class="py-2.5 px-2 text-center w-[50px]">
-                    <button onclick="deleteRow('${item.id}')" class="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors">
+                    <button data-id="${eid}" data-action="delete-row" class="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </td>
@@ -396,7 +398,7 @@
             let tr = document.createElement('tr');
             tr.className = "border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50/50 dark:hover:bg-dark-card/20";
             tr.innerHTML = `
-                <td class="py-3 px-2 font-medium">${p}</td>
+                <td class="py-3 px-2 font-medium">${escapeHtml(p)}</td>
                 <td class="py-3 px-2">${(participantTotals[p] || 0).toLocaleString()}</td>
                 <td class="py-3 px-2">${(participantPayerTotals[p] || 0).toLocaleString()}</td>
                 <td class="py-3 px-2 ${diffClass}">${diffText}</td>
@@ -415,9 +417,9 @@
                 card.className = "flex items-center justify-between bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/10";
                 card.innerHTML = `
                     <div class="flex items-center gap-2">
-                        <span class="font-bold text-sm">${t.from}</span>
+                        <span class="font-bold text-sm">${escapeHtml(t.from)}</span>
                         <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-blue-200"></i>
-                        <span class="font-bold text-sm">${t.to}</span>
+                        <span class="font-bold text-sm">${escapeHtml(t.to)}</span>
                     </div>
                     <span class="font-extrabold text-sm text-amber-200">${t.amount.toLocaleString()}원</span>
                 `;
@@ -505,12 +507,42 @@
         recalculate();
     }
 
+    // 서버 실패 사유 -> 사용자 메시지
+    function settlementErrorMessage(status, reason) {
+        if (status === 413) return "저장할 내용이 너무 큽니다. (최대 64KB)";
+        if (reason === 'invalid_id') return "저장 항목 번호가 올바르지 않습니다. 새 정산으로 다시 저장해 주세요.";
+        if (reason === 'invalid_chars') return "< > \" ' ` & \\ 는 쓸 수 없습니다";
+        if (reason === 'too_large') return "내용이 너무 깁니다. 제목 100자, 항목·이름 200자, 참석자 50명, 항목 200개 이내로 줄여 주세요.";
+        if (reason === 'too_many_saved') return "저장된 정산이 너무 많습니다(최대 50건). 기존 내역을 삭제한 뒤 다시 저장하세요.";
+        return reason || "알 수 없는 오류";
+    }
+
+    // 저장 목록(예전 데이터 포함)을 안전한 형태로 정리 — 문자열은 String 으로, 구조는 기대 형태로 강제
+    function sanitizeParticipants(list) {
+        if (!Array.isArray(list)) return [];
+        return list.map(x => String(x)).filter(x => x !== "");
+    }
+    function sanitizeItems(list) {
+        if (!Array.isArray(list)) return [];
+        return list.map((it, i) => {
+            it = (it && typeof it === 'object') ? it : {};
+            const ratios = (it.ratios && typeof it.ratios === 'object' && !Array.isArray(it.ratios)) ? it.ratios : {};
+            return {
+                // 차수 id 는 화면 안에서만 쓰는 값 — 안전한 문자만 허용하고, 아니면 새로 만든다(예전 데이터 방어)
+                id: (it.id !== undefined && it.id !== null && /^[A-Za-z0-9_-]{1,40}$/.test(String(it.id))) ? String(it.id) : String(Date.now()) + '_' + i,
+                name: String(it.name === undefined || it.name === null ? '' : it.name),
+                amount: it.amount,
+                payer: String(it.payer === undefined || it.payer === null ? '' : it.payer),
+                ratios: ratios,
+                note: String(it.note === undefined || it.note === null ? '' : it.note)
+            };
+        });
+    }
+
     // 서버와 연동하여 정산 목록 불러오기
     async function loadSavedList() {
         try {
-            const res = await fetch('/api/settlements', {
-                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
-            });
+            const res = await fetch('/api/settlements', { credentials: 'same-origin' });
             const data = await res.json();
             if (data.status === 'success') {
                 const listDiv = document.getElementById('saved-list');
@@ -524,9 +556,11 @@
                 data.settlements.forEach(s => {
                     let pill = document.createElement('div');
                     pill.className = "flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-dark-card hover:bg-gray-200 dark:hover:bg-dark-border rounded-xl text-xs transition-colors cursor-pointer group";
+                    const sid = escapeHtml(s.id);
+                    const created = String(s.created_at || '').slice(5, 16);
                     pill.innerHTML = `
-                        <span class="font-medium" onclick="applySaved('${s.id}')">${s.title} (${s.created_at.slice(5, 16)})</span>
-                        <button onclick="deleteSaved('${s.id}')" class="text-gray-400 hover:text-red-500 transition-colors">
+                        <span class="font-medium" data-saved-apply="${sid}">${escapeHtml(s.title)} (${escapeHtml(created)})</span>
+                        <button data-saved-delete="${sid}" class="text-gray-400 hover:text-red-500 transition-colors">
                             <i data-lucide="x" class="w-3 h-3"></i>
                         </button>
                     `;
@@ -543,18 +577,16 @@
     // 특정 정산 내역 적용하기
     async function applySaved(id) {
         try {
-            const res = await fetch('/api/settlements', {
-                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }
-            });
+            const res = await fetch('/api/settlements', { credentials: 'same-origin' });
             const data = await res.json();
             if (data.status === 'success') {
-                let matched = data.settlements.find(s => s.id === id);
+                let matched = data.settlements.find(s => String(s.id) === String(id));
                 if (matched) {
-                    activeId = matched.id;
-                    document.getElementById('settlement-title').value = matched.title;
-                    participants = matched.participants;
+                    activeId = String(matched.id);
+                    document.getElementById('settlement-title').value = String(matched.title === undefined || matched.title === null ? '' : matched.title);
+                    participants = sanitizeParticipants(matched.participants);
                     document.getElementById('participants-input').value = participants.join(', ');
-                    items = matched.items;
+                    items = sanitizeItems(matched.items);
                     recalculate();
                 }
             }
@@ -565,19 +597,16 @@
 
     // 특정 저장내역 삭제
     async function deleteSaved(id) {
-        event.stopPropagation();
         if (!confirm("이 정산 내역을 삭제하시겠습니까?")) return;
-        
+
         try {
             const res = await fetch('/api/settlements', {
                 method: 'DELETE',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-Butler-Token': BUTLER_API_TOKEN 
-                },
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id })
             });
-            let result = await res.json();
+            let result = await res.json().catch(() => ({}));
             if (result.status === 'success') {
                 if (activeId === id) {
                     activeId = null;
@@ -585,7 +614,7 @@
                 }
                 loadSavedList();
             } else {
-                alert("삭제 실패");
+                alert("삭제 실패: " + settlementErrorMessage(res.status, result.reason));
             }
         } catch (e) {
             alert("서버 연결 실패");
@@ -601,7 +630,8 @@
         }
 
         let bodyData = {
-            id: activeId,
+            // 서버는 숫자 id 만 받는다. 예전 데이터의 이상한 id 면 새 정산으로 저장한다.
+            id: (activeId && /^[0-9]+$/.test(String(activeId))) ? activeId : null,
             title: title,
             participants: participants,
             items: items
@@ -610,19 +640,17 @@
         try {
             const res = await fetch('/api/settlements', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Butler-Token': BUTLER_API_TOKEN
-                },
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(bodyData)
             });
-            let result = await res.json();
+            let result = await res.json().catch(() => ({}));
             if (result.status === 'success') {
                 activeId = result.id;
                 alert("정산이 안전하게 저장되었습니다.");
                 loadSavedList();
             } else {
-                alert("저장 실패: " + result.reason);
+                alert("저장 실패: " + settlementErrorMessage(res.status, result.reason));
             }
         } catch (e) {
             alert("서버 연동 오류");
@@ -776,6 +804,27 @@
 
     // 페이지 진입 시 최초 연산 및 초기 리스트 호출
     window.addEventListener('DOMContentLoaded', () => {
+        // 이벤트 위임: 데이터는 data-* 속성(이스케이프됨)에서만 읽는다. onclick 문자열에 데이터를 넣지 않는다.
+        document.getElementById('cost-table-body').addEventListener('change', (e) => {
+            const el = e.target;
+            if (!el || !el.dataset || el.dataset.id === undefined) return;
+            if (el.dataset.ratioP !== undefined) {
+                updateRatio(el.dataset.id, el.dataset.ratioP, el.value);
+            } else if (el.dataset.field) {
+                updateItemField(el.dataset.id, el.dataset.field, el.value);
+            }
+        });
+        document.getElementById('cost-table-body').addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-action="delete-row"]');
+            if (btn) deleteRow(btn.dataset.id);
+        });
+        document.getElementById('saved-list').addEventListener('click', (e) => {
+            const del = e.target.closest('[data-saved-delete]');
+            if (del) { deleteSaved(del.dataset.savedDelete); return; }
+            const app = e.target.closest('[data-saved-apply]');
+            if (app) applySaved(app.dataset.savedApply);
+        });
+
         items.forEach(initRatios);
         recalculate();
         loadSavedList();

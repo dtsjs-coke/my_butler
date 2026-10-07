@@ -400,7 +400,7 @@
     // 2. API 유틸
     // ============================================================
     function apiHeadersJson() {
-        return { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN };
+        return { 'Content-Type': 'application/json' }; // 인증은 vwap_session 쿠키(authedFetch의 credentials)로 한다
     }
 
     function showApiError(message) {
@@ -466,6 +466,8 @@
             }
 
             let settled = false;
+            let lockedUntil = 0;
+            let lockTimer = null;
             const finish = (result) => {
                 if (settled) return;
                 settled = true;
@@ -479,6 +481,7 @@
             }
 
             async function submit() {
+                if (Date.now() < lockedUntil) return;
                 const password = passwordInput.value;
                 if (!password) {
                     errorEl.textContent = '비밀번호를 입력하세요.';
@@ -496,6 +499,19 @@
                         body: JSON.stringify({ password })
                     });
                     const data = await res.json().catch(() => ({}));
+                    if (res.status === 429) {
+                        // 시도 횟수 초과: 남은 시간을 분 단위로 안내하고 버튼을 잠근다(자동 재요청 없음).
+                        const ra = parseInt(data.retry_after || res.headers.get('Retry-After'), 10);
+                        const secs = (ra > 0) ? ra : 60;
+                        const mins = Math.max(1, Math.ceil(secs / 60));
+                        errorEl.textContent = '로그인 시도가 너무 많습니다. ' + mins + '분 후 다시 시도하세요.';
+                        errorEl.classList.remove('hidden');
+                        passwordInput.value = '';
+                        lockedUntil = Date.now() + secs * 1000;
+                        clearTimeout(lockTimer);
+                        lockTimer = setTimeout(() => { submitBtn.disabled = false; }, secs * 1000);
+                        return;
+                    }
                     if (res.ok && data.status === 'success') {
                         closeLoginModal();
                         finish(true);
@@ -509,7 +525,7 @@
                     errorEl.textContent = '서버 연결에 실패했습니다.';
                     errorEl.classList.remove('hidden');
                 } finally {
-                    submitBtn.disabled = false;
+                    submitBtn.disabled = Date.now() < lockedUntil;
                     submitBtn.textContent = originalLabel;
                 }
             }
@@ -521,6 +537,7 @@
             // 이 모달은 정적 엘리먼트라 매번 새로 만들어지지 않으므로, 리스너를 매 호출마다 새로 붙이고
             // finish() 시점에 반드시 떼어내야 다음 호출에서 리스너가 중복으로 쌓이지 않는다.
             function cleanup() {
+                clearTimeout(lockTimer);
                 cancelBtn.removeEventListener('click', onCancel);
                 closeBtn.removeEventListener('click', onCancel);
                 backdropEl.removeEventListener('click', onCancel);
@@ -543,7 +560,7 @@
     // ============================================================
     async function loadPurchases() {
         try {
-            const res = await fetch(LIQUOR_API, { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+            const res = await fetch(LIQUOR_API, { credentials: 'same-origin' });
             if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             if (data.status !== 'success') throw new Error(data.reason || '알 수 없는 오류');
@@ -1401,7 +1418,7 @@
         try {
             const res = await authedFetch(LIQUOR_API + '/import', {
                 method: 'POST',
-                headers: { 'X-Butler-Token': BUTLER_API_TOKEN }, // multipart는 Content-Type을 직접 지정하지 않음
+                // multipart는 Content-Type을 직접 지정하지 않음 (브라우저가 boundary 포함해 설정)
                 body: formData
             });
             const data = await res.json();
@@ -1495,7 +1512,6 @@
         try {
             const res = await authedFetch(LIQUOR_API + '/import', {
                 method: 'POST',
-                headers: { 'X-Butler-Token': BUTLER_API_TOKEN },
                 body: formData
             });
             const data = await res.json();

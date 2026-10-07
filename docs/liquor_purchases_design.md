@@ -389,7 +389,7 @@ def parse_price(raw: str):
 
 ## 5. API 계약
 
-모든 엔드포인트는 `@token_required`이며, 요청 헤더에 `X-Butler-Token`이 필요합니다. 프론트에서는 `base.html`이 이미 정의해 둔 전역 상수 `BUTLER_API_TOKEN`을 씁니다.
+모든 엔드포인트는 `@token_required`이며, 요청 헤더에 `X-Butler-Token`이 필요합니다. 프론트에서는 `base.html`이 이미 정의해 둔 전역 상수 `BUTLER_API_TOKEN`을 씁니다. **(ADR-0011로 대체(2026-10-07): 토큰은 더 이상 템플릿에 주입하지 않으며, 브라우저는 admin 세션 쿠키, 조회는 공개)**
 
 응답 형태는 기존 `manage_settlements()` 규약을 그대로 따릅니다: 성공은 `{"status": "success", ...}`, 실패는 `{"status": "failed", "reason": "..."}` + 적절한 HTTP 코드.
 
@@ -405,10 +405,10 @@ def parse_price(raw: str):
 ### 5-1. 페이지 라우트
 
 ```
-GET /liquor  ->  render_template('liquor.html', api_token=BUTLER_API_TOKEN)
+GET /liquor  ->  render_template('liquor.html', api_token=BUTLER_API_TOKEN) **(ADR-0011로 대체(2026-10-07): 토큰은 더 이상 템플릿에 주입하지 않으며, 브라우저는 admin 세션 쿠키, 조회는 공개)**
 ```
 
-`/settlement`와 동일하게 페이지 자체에는 토큰 검사를 걸지 않습니다(토큰은 템플릿을 통해 JS로 주입됨).
+`/settlement`와 동일하게 페이지 자체에는 토큰 검사를 걸지 않습니다(토큰은 템플릿을 통해 JS로 주입됨). **(ADR-0011로 대체(2026-10-07): 토큰은 더 이상 템플릿에 주입하지 않으며, 브라우저는 admin 세션 쿠키, 조회는 공개)**
 
 ### 5-2. `GET /api/liquor_purchases` — 전체 조회
 

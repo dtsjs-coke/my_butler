@@ -35,9 +35,14 @@ class ButlerAgent:
             print(f"⚠️ Skipping send_discord: Invalid channel_id ({channel_id})")
             return
             
+        api_token = os.getenv("BUTLER_API_TOKEN", "")
+        if not api_token.strip():
+            print("⚠️ Skipping send_discord: BUTLER_API_TOKEN is empty")
+            return
+
         try:
             payload = {"channel_id": channel_id, "content": content}
-            requests.post(LOCAL_API_URL, json=payload, timeout=5)
+            requests.post(LOCAL_API_URL, json=payload, headers={"X-Butler-Token": api_token}, timeout=5)
         except Exception as e:
             print(f"Failed to send discord message: {e}")
 

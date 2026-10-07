@@ -26,31 +26,24 @@ from api.vwap_api import vwap_bp, admin_required
 app.register_blueprint(vwap_bp, url_prefix='/vwap')
 discord_client = None
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
-BUTLER_API_TOKEN = os.getenv("BUTLER_API_TOKEN", "REDACTED_OLD_TOKEN")
-
-from functools import wraps
-
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get('X-Butler-Token')
-        if not token or token != BUTLER_API_TOKEN:
-            # 브라우저 직접 접근 시 또는 토큰 누락 시
-            return jsonify({"status": "failed", "reason": "unauthorized"}), 401
-        return f(*args, **kwargs)
-    return decorated
+# (ADR-0011) 인증 경계. API 토큰(BUTLER_API_TOKEN)은 요청 시점에 .env 에서 읽고 기본값이 없다(fail-closed).
+# 토큰은 템플릿에 넘기지 않는다 — 브라우저는 admin 세션 쿠키(vwap_session)로 인증한다.
+# 로그인 없이 열리는 페이지: /settlement, /liquor, /news (사용자 결정 2026-10-07). 그 외 페이지는 admin 세션 필요.
+from api.auth import session_or_token, token_only, local_send_only, page_login_required
 
 @app.route('/')
+@page_login_required
 def home():
-    return render_template('index.html', api_token=BUTLER_API_TOKEN)
+    return render_template('index.html')
 
 @app.route('/trains')
+@page_login_required
 def trains_page():
     stations = load_stations()
-    return render_template('trains.html', stations=stations, api_token=BUTLER_API_TOKEN)
+    return render_template('trains.html', stations=stations)
 
 @app.route('/api/srt/queue', methods=['GET', 'DELETE'])
-@token_required
+@session_or_token
 def manage_srt_queue():
     if request.method == 'GET':
         # [수정] 파일 대신 봇 메모리(reservation_queue)를 직접 직렬화하여 반환
@@ -76,7 +69,7 @@ def manage_srt_queue():
     return jsonify({"status": "failed", "reason": "not_found"}), 404
 
 @app.route('/api/srt/reserve', methods=['POST'])
-@token_required
+@session_or_token
 def api_srt_reserve():
     from datetime import datetime
     data = request.get_json()
@@ -168,25 +161,30 @@ def news_page():
         if len(categorized_news[kw]) < 50:
             categorized_news[kw].append(n)
 
-    return render_template('news.html', categorized_news=categorized_news, now=datetime.now(), api_token=BUTLER_API_TOKEN)
+    return render_template('news.html', categorized_news=categorized_news, now=datetime.now())
 
-@app.route('/api/keyword_groups', methods=['GET', 'POST', 'DELETE'])
-@token_required
+def _load_keyword_groups(group_file):
+    if not os.path.exists(group_file) or os.path.getsize(group_file) == 0:
+        return {}
+    try:
+        with open(group_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {}
+
+@app.route('/api/keyword_groups', methods=['GET'])
+def get_keyword_groups():
+    """공개: 뉴스 페이지(공개)의 그룹 필터가 쓴다. 수정(POST/DELETE)은 세션 또는 토큰 필요(ADR-0011)."""
+    group_file = os.path.join(PROJECT_ROOT, "data", "keyword_groups.json")
+    return jsonify({"status": "success", "groups": _load_keyword_groups(group_file)})
+
+@app.route('/api/keyword_groups', methods=['POST', 'DELETE'])
+@session_or_token
 def manage_keyword_groups():
     group_file = os.path.join(PROJECT_ROOT, "data", "keyword_groups.json")
-    
-    # helper to load groups safely
-    def load_groups():
-        if not os.path.exists(group_file) or os.path.getsize(group_file) == 0:
-            return {}
-        try:
-            with open(group_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
-            return {}
 
-    if request.method == 'GET':
-        return jsonify({"status": "success", "groups": load_groups()})
+    def load_groups():
+        return _load_keyword_groups(group_file)
 
     data = request.get_json()
     groups = load_groups()
@@ -218,7 +216,7 @@ def manage_keyword_groups():
         return jsonify({"status": "failed", "reason": "not_found"}), 404
 
 @app.route('/api/system_status')
-@token_required
+@session_or_token
 def api_status():
     start_time = time.time()
     data = get_system_status_data()
@@ -230,7 +228,7 @@ def api_status():
 from config.config_manager import save_keywords
 
 @app.route('/api/keywords', methods=['GET', 'POST', 'DELETE'])
-@token_required
+@session_or_token
 def manage_keywords():
     if request.method == 'GET':
         return jsonify({"status": "success", "keywords": load_keywords()})
@@ -264,73 +262,225 @@ def manage_keywords():
 
 @app.route('/settlement')
 def settlement_page():
-    return render_template('settlement.html', api_token=BUTLER_API_TOKEN)
+    return render_template('settlement.html')
+
+# ---------------------------------------------------------------------------
+# 정산 (ADR-0011): 공개 페이지이며, 친구들이 로그인 없이 저장/불러오기/삭제까지 하는 공유 계산기다.
+# 그래서 /api/settlements 는 조회·쓰기 모두 인증 없이 열어 둔다. 대신 공개 쓰기의 위험을 줄인다.
+#   - 저장형 XSS 차단: 이 페이지는 제목·이름·메모를 innerHTML/속성/onclick 문자열에 그대로 넣는다. 같은 출처에
+#     VWAP admin 화면이 있으므로, 여기서 스크립트가 실행되면 admin 쿠키로 실거래 API 를 호출할 수 있다.
+#     → 모든 문자열(딕셔너리 키 포함)에서 < > " ' ` & \ 와 제어문자를 거부한다(400 invalid_chars).
+#   - 크기·개수 상한: 본문 64KB, 제목 100자, 문자열 200자, 참석자 50명, 항목 200개, 보관 정산 50건.
+#   - 원자적 쓰기 + 잠금: 임시 파일에 쓴 뒤 os.replace (threaded=True 동시 요청에서 파일이 깨지지 않게).
+# 쓰기를 admin 전용으로 돌리려면 SETTLEMENT_PUBLIC_WRITE 를 False 로 바꾼다(세션 또는 토큰 필요).
+# ---------------------------------------------------------------------------
+import threading
+import math
+SETTLEMENT_PUBLIC_WRITE = True
+SETTLEMENT_MAX_BODY = 64 * 1024
+SETTLEMENT_MAX_TITLE = 100
+SETTLEMENT_MAX_STR = 200
+SETTLEMENT_MAX_PARTICIPANTS = 50
+SETTLEMENT_MAX_ITEMS = 200
+SETTLEMENT_MAX_SAVED = 50
+_SETTLEMENT_FORBIDDEN = frozenset('<>"\'`&\\')
+_settlement_lock = threading.RLock()
+
+def _settlement_file():
+    return os.path.join(PROJECT_ROOT, "data", "settlements.json")
+
+def _write_settlements(settlements):
+    settlement_file = _settlement_file()
+    os.makedirs(os.path.dirname(settlement_file), exist_ok=True)
+    tmp_path = settlement_file + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump({"settlements": settlements}, f, ensure_ascii=False, indent=4, allow_nan=False)
+    os.replace(tmp_path, settlement_file)
+
+def _settlement_str_ok(value, max_len=SETTLEMENT_MAX_STR):
+    if len(value) > max_len:
+        return False
+    return not any(c in _SETTLEMENT_FORBIDDEN or ord(c) < 0x20 or ord(c) == 0x7F for c in value)
+
+def _settlement_value_ok(value, depth=0):
+    """정산 항목 값 검사: 허용 타입(문자열/숫자/불리언/None/리스트/딕셔너리), 깊이 4, 문자열 규칙."""
+    if depth > 4:
+        return False
+    if value is None or isinstance(value, (bool, int)):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)  # NaN/Infinity 는 JSON 표준이 아니라 저장 목록·응답을 깨뜨린다
+    if isinstance(value, str):
+        return _settlement_str_ok(value)
+    if isinstance(value, list):
+        return len(value) <= SETTLEMENT_MAX_ITEMS and all(_settlement_value_ok(v, depth + 1) for v in value)
+    if isinstance(value, dict):
+        return len(value) <= SETTLEMENT_MAX_ITEMS and all(
+            isinstance(k, str) and _settlement_str_ok(k) and _settlement_value_ok(v, depth + 1)
+            for k, v in value.items())
+    return False
+
+def _validate_settlement_payload(data):
+    """(정상 여부, 실패 사유) 반환."""
+    if not isinstance(data, dict):
+        return False, "invalid_body"
+    title = data.get('title', '새 정산')
+    participants = data.get('participants', [])
+    items = data.get('items', [])
+    s_id = data.get('id')
+    if not isinstance(title, str) or not isinstance(participants, list) or not isinstance(items, list):
+        return False, "invalid_body"
+    if s_id is not None and not (isinstance(s_id, str) and len(s_id) <= 40 and s_id.isascii() and s_id.isdigit()):
+        return False, "invalid_id"
+    if len(participants) > SETTLEMENT_MAX_PARTICIPANTS or len(items) > SETTLEMENT_MAX_ITEMS:
+        return False, "too_large"
+    if not _settlement_str_ok(title, SETTLEMENT_MAX_TITLE):
+        return False, "invalid_chars"
+    if not all(isinstance(p, str) for p in participants) or not all(isinstance(i, dict) for i in items):
+        return False, "invalid_body"
+    if not _settlement_value_ok(participants) or not _settlement_value_ok(items):
+        return False, "invalid_chars"
+    return True, None
+
+def _settlement_write_guard(f):
+    """SETTLEMENT_PUBLIC_WRITE=False 이면 쓰기(POST/DELETE)에 세션 또는 토큰을 요구한다."""
+    from functools import wraps
+    from api.auth import has_admin_session, has_valid_token
+
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if request.method != 'GET' and not SETTLEMENT_PUBLIC_WRITE and not (has_admin_session() or has_valid_token()):
+            return jsonify({"status": "failed", "reason": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+def _reject_json_constant(name):
+    raise ValueError("non-finite JSON constant: " + name)
+
+def _parse_finite_float(text):
+    value = float(text)
+    if not math.isfinite(value):  # 1e999 -> inf
+        raise ValueError("non-finite number")
+    return value
+
+def _read_settlement_json():
+    """정산 쓰기 본문을 읽어 (data, 오류 사유) 를 돌려준다. 오류 사유: None / 'too_large' / 'too_deep'.
+    Content-Length 가 없는 chunked 전송도 상한(+1바이트)까지만 읽어 64KB 상한이 우회되지 않게 한다."""
+    limit = SETTLEMENT_MAX_BODY
+    if request.content_length is not None and request.content_length > limit:
+        return None, "too_large"
+    if not request.is_json:
+        return None, None
+    stream = request.stream
+    buf = bytearray()
+    while len(buf) <= limit:
+        chunk = stream.read(limit + 1 - len(buf))
+        if not chunk:
+            break
+        buf += chunk
+    if len(buf) > limit:
+        return None, "too_large"
+    try:
+        return json.loads(bytes(buf), parse_constant=_reject_json_constant, parse_float=_parse_finite_float), None
+    except RecursionError:
+        return None, "too_deep"
+    except ValueError:  # JSONDecodeError, UnicodeDecodeError, NaN/Infinity/1e999
+        return None, None
+
+def _settlement_record_ok(record):
+    """저장된 레코드가 dict 이고 엄격한 JSON(NaN/Infinity 없음)으로 직렬화되는지 확인한다."""
+    if not isinstance(record, dict):
+        return False
+    try:
+        json.dumps(record, allow_nan=False)
+    except (ValueError, TypeError, RecursionError):
+        return False
+    return True
+
+def _settlement_response(payload, status=200):
+    """allow_nan=False 로 직렬화한 JSON 응답(비정상 값이 클라이언트에서 JSON.parse 를 깨뜨리지 않게)."""
+    return app.response_class(json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n",
+                              status=status, mimetype="application/json")
 
 def cleanup_old_settlements():
-    settlement_file = os.path.join(PROJECT_ROOT, "data", "settlements.json")
+    settlement_file = _settlement_file()
     if not os.path.exists(settlement_file):
         return []
-    try:
-        with open(settlement_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            settlements = data.get("settlements", [])
-    except:
-        return []
+    with _settlement_lock:
+        try:
+            with open(settlement_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                settlements = data.get("settlements", [])
+        except:
+            return []
 
-    now = datetime.now()
-    valid_settlements = []
-    changed = False
-    for s in settlements:
-        try:
-            created_at = datetime.strptime(s.get("created_at"), "%Y-%m-%d %H:%M:%S")
-            if now - created_at < timedelta(days=7):
+        now = datetime.now()
+        valid_settlements = []
+        changed = False
+        if not isinstance(settlements, list):
+            return []
+        for s in settlements:
+            # 이미 저장된 비정상 레코드(NaN 등)는 목록에서 건너뛴다. 값을 임의로 고치면 정산 금액이 바뀌므로
+            # 정리하지 않고 제외한다. 파일은 다음 쓰기(POST/DELETE) 때 정상 레코드만으로 다시 쓰인다.
+            if not _settlement_record_ok(s):
+                continue
+            try:
+                created_at = datetime.strptime(s.get("created_at"), "%Y-%m-%d %H:%M:%S")
+                if now - created_at < timedelta(days=7):
+                    valid_settlements.append(s)
+                else:
+                    changed = True
+            except Exception as e:
                 valid_settlements.append(s)
-            else:
-                changed = True
-        except Exception as e:
-            valid_settlements.append(s)
-    
-    if changed:
-        try:
-            os.makedirs(os.path.dirname(settlement_file), exist_ok=True)
-            with open(settlement_file, "w", encoding="utf-8") as f:
-                json.dump({"settlements": valid_settlements}, f, ensure_ascii=False, indent=4)
-        except Exception as e:
-            print(f"[Settlement Cleanup Error] {e}")
-            
-    return valid_settlements
+
+        if changed:
+            try:
+                _write_settlements(valid_settlements)
+            except Exception as e:
+                print(f"[Settlement Cleanup Error] {e}")
+
+        return valid_settlements
 
 @app.route('/api/settlements', methods=['GET', 'POST', 'DELETE'])
-@token_required
+@_settlement_write_guard
 def manage_settlements():
-    settlement_file = os.path.join(PROJECT_ROOT, "data", "settlements.json")
-    
     if request.method == 'GET':
         valid_list = cleanup_old_settlements()
-        return jsonify({"status": "success", "settlements": valid_list})
-        
-    elif request.method == 'POST':
-        data = request.get_json()
+        return _settlement_response({"status": "success", "settlements": valid_list})
+
+    data, body_error = _read_settlement_json()
+    if body_error == "too_large":
+        return jsonify({"status": "failed", "reason": "too_large"}), 413
+    if body_error == "too_deep":
+        return jsonify({"status": "failed", "reason": "too_deep"}), 400
+
+    if request.method == 'POST':
+        ok, reason = _validate_settlement_payload(data)
+        if not ok:
+            return jsonify({"status": "failed", "reason": reason}), 400
         s_id = data.get('id')
         title = data.get('title', '새 정산')
         participants = data.get('participants', [])
         items = data.get('items', [])
-        
+
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        valid_list = cleanup_old_settlements()
-        
-        if s_id:
+
+        with _settlement_lock:
+            valid_list = cleanup_old_settlements()
+
             found = False
-            for s in valid_list:
-                if s['id'] == s_id:
-                    s['title'] = title
-                    s['participants'] = participants
-                    s['items'] = items
-                    s['created_at'] = now_str  # Update timestamp to refresh retention duration
-                    found = True
-                    break
+            if s_id:
+                for s in valid_list:
+                    if s.get('id') == s_id:
+                        s['title'] = title
+                        s['participants'] = participants
+                        s['items'] = items
+                        s['created_at'] = now_str  # Update timestamp to refresh retention duration
+                        found = True
+                        break
             if not found:
+                if len(valid_list) >= SETTLEMENT_MAX_SAVED:
+                    return jsonify({"status": "failed", "reason": "too_many_saved"}), 409
                 s_id = str(int(time.time() * 1000))
                 valid_list.append({
                     "id": s_id,
@@ -339,49 +489,35 @@ def manage_settlements():
                     "items": items,
                     "created_at": now_str
                 })
-        else:
-            s_id = str(int(time.time() * 1000))
-            valid_list.append({
-                "id": s_id,
-                "title": title,
-                "participants": participants,
-                "items": items,
-                "created_at": now_str
-            })
-            
-        try:
-            os.makedirs(os.path.dirname(settlement_file), exist_ok=True)
-            with open(settlement_file, "w", encoding="utf-8") as f:
-                json.dump({"settlements": valid_list}, f, ensure_ascii=False, indent=4)
-            return jsonify({"status": "success", "id": s_id}), 200
-        except Exception as e:
-            return jsonify({"status": "failed", "reason": str(e)}), 500
-            
+
+            try:
+                _write_settlements(valid_list)
+                return jsonify({"status": "success", "id": s_id}), 200
+            except Exception as e:
+                return jsonify({"status": "failed", "reason": str(e)}), 500
+
     elif request.method == 'DELETE':
-        data = request.get_json()
-        s_id = data.get('id')
+        s_id = data.get('id') if isinstance(data, dict) else None
         if not s_id:
             return jsonify({"status": "failed", "reason": "missing_id"}), 400
-            
-        valid_list = cleanup_old_settlements()
-        new_list = [s for s in valid_list if s['id'] != s_id]
-        
-        try:
-            os.makedirs(os.path.dirname(settlement_file), exist_ok=True)
-            with open(settlement_file, "w", encoding="utf-8") as f:
-                json.dump({"settlements": new_list}, f, ensure_ascii=False, indent=4)
-            return jsonify({"status": "success"}), 200
-        except Exception as e:
-            return jsonify({"status": "failed", "reason": str(e)}), 500
+
+        with _settlement_lock:
+            valid_list = cleanup_old_settlements()
+            new_list = [s for s in valid_list if s.get('id') != s_id]
+
+            try:
+                _write_settlements(new_list)
+                return jsonify({"status": "success"}), 200
+            except Exception as e:
+                return jsonify({"status": "failed", "reason": str(e)}), 500
 
 @app.route('/liquor')
 def liquor_page():
-    return render_template('liquor.html', api_token=BUTLER_API_TOKEN)
+    return render_template('liquor.html')
 
 @app.route('/api/liquor_purchases', methods=['GET'])
-@token_required
 def get_liquor_purchases():
-    """조회는 누구나 가능 - admin_required를 걸지 않는다(사용자 요청, 2026-09-18)."""
+    """조회는 누구나 가능 - 공개 페이지(ADR-0011)라 토큰도 요구하지 않는다(사용자 요청, 2026-09-18/10-07)."""
     records = liquor_manager.list_purchases_sorted()
     dismissed_merge_pairs = liquor_manager.load_dismissed_pairs()
     return jsonify({
@@ -392,7 +528,6 @@ def get_liquor_purchases():
     }), 200
 
 @app.route('/api/liquor_purchases', methods=['POST', 'PUT', 'DELETE'])
-@token_required
 @admin_required
 def write_liquor_purchases():
     """추가/수정/삭제는 VWAP과 동일한 admin 세션(vwap_session 쿠키)이 필요하다(2026-09-18)."""
@@ -424,7 +559,6 @@ def write_liquor_purchases():
         return jsonify({"status": "success"}), 200
 
 @app.route('/api/liquor_purchases/merge_key', methods=['POST'])
-@token_required
 @admin_required
 def merge_liquor_product_key():
     data = request.get_json(silent=True) or {}
@@ -436,7 +570,6 @@ def merge_liquor_product_key():
     return jsonify({"status": "success", "updated": updated, "to_key": to_key}), 200
 
 @app.route('/api/liquor_purchases/dismiss_suggestion', methods=['POST'])
-@token_required
 @admin_required
 def dismiss_liquor_merge_suggestion():
     data = request.get_json(silent=True) or {}
@@ -450,7 +583,6 @@ def dismiss_liquor_merge_suggestion():
 LIQUOR_IMPORT_MAX_BYTES = 2 * 1024 * 1024  # 2MB 상한 (설계 문서 4-8)
 
 @app.route('/api/liquor_purchases/import', methods=['POST'])
-@token_required
 @admin_required
 def import_liquor_purchases():
     file = request.files.get('file')
@@ -472,13 +604,13 @@ def import_liquor_purchases():
     return jsonify(body), status_code
 
 @app.route('/subscriptions/all', methods=['GET'])
-@token_required
+@token_only
 def get_all_subscriptions():
     data = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
     return jsonify(data)
 
 @app.route('/subscriptions/<user_id>', methods=['GET', 'POST'])
-@token_required
+@token_only
 def handle_subscriptions(user_id):
     if request.method == 'GET':
         subscriptions = load_yaml(SUBSCRIPTIONS_FILE).get("subscriptions", {})
@@ -493,13 +625,13 @@ def handle_subscriptions(user_id):
         return jsonify({"status": "success"})
 
 @app.route('/users/all', methods=['GET'])
-@token_required
+@token_only
 def get_all_users():
     users_list = load_yaml(USERS_FILE).get("users", [])
     return jsonify(users_list)
 
 @app.route('/users/<user_id>', methods=['GET', 'POST'])
-@token_required
+@token_only
 def handle_users(user_id):
     if request.method == 'GET':
         users_list = load_yaml(USERS_FILE).get("users", [])
@@ -531,7 +663,7 @@ async def safe_send(channel, content):
         print(f"[API] Failed to send message in background: {e}")
 
 @app.route('/send', methods=['POST'])
-@token_required
+@local_send_only
 def send_message_api():
     """외부 스크립트에서 메시지 전송을 요청하는 API (보안 필터링 및 안정성 강화)"""
     global discord_client
@@ -574,7 +706,8 @@ def run_flask(client):
     global discord_client
     discord_client = client
     # threaded=True를 명시하여 동시 요청 처리 능력 향상
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    # (ADR-0011) 127.0.0.1 에만 바인딩한다. 외부 접근은 cloudflared 터널(127.0.0.1:5000 으로 접속)로만 한다.
+    app.run(host='127.0.0.1', port=5000, threaded=True)
 
 if __name__ == '__main__':
     # Standalone execution for testing purposes

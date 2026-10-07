@@ -50,6 +50,30 @@
             }
         }
     </style>
+    <script>
+        // 공용 헬퍼: 페이지 본문(content) 스크립트가 base 하단 스크립트보다 먼저 실행되므로 <head> 에 둔다.
+        // 공용 fetch: 같은 출처 쿠키(vwap_session)로 인증하고, 401이면 로그인 화면으로 보낸다.
+        // 401이면 이동 후 영원히 끝나지 않는 Promise를 돌려 호출한 쪽의 후속 처리를 중단시킨다.
+        window.butlerFetch = async function(url, opts) {
+            const res = await fetch(url, Object.assign({}, opts || {}, { credentials: 'same-origin' }));
+            if (res.status === 401) {
+                location.href = '/vwap/?next=' + encodeURIComponent(location.pathname + location.search);
+                return new Promise(() => {});
+            }
+            return res;
+        };
+
+        // HTML 텍스트/속성 값에 넣는 문자열 이스케이프
+        window.escapeHtml = function(value) {
+            return String(value === null || value === undefined ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/`/g, '&#96;');
+        };
+    </script>
 </head>
 <body class="bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors duration-300">
     <!-- Overlay for mobile -->
@@ -192,30 +216,29 @@
             modal.classList.remove('flex');
         }
 
-        // API Token for authorized calls
-        const BUTLER_API_TOKEN = "{{ api_token }}";
-
         // 키워드 관리 전역 함수 (그룹핑 관리 추가)
         window.handleManageNews = async function() {
             try {
                 // 1. 키워드 및 그룹 정보 병렬 로드
                 const [kwRes, groupRes] = await Promise.all([
-                    fetch('/api/keywords', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } }),
-                    fetch('/api/keyword_groups', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } })
+                    butlerFetch('/api/keywords'),
+                    butlerFetch('/api/keyword_groups')
                 ]);
-                
+
                 const kwData = await kwRes.json();
                 const groupData = await groupRes.json();
-                
+
                 const allKeywords = kwData.keywords || [];
                 const groups = groupData.groups || {};
-                
+                const esc = escapeHtml;
+
                 // 역방향 매핑 확인 (이미 그룹에 속한 키워드 제외용)
                 const keywordToGroup = {};
                 for (const g in groups) {
                     groups[g].forEach(m => keywordToGroup[m.toLowerCase()] = g);
                 }
 
+                // 데이터는 data-* 속성(이스케이프됨)에 담고, 클릭/변경 처리는 아래에서 addEventListener로 연결한다.
                 const bodyHtml = `
                     <div class="space-y-6">
                         <!-- 1. 키워드 추가 -->
@@ -239,28 +262,28 @@
                         <!-- 3. 계층형 목록 -->
                         <div>
                             <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">키워드 및 그룹 구성</label>
-                            <div class="max-h-64 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                            <div id="kw-manage-list" class="max-h-64 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                                 <!-- Groups -->
                                 ${Object.keys(groups).map(g => `
                                     <div class="p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800/30">
                                         <div class="flex items-center justify-between mb-2">
-                                            <span class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase">${g}</span>
-                                            <button onclick="deleteGroupAction('${g}')" class="p-1 text-gray-400 hover:text-red-500">
+                                            <span class="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase">${esc(g)}</span>
+                                            <button data-act="delete-group" data-group="${esc(g)}" class="p-1 text-gray-400 hover:text-red-500">
                                                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                             </button>
                                         </div>
                                         <div class="flex flex-wrap gap-2">
                                             ${groups[g].map(m => `
                                                 <span class="inline-flex items-center gap-1 px-2 py-1 bg-white dark:bg-dark-card rounded-lg text-[11px] border border-blue-200 dark:border-blue-800">
-                                                    ${m}
-                                                    <button onclick="removeFromGroupAction('${g}', '${m}')" class="text-gray-400 hover:text-red-500">
+                                                    ${esc(m)}
+                                                    <button data-act="remove-from-group" data-group="${esc(g)}" data-keyword="${esc(m)}" class="text-gray-400 hover:text-red-500">
                                                         <i data-lucide="x" class="w-2.5 h-2.5"></i>
                                                     </button>
                                                 </span>
                                             `).join('')}
-                                            <select onchange="addToGroupAction('${g}', this.value)" class="px-2 py-1 bg-white dark:bg-dark-card text-[11px] border border-dashed border-gray-300 dark:border-dark-border rounded-lg outline-none cursor-pointer hover:border-blue-500">
+                                            <select data-act="add-to-group" data-group="${esc(g)}" class="px-2 py-1 bg-white dark:bg-dark-card text-[11px] border border-dashed border-gray-300 dark:border-dark-border rounded-lg outline-none cursor-pointer hover:border-blue-500">
                                                 <option value="">+ 키워드 연결</option>
-                                                ${allKeywords.filter(k => !keywordToGroup[k.toLowerCase()]).map(k => `<option value="${k}">${k}</option>`).join('')}
+                                                ${allKeywords.filter(k => !keywordToGroup[k.toLowerCase()]).map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}
                                             </select>
                                         </div>
                                     </div>
@@ -272,8 +295,8 @@
                                     <div class="flex flex-wrap gap-2">
                                         ${allKeywords.filter(k => !keywordToGroup[k.toLowerCase()]).map(kw => `
                                             <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-dark-card/50 rounded-xl border border-gray-100 dark:border-dark-border group">
-                                                <span class="text-sm font-medium">${kw}</span>
-                                                <button onclick="deleteKeywordAction('${kw}')" class="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                                                <span class="text-sm font-medium">${esc(kw)}</span>
+                                                <button data-act="delete-keyword" data-keyword="${esc(kw)}" class="p-1 text-gray-400 hover:text-red-500 transition-colors">
                                                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                                 </button>
                                             </div>
@@ -284,8 +307,21 @@
                         </div>
                     </div>
                 `;
-                
+
                 openModal('키워드 및 그룹 관리', bodyHtml);
+
+                const list = document.getElementById('kw-manage-list');
+                list.querySelectorAll('button[data-act]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const act = btn.dataset.act;
+                        if (act === 'delete-group') deleteGroupAction(btn.dataset.group);
+                        else if (act === 'remove-from-group') removeFromGroupAction(btn.dataset.group, btn.dataset.keyword);
+                        else if (act === 'delete-keyword') deleteKeywordAction(btn.dataset.keyword);
+                    });
+                });
+                list.querySelectorAll('select[data-act="add-to-group"]').forEach(sel => {
+                    sel.addEventListener('change', () => addToGroupAction(sel.dataset.group, sel.value));
+                });
             } catch (e) {
                 alert("정보를 불러오는데 실패했습니다.");
             }
@@ -297,9 +333,9 @@
             if (!group_name) return;
 
             try {
-                const res = await fetch('/api/keyword_groups', {
+                const res = await butlerFetch('/api/keyword_groups', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group_name, members: [] })
                 });
                 if ((await res.json()).status === 'success') {
@@ -312,9 +348,9 @@
         window.deleteGroupAction = async function(group_name) {
             if (!confirm(`'${group_name}' 그룹을 삭제하시겠습니까? (키워드는 삭제되지 않습니다)`)) return;
             try {
-                const res = await fetch('/api/keyword_groups', {
+                const res = await butlerFetch('/api/keyword_groups', {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group_name })
                 });
                 if ((await res.json()).status === 'success') {
@@ -327,14 +363,14 @@
             if (!keyword) return;
             try {
                 // 1. 기존 그룹 정보 로드
-                const gRes = await fetch('/api/keyword_groups', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+                const gRes = await butlerFetch('/api/keyword_groups');
                 const gData = await gRes.json();
                 const members = gData.groups[group_name] || [];
                 if (!members.includes(keyword)) {
                     members.push(keyword);
-                    const res = await fetch('/api/keyword_groups', {
+                    const res = await butlerFetch('/api/keyword_groups', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ group_name, members })
                     });
                     if ((await res.json()).status === 'success') {
@@ -346,13 +382,13 @@
 
         window.removeFromGroupAction = async function(group_name, keyword) {
             try {
-                const gRes = await fetch('/api/keyword_groups', { headers: { 'X-Butler-Token': BUTLER_API_TOKEN } });
+                const gRes = await butlerFetch('/api/keyword_groups');
                 const gData = await gRes.json();
                 let members = gData.groups[group_name] || [];
                 members = members.filter(m => m !== keyword);
-                const res = await fetch('/api/keyword_groups', {
+                const res = await butlerFetch('/api/keyword_groups', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Butler-Token': BUTLER_API_TOKEN },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ group_name, members })
                 });
                 if ((await res.json()).status === 'success') {
@@ -367,12 +403,9 @@
             if (!keyword) return;
 
             try {
-                const res = await fetch('/api/keywords', {
+                const res = await butlerFetch('/api/keywords', {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-Butler-Token': BUTLER_API_TOKEN 
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ keyword })
                 });
                 const result = await res.json();
@@ -389,12 +422,9 @@
             if (!confirm(`'${keyword}' 키워드를 삭제하시겠습니까?`)) return;
 
             try {
-                const res = await fetch('/api/keywords', {
+                const res = await butlerFetch('/api/keywords', {
                     method: 'DELETE',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-Butler-Token': BUTLER_API_TOKEN 
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ keyword })
                 });
                 const result = await res.json();
