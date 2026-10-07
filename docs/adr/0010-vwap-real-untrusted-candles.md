@@ -1,7 +1,7 @@
 # ADR-0010: VWAP REAL 봇 — 신뢰할 수 없는 캔들(난수 봉·출처 불명)로는 매매 판단을 하지 않는다
 
 - **날짜**: 2026-10-07
-- **상태**: **Accepted**. 사용자 결정("지금 고치기", 2026-10-07). 로컬 구현과 테스트 완료, **S9 미배포**. 배포 기준선은 Phase B 커밋 `4fa93a0`.
+- **상태**: **Accepted**. 사용자 결정("지금 고치기", 2026-10-07). 구현·테스트 완료, 커밋 `8ae6953`로 S9 배포 완료(상태 갱신 2026-10-07). 배포 후 S9 운영 기록 점검: `vwap_trades_real.json`의 `mock_order_`/`assumed` 0건, 로그의 `mock_order_` 3건은 2026-06-25 키 설정 전 초기 세팅 시점.
 - **대상**: `my_butler` VWAP 자동매매 REAL 봇과 `TossBroker`. 가상 봇 1~3의 동작은 바꾸지 않는다.
 - **선행 문서**: [ADR-0007](0007-vwap-shadow-replay-strategy-plugin.md)(3단계 §6 `last_candles_source`), [ADR-0009](0009-vwap-start-wait-stop-loss.md)(손절 보호 공백을 없앤 선례)
 - **관련 파일**
