@@ -597,6 +597,28 @@ def api_get_logs():
         return jsonify({"status": "failed", "reason": str(e)})
 
 
+# 유저 매뉴얼(마크다운 원본). 경로는 고정이며 사용자 입력으로 만들지 않습니다.
+USER_GUIDE_PATH = os.path.join(PROJECT_ROOT, "docs", "vwap_user_guide.md")
+
+
+@vwap_bp.route('/api/user-guide', methods=['GET'])
+@admin_required
+def api_user_guide():
+    """대시보드 '유저 매뉴얼' 탭용: docs/vwap_user_guide.md 원문을 그대로 돌려줍니다(렌더링은 화면에서)."""
+    if not os.path.isfile(USER_GUIDE_PATH):
+        return jsonify({"status": "failed", "reason": "not_found",
+                        "message": "유저 매뉴얼 파일(docs/vwap_user_guide.md)을 찾을 수 없습니다."}), 404
+    try:
+        with open(USER_GUIDE_PATH, "r", encoding="utf-8") as f:
+            text = f.read()
+        mtime = os.path.getmtime(USER_GUIDE_PATH)
+    except Exception as e:
+        logger.error(f"[유저 매뉴얼] 읽기 실패: {e}")
+        return jsonify({"status": "failed", "reason": "read_error",
+                        "message": "유저 매뉴얼 파일을 읽지 못했습니다. 잠시 후 다시 시도해 주세요."}), 500
+    return jsonify({"status": "success", "markdown": text, "updated_at": int(mtime)})
+
+
 EVENTS_LIMIT_MAX = 500
 
 
