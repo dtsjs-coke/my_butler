@@ -52,3 +52,8 @@ data/*.yaml
 vwap_secret.key
 # 백테스트 시세 캐시 (재생성 가능)
 backtest/data_cache/
+
+# VWAP 3단계 런타임 산출물 (재생성 가능)
+data/bars/
+data/replay/
+data/replay_cache/

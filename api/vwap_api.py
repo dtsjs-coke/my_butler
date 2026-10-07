@@ -8,6 +8,7 @@ from core.vwap.bot import VWAPBot, PROJECT_ROOT
 from core.vwap.crypto import VwapCrypto
 from core.vwap.broker import TossBroker
 from core.vwap import events as vwap_events
+from core.vwap import replay as vwap_replay
 
 logger = logging.getLogger("vwap_bot")
 
@@ -51,6 +52,12 @@ def restore_active_bots():
 
 # 블루프린트 로드 시 1회 자동 실행
 restore_active_bots()
+
+# (3단계) 서버 재시작 전의 리플레이 자식 프로세스 작업이 running 으로 남아 있으면 failed("server_restarted")로 정리
+try:
+    vwap_replay.recover_on_startup()
+except Exception as _e:
+    logger.error(f"[서버 초기화] 리플레이 작업 정리 실패(무시): {_e}")
 
 
 def admin_required(f):
@@ -369,6 +376,48 @@ def api_get_status():
     })
 
 
+# --- 설정 값 형변환 (api_config POST) ---
+# 3단계 설정 키는 접미어 추측 대신 명시적 집합으로 처리합니다. (bool 키가 else 분기로 빠지면 "False" 문자열이 저장되어
+# 나중에 truthy 로 읽히는 문제가 있었음 — QA 지적)
+_BOOL_STAGE3_KEYS = {"shadow_enabled", "bars_store_enabled"}
+_FLOAT_STAGE3_RANGES = {            # 키 -> (최소, 최대)
+    "shadow_fee_roundtrip_pct": (0.0, 5.0),
+    "shadow_price_tolerance_pct": (0.0, 5.0),
+}
+_INT_STAGE3_RANGES = {"replay_timeout_sec": (10, 3600)}
+
+
+def _to_bool(val):
+    if isinstance(val, str):
+        return val.strip().lower() == "true"   # "1"/"yes"/"on"/"y" 는 False (이전 _cast_config_value 동작과 동일)
+    return bool(val)
+
+
+def _cast_config_value(key, val):
+    """설정 키에 맞는 타입으로 변환합니다. 변환 불가/범위 밖이면 ValueError."""
+    if key in _BOOL_STAGE3_KEYS:
+        return _to_bool(val)
+    if key in _FLOAT_STAGE3_RANGES:
+        lo, hi = _FLOAT_STAGE3_RANGES[key]
+        f = float(val)
+        if not lo <= f <= hi:
+            raise ValueError(f"{key} 는 {lo}~{hi} 사이여야 합니다.")
+        return f
+    if key in _INT_STAGE3_RANGES:
+        lo, hi = _INT_STAGE3_RANGES[key]
+        f = float(val)
+        if not f.is_integer() or not lo <= f <= hi:
+            raise ValueError(f"{key} 는 {lo}~{hi} 사이 정수여야 합니다.")
+        return int(f)
+    if any(suffix in key for suffix in ["n_percent", "m_percent", "x_percent", "k_percent", "initial_balance", "max_daily_loss_limit", "adx_threshold", "rsi_threshold", "vwap_band_sigma"]):
+        return float(val)
+    if any(suffix in key for suffix in ["adx_period", "rsi_period"]):
+        return int(val)
+    if any(suffix in key for suffix in ["use_adx_filter", "use_rsi_filter", "use_vwap_band", "discord_notify"]):
+        return _to_bool(val)
+    return str(val)
+
+
 @vwap_bp.route('/api/config', methods=['GET', 'POST'])
 @admin_required
 def api_config():
@@ -442,24 +491,20 @@ def api_config():
         "real_vwap_band_sigma",
 
         # Discord 알림 (실거래 / 가상봇 공통)
-        "real_discord_notify", "virtual_discord_notify"
+        "real_discord_notify", "virtual_discord_notify",
+
+        # 3단계(섀도우/리플레이/봉 적재) — 설계 §7
+        "shadow_enabled", "bars_store_enabled", "shadow_fee_roundtrip_pct",
+        "shadow_price_tolerance_pct", "replay_timeout_sec"
     ]
     
-    for key in allowed_keys:
-        if key in new_data:
-            # 적절한 형변환 수행
-            if any(suffix in key for suffix in ["n_percent", "m_percent", "x_percent", "k_percent", "initial_balance", "max_daily_loss_limit", "adx_threshold", "rsi_threshold", "vwap_band_sigma"]):
-                updated_config[key] = float(new_data[key])
-            elif any(suffix in key for suffix in ["adx_period", "rsi_period"]):
-                updated_config[key] = int(new_data[key])
-            elif any(suffix in key for suffix in ["use_adx_filter", "use_rsi_filter", "use_vwap_band", "discord_notify"]):
-                val = new_data[key]
-                if isinstance(val, str):
-                    updated_config[key] = val.lower() == "true"
-                else:
-                    updated_config[key] = bool(val)
-            else:
-                updated_config[key] = str(new_data[key])
+    try:
+        for key in allowed_keys:
+            if key in new_data:
+                updated_config[key] = _cast_config_value(key, new_data[key])
+    except (TypeError, ValueError) as e:
+        logger.warning(f"설정 저장 입력 오류: {e}")
+        return jsonify({"status": "failed", "reason": "invalid_value", "message": str(e)}), 400
 
     # 민감 정보 필드는 마스킹이 아닌 새로 입력된 평문인 경우에만 덮어씀
     for key in ["toss_client_secret", "toss_account_seq"]:
@@ -631,6 +676,72 @@ def api_run_backtest():
             return jsonify({"status": "failed", "message": str(e)}), 400
         logger.error(f"백테스트 연산 실패: {e!r}")
         return jsonify({"status": "failed", "message": "백테스트 중 서버 오류가 발생했습니다. API 자격 증명/호출 한도를 확인한 뒤 다시 시도해주세요."}), 500
+
+
+@vwap_bp.route('/api/replay', methods=['POST'])
+@admin_required
+def api_replay_start():
+    """현재 REAL 설정 스냅샷으로 원클릭 리플레이 작업을 시작합니다(별도 프로세스에서 계산).
+
+    Body(모두 선택): {"days": 10, "interval": "1m", "fee_roundtrip_pct": 0.2,
+                      "slippage_roundtrip_pct": 0.05, "limit_fill_buffer_pct": 0.0}
+    202 {"status":"accepted","job_id"} / 409 {"status":"failed","reason":"job_running","job_id"} /
+    400 {"status":"failed","reason":"invalid_params","message"}
+    """
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        return jsonify({"status": "failed", "reason": "invalid_params", "message": "요청 본문은 JSON 객체여야 합니다."}), 400
+    config = VwapConfigManager.load_config()
+    try:
+        params = vwap_replay.make_params(
+            config,
+            days=data.get("days", 10),
+            interval=data.get("interval") or None,
+            fee_roundtrip_pct=data.get("fee_roundtrip_pct", 0.2),
+            slippage_roundtrip_pct=data.get("slippage_roundtrip_pct", 0.05),
+            limit_fill_buffer_pct=data.get("limit_fill_buffer_pct", 0.0),
+        )
+    except ValueError as e:
+        return jsonify({"status": "failed", "reason": "invalid_params", "message": str(e)}), 400
+    try:
+        timeout_sec = float(config.get("replay_timeout_sec", vwap_replay.DEFAULT_TIMEOUT_SEC))
+    except (TypeError, ValueError):
+        timeout_sec = vwap_replay.DEFAULT_TIMEOUT_SEC
+    try:
+        job_id = vwap_replay.start_job(params, timeout_sec=timeout_sec)
+    except vwap_replay.JobRunning as e:
+        return jsonify({"status": "failed", "reason": "job_running", "job_id": e.job_id}), 409
+    except Exception as e:
+        logger.error(f"[api_replay] 작업 시작 실패: {e!r}")
+        return jsonify({"status": "failed", "reason": "start_failed", "message": "리플레이 작업을 시작하지 못했습니다."}), 500
+    return jsonify({"status": "accepted", "job_id": job_id}), 202
+
+
+@vwap_bp.route('/api/replay/latest', methods=['GET'])
+@admin_required
+def api_replay_latest():
+    """가장 최근에 성공(done)한 리플레이 작업. 없으면 job: null."""
+    try:
+        return jsonify({"status": "success", "job": vwap_replay.latest_done_job()})
+    except Exception as e:
+        logger.error(f"[api_replay] latest 조회 실패: {e!r}")
+        return jsonify({"status": "failed", "reason": "read_failed"}), 500
+
+
+@vwap_bp.route('/api/replay/<job_id>', methods=['GET'])
+@admin_required
+def api_replay_get(job_id):
+    """리플레이 작업 상태/결과. 없거나 형식이 틀린 job_id 는 404."""
+    try:
+        job = vwap_replay.get_job(job_id)
+    except Exception as e:
+        logger.error(f"[api_replay] 작업 조회 실패: {e!r}")
+        return jsonify({"status": "failed", "reason": "read_failed"}), 500
+    if job is None:
+        return jsonify({"status": "failed", "reason": "not_found"}), 404
+    return jsonify({"status": "success", "job": job})
 
 
 @vwap_bp.route('/api/reset-trades', methods=['POST'])

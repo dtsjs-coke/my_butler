@@ -194,6 +194,12 @@ class TradingStrategy(ABC):
 ## 5. 섀도우 모드 (주니어 구현, 시니어 리뷰 필수)
 
 ### 5.1 REAL 봇 훅 (시니어가 직접)
+
+> **정정 2026-10-07** (SR-2 구현 결과 — 실제 코드가 기준):
+> 1. 등록 API는 `bot.add_post_cycle_hook(name, fn)` / `remove_post_cycle_hook(name)`이다(같은 이름은 교체). `_post_cycle_hooks`는 `[(name, fn)]`. `bars_store`는 `VWAPBot.__init__`에서 모든 모드에 기본 등록되고, 하위 클래스가 `ATTACH_BARS_STORE = False`로 끌 수 있다(ShadowBot은 반드시 False — 같은 봉을 두 번 적재하지 않게).
+> 2. ctx에 `market`(봇 설정값), `candles_asof`(캔들 요청 직전 시각), `running`이 추가됐다. `config`는 그 주기 설정 dict(평탄 키, `bars_store_enabled` 포함)의 복사본이며 비밀값(`toss_client_id/secret/account_seq`, `admin_password_hash`)은 빈 문자열이다. `df`·`config`·`position`은 훅마다 복사본이다.
+> 3. 지연·예외 이벤트는 `ERROR`(warn, 알림 없음), `reason_code`가 `HOOK_SLOW`/`HOOK_ERROR`, 같은 훅·같은 예외 종류는 10분에 1회. 마지막 주기 훅별 소요시간은 `bot.last_hook_durations_ms`.
+> 4. `cycle_id`는 `calculate_vwap` 후 마지막 행 시각(KST naive)이다. 추적 주문·거래 레코드·`ORDER_PLACED/REPLACED`·`FILL` 이벤트, 그리고 그 주기의 모든 이벤트 data(`_reason_data`)에 들어간다. 지정가 체결 레코드의 `cycle_id`는 **주문을 낸 주기**다(체결을 판정한 주기가 아님).
 - `_loop_step` 끝(정상·예외 경로 모두, `_finish_cycle` 다음)에 `self._run_post_cycle_hooks()`를 호출한다.
 - 훅 목록은 `self._post_cycle_hooks: list[callable(ctx)]`다. 모든 모드에 `bars_store.hook`이 붙고, REAL만 `shadow_runner.hook`이 붙는다(`api/vwap_api.py`에서 등록, `shadow_enabled` 설정 존중).
 - 훅 컨텍스트 `ctx`(읽기 전용 dict): `{"mode", "generation", "cycle_id", "df"(캔들 원본, 훅마다 .copy()), "ticker", "interval", "reset_time", "candles_source", "config"(그 주기 설정 dict), "position":{"qty","entry_price"}|None, "cash"|None, "reason_code"}`
@@ -264,6 +270,8 @@ class TradingStrategy(ABC):
 ---
 
 ## 6. 봉 데이터 적재 `bars_store` (주니어)
+
+> **정정 2026-10-07** (SR-2 연결): ① 마지막 행은 `asof`(ctx `candles_asof`)가 있고 `봉 시각 + 봉 간격 + 60초 ≤ asof`면 마감으로 보고 저장한다(세션 마지막 봉 누락 방지). 그 외에는 이전처럼 제외. ② `hook`은 ctx `market`을 쓰고(없을 때만 티커로 추론), 출처가 `toss`/`yahoo`가 아니면(`mock` 난수 봉, 출처 불명) 적재하지 않는다. ③ `TossBroker.last_candles_source`는 mock_mode에서 Yahoo가 성공하면 `yahoo`, 난수 봉일 때만 `mock`이다.
 
 - `append_closed_bars(ticker, interval, df, reset_time, source)`
   - df의 **마지막 행은 제외**한다(진행 중 봉일 수 있음).

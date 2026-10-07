@@ -311,10 +311,13 @@ class TossBroker(Broker):
         if self.mock_mode or is_unsupported_interval:
             df = self._fetch_yahoo_candles(ticker, interval, limit)
             if not df.empty:
+                # (3단계 §6, 관측 전용) mock_mode 여도 실제로는 Yahoo 시세이므로 출처를 yahoo 로. "mock" 은 아래 난수 봉에만
+                self.last_candles_source = "yahoo"
                 return df
             
             # 가상 모드인데 야후 API도 실패하면 난수 폴백 처리
             if self.mock_mode:
+                self.last_candles_source = "mock"  # 난수 봉 — bars_store 는 이 출처를 적재하지 않음
                 now = datetime.now()
                 times = [now - pd.Timedelta(minutes=i) for i in range(limit)]
                 times.reverse()

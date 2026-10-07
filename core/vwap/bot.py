@@ -1,4 +1,5 @@
 import os
+import copy
 import time
 import uuid
 import logging
@@ -10,6 +11,7 @@ from core.vwap.broker import TossBroker, VirtualBroker
 from core.vwap.strategy import VwapStrategy
 from core.vwap.session import SessionSpec
 from core.vwap import events as vwap_events
+from core.vwap import bars_store
 from core.vwap.trade_metrics import enrich_record
 
 # 프로젝트 루트 경로
@@ -36,6 +38,10 @@ CANCEL_CONFIRM_POLL_INTERVAL_SEC = 0.5
 ERROR_STREAK_NOTIFY = 5
 # (관측성) 같은 키의 ERROR 이벤트(주문 거부 등)는 이 시간(초) 안에 한 번만 기록
 ERROR_EVENT_REPEAT_SEC = 600
+# (3단계 §5.1) post-cycle 훅 하나의 소요시간 경고 기준(초). 넘으면 ERROR(warn) 이벤트 (같은 훅은 10분에 1회)
+HOOK_WARN_SEC = 2.0
+# 훅 ctx["config"] 에서 비우는 비밀값 키 (훅은 비밀값이 필요 없음 — 실수로 기록/전송되는 것 방지)
+HOOK_SECRET_KEYS = ("toss_client_id", "toss_client_secret", "toss_account_seq", "admin_password_hash")
 
 
 def get_session_start(now: datetime, reset_time: str) -> datetime:
@@ -174,6 +180,33 @@ class VWAPBot:
         self._generation = 0
         self._step_lock = threading.Lock()
 
+        # (3단계 §5.1) 주기 종료 후 훅 [(name, fn(ctx))]. 매매 결정·주문이 모두 끝난 뒤 실행되며 예외·지연은 격리됩니다.
+        # 봉 적재(bars_store.hook)는 모든 모드에 기본 등록. 섀도우 훅은 api/vwap_api.py 에서 REAL 에만 등록(Phase C).
+        self._post_cycle_hooks = []
+        self.last_hook_durations_ms = {}   # (관측) 마지막 주기의 훅별 소요시간
+        if self.ATTACH_BARS_STORE:
+            self.add_post_cycle_hook("bars_store", bars_store.hook)
+
+    # 하위 클래스(ShadowBot 등)가 봉 적재 훅을 붙이지 않으려면 False 로 재정의
+    ATTACH_BARS_STORE = True
+
+    def _load_config(self) -> dict:
+        """(3단계 §0-(b)) 주기 설정 로드 위임 지점. 기본은 VwapConfigManager.load_config() 그대로.
+        ShadowBot 이 오버라이드해 REAL 설정을 섀도우 키로 매핑해 돌려줍니다."""
+        return VwapConfigManager.load_config()
+
+    def add_post_cycle_hook(self, name: str, fn) -> bool:
+        """주기 종료 훅 등록 (같은 이름이 있으면 교체). fn(ctx) 의 반환값은 무시되고 예외는 봇 밖으로 나가지 않습니다."""
+        if not callable(fn):
+            return False
+        self._post_cycle_hooks = [(n, f) for n, f in self._post_cycle_hooks if n != name] + [(name, fn)]
+        return True
+
+    def remove_post_cycle_hook(self, name: str) -> bool:
+        before = len(self._post_cycle_hooks)
+        self._post_cycle_hooks = [(n, f) for n, f in self._post_cycle_hooks if n != name]
+        return len(self._post_cycle_hooks) != before
+
     def _is_virtual(self, mode: str = None) -> bool:
         """VIRTUAL / VIRTUAL_1~3 등 가상 모드 여부."""
         return (mode or self.mode).upper().startswith("VIRTUAL")
@@ -222,7 +255,7 @@ class VWAPBot:
     def _refresh_notify_flag(self, config: dict = None):
         """설정의 real_discord_notify / virtual_discord_notify 로 이 봇의 알림 여부를 갱신합니다."""
         try:
-            cfg = config if config is not None else VwapConfigManager.load_config()
+            cfg = config if config is not None else self._load_config()
             if self.mode == "REAL":
                 self._notify_enabled = bool(cfg.get("real_discord_notify", True))
             else:
@@ -277,6 +310,7 @@ class VWAPBot:
             "reason_code": c.get("reason_code") or "",
             "filters": c.get("filters") or {},
             "config_snapshot": c.get("config_snapshot") or {},
+            "cycle_id": c.get("cycle_id") or "",
         }
 
     def _reason_data(self, **extra) -> dict:
@@ -285,6 +319,8 @@ class VWAPBot:
         d = dict(c.get("values") or {})
         if c.get("reason_text"):
             d["reason_text"] = c.get("reason_text")
+        if c.get("cycle_id"):
+            d["cycle_id"] = c.get("cycle_id")
         d.update({k: v for k, v in extra.items() if v is not None})
         return d
 
@@ -337,7 +373,8 @@ class VWAPBot:
     @staticmethod
     def _fill_data(record: dict) -> dict:
         keys = ("trade_id", "ticker", "side", "price", "qty", "pnl", "roi", "fill_source", "order_type",
-                "order_price", "intended_price", "slippage", "slippage_pct", "holding_minutes", "reason_code", "commission")
+                "order_price", "intended_price", "slippage", "slippage_pct", "holding_minutes", "reason_code", "commission",
+                "cycle_id")
         return {k: record.get(k) for k in keys if record.get(k) is not None}
 
     def _finish_cycle(self, error: Exception = None):
@@ -403,7 +440,7 @@ class VWAPBot:
             self.status_cache["is_running"] = self.running
             if not self.running:
                 try:
-                    config = VwapConfigManager.load_config()
+                    config = self._load_config()
                     mode = self.mode
                     if mode == "VIRTUAL":
                         mode = "VIRTUAL_1"
@@ -526,6 +563,7 @@ class VWAPBot:
             "reason_code": meta.get("reason_code", ""),
             "filters": meta.get("filters", {}),
             "config_snapshot": meta.get("config_snapshot", {}),
+            "cycle_id": meta.get("cycle_id", "") or "",
         }
         self._save_tracked()
 
@@ -590,7 +628,7 @@ class VWAPBot:
                 intended = info.get("price")
             enrich_record(record, existing_trades, intended,
                           {"reason_code": info.get("reason_code"), "filters": info.get("filters"),
-                           "config_snapshot": info.get("config_snapshot")})
+                           "config_snapshot": info.get("config_snapshot"), "cycle_id": info.get("cycle_id")})
         except Exception as e:
             self.logger.warning(f"[관측성] 거래 레코드 보강 실패(무시): {e}")
         recorded = VwapConfigManager.add_trade(record, "REAL")
@@ -928,21 +966,131 @@ class VWAPBot:
 
     def _loop_step(self):
         """한 주기 실행 + (관측성) 주기 종료 시 판단 사유 반영/SIGNAL_CHANGE/연속실패 처리.
-        본체(_loop_step_body)의 동작과 예외 전파는 기존과 동일합니다."""
+        본체(_loop_step_body)의 동작과 예외 전파는 기존과 동일합니다.
+        (3단계 §5.1) 본체의 주문·체결 판정과 _finish_cycle 이 모두 끝난 뒤 post-cycle 훅을 실행합니다(정상·예외 경로 모두).
+        훅 실행부는 예외를 밖으로 내지 않으므로 본체 예외의 전파는 그대로입니다."""
         self._cycle = {"signal": None, "reason_code": None, "reason_text": "", "filters": None,
-                       "values": {}, "config_snapshot": {}, "waiting_for_start": False}
+                       "values": {}, "config_snapshot": {}, "waiting_for_start": False,
+                       "cycle_id": "", "hook": {}}
         try:
             self._loop_step_body()
         except Exception as e:
             self._finish_cycle(error=e)
+            self._run_post_cycle_hooks()
             raise
         else:
             self._finish_cycle()
+            self._run_post_cycle_hooks()
+
+    # ------------------------------------------------------------------
+    # (3단계 §5.1) post-cycle 훅 — 매매 판단·주문과 무관. 모든 예외·지연을 여기서 격리합니다.
+    # ------------------------------------------------------------------
+    def _hook_note(self, **kv):
+        """이번 주기 훅 컨텍스트에 값 기록(본체에서 호출). 어떤 경우에도 예외를 내지 않습니다."""
+        try:
+            if self._cycle is not None:
+                self._cycle.setdefault("hook", {}).update(kv)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _candles_source_of(broker) -> str:
+        """시세를 실제로 가져온 브로커의 last_candles_source. VirtualBroker 는 시세 원천(source_broker)을 봅니다."""
+        try:
+            src = getattr(broker, "last_candles_source", None)
+            if src is None:
+                src = getattr(getattr(broker, "source_broker", None), "last_candles_source", None)
+            return str(src or "")
+        except Exception:
+            return ""
+
+    def _build_hook_ctx(self) -> dict:
+        """훅에 넘길 이번 주기 컨텍스트(공통 원본). 훅마다 _run_post_cycle_hooks 가 복사본을 만듭니다."""
+        c = self._cycle or {}
+        h = c.get("hook") or {}
+        cfg = h.get("config")
+        if isinstance(cfg, dict):
+            cfg = dict(cfg)
+            for k in HOOK_SECRET_KEYS:
+                if k in cfg:
+                    cfg[k] = ""
+        else:
+            cfg = {}
+        pos, cash = None, None
+        try:
+            if h.get("position_raw") is not None:
+                q, ep = h["position_raw"]
+                pos = {"qty": float(q or 0.0), "entry_price": float(ep or 0.0)}
+            if h.get("cash_raw") is not None:
+                cash = float(h["cash_raw"])
+        except Exception:
+            pos, cash = None, None
+        return {
+            "mode": self.mode,
+            "generation": self._generation,
+            "cycle_id": c.get("cycle_id") or "",
+            "df": h.get("df"),                        # 이번 주기 캔들 원본 (calculate_vwap 이전)
+            "ticker": h.get("ticker"),
+            "market": h.get("market"),
+            "interval": h.get("interval"),
+            "reset_time": h.get("reset_time"),
+            "candles_source": h.get("candles_source") or "",
+            "candles_asof": h.get("candles_asof"),    # 캔들 요청 직전 시각 (이 시각 이전에 끝난 봉은 '마감'이 확실)
+            "config": cfg,                            # 이번 주기 설정 dict(평탄 키, 비밀값은 빈 문자열)
+            "position": pos,                          # {"qty","entry_price"} | None (잔고 조회 실패/전)
+            "cash": cash,                             # float | None
+            "reason_code": c.get("reason_code") or "",
+            "running": bool(self.running),
+        }
+
+    def _run_post_cycle_hooks(self):
+        """등록된 훅을 순서대로 동기 실행. 훅마다 ctx/df/config 를 복사해 넘기고, 예외·지연은 ERROR(warn) 이벤트로만 남깁니다.
+        이 함수는 절대 예외를 밖으로 던지지 않습니다."""
+        try:
+            hooks = list(self._post_cycle_hooks)
+            if not hooks:
+                return
+            base = self._build_hook_ctx()
+        except Exception as e:
+            try:
+                self.logger.warning(f"[훅] 컨텍스트 생성 실패(무시): {e}")
+            except Exception:
+                pass
+            return
+        durations = {}
+        for name, fn in hooks:
+            t0 = time.monotonic()
+            try:
+                ctx = dict(base)
+                df = base.get("df")
+                ctx["df"] = df.copy() if df is not None and hasattr(df, "copy") else None
+                ctx["config"] = copy.deepcopy(base.get("config") or {})
+                ctx["position"] = dict(base["position"]) if isinstance(base.get("position"), dict) else None
+                fn(ctx)
+            except Exception as e:
+                try:
+                    self.logger.warning(f"[훅] '{name}' 실행 중 예외(무시, 매매 영향 없음): {type(e).__name__}: {e}")
+                    self._emit_error(f"HOOK_ERROR:{name}:{type(e).__name__}",
+                                     f"주기 후처리 훅 '{name}' 예외(매매 영향 없음): {type(e).__name__}: {str(e)[:150]}",
+                                     {"hook": name, "exception": type(e).__name__}, reason_code="HOOK_ERROR")
+                except Exception:
+                    pass
+            elapsed = time.monotonic() - t0
+            durations[name] = round(elapsed * 1000.0, 1)
+            if elapsed > HOOK_WARN_SEC:
+                try:
+                    self._emit_error(f"HOOK_SLOW:{name}",
+                                     f"주기 후처리 훅 '{name}' 소요 {elapsed:.2f}초 > {HOOK_WARN_SEC:g}초 (루프 주기 지연)",
+                                     {"hook": name, "elapsed_sec": round(elapsed, 3), "limit_sec": HOOK_WARN_SEC},
+                                     reason_code="HOOK_SLOW")
+                except Exception:
+                    pass
+        self.last_hook_durations_ms = durations
 
     def _loop_step_body(self):
         """한 주기의 전략 계산 및 주문 정정 작업을 수행합니다."""
         # 1. 설정 실시간 로드
-        config = VwapConfigManager.load_config()
+        config = self._load_config()
 
         mode = self.mode
         if mode == "VIRTUAL":
@@ -962,6 +1110,8 @@ class VWAPBot:
         # 그 외(국내 종목, 다른 리셋 시각) → 설정한 reset_time 고정. 어느 쪽이든 자정으로는 세션을 끊지 않음.
         session = SessionSpec.for_market(market, reset_time, ticker)
         now = datetime.now()
+        # (3단계 §5.1, 관측 전용) 훅 컨텍스트 — 매매 판단에는 쓰지 않음
+        self._hook_note(config=config, ticker=ticker, market=market, interval=interval, reset_time=reset_time)
         start_time = config.get(f"{mode_prefix}_start_time", "")
         initial_balance = float(config[f"{mode_prefix}_initial_balance"])
         max_daily_loss_limit = float(config.get(f"{mode_prefix}_max_daily_loss_limit", 5.0))
@@ -1017,6 +1167,8 @@ class VWAPBot:
         # 예전에는 항상 150봉만 받아, 세션이 2.5시간(1분봉)을 넘으면 VWAP 이 '최근 150봉 누적'으로 잘려 있었음.
         candle_count = session.bars_needed(now, interval)
         df = broker.get_candles(ticker, interval, candle_count)
+        # (3단계 §5.1, 관측 전용) 캔들 원본·출처·요청 직전 시각(now)을 훅 컨텍스트에 기록. 매매 판단에는 쓰지 않음
+        self._hook_note(df=df, candles_source=self._candles_source_of(broker), candles_asof=now)
         if df.empty:
             self.logger.error(f"[{ticker}] 캔들 데이터를 가져오지 못했습니다. 다음 주기에 재시도합니다.")
             self._set_reason("DATA_UNAVAILABLE", f"{ticker} 캔들(시세) 조회 실패 → 이번 주기 판단 보류", "WAIT")
@@ -1025,6 +1177,14 @@ class VWAPBot:
         # 4. 실시간 VWAP 계산
         df = VwapStrategy.calculate_vwap(df, reset_time, session=session)
         latest_row = df.iloc[-1]
+        # (3단계 §5.1) cycle_id = 이번 주기 마지막 봉 시각. 주문 메타(_order_meta)·이벤트에 남아 섀도우와 같은 봉을 짝짓는 키
+        try:
+            self._cycle["cycle_id"] = latest_row['time'].strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            try:
+                self._cycle["cycle_id"] = str(latest_row['time'])[:19]
+            except Exception:
+                pass
         # (관측 전용, 매매 판단 무관) 이번 VWAP 이 세션 시작부터의 봉을 모두 포함하는지.
         # 여유분(+30봉)을 더 요청하므로 정상이면 받은 첫 봉이 세션 시작 이전. 그렇지 않으면 페이징 실패 등으로 잘린 것.
         vwap_full_session = bool(df['time'].iloc[0] <= latest_row['session_start'])
@@ -1059,6 +1219,7 @@ class VWAPBot:
         entry_price = holding_info["entry_price"]
         self._cycle["values"].update({"position_qty": float(qty),
                                       "entry_price": round(float(entry_price), 2) if qty > 0 else 0.0})
+        self._hook_note(position_raw=(qty, entry_price), cash_raw=cash)  # (관측 전용) 변환은 훅 실행부에서
 
         # 미체결 매수 주문에 묶인 거래 대기 금액 계산 (가상/실제 공통 적용)
         # 이 주기의 미체결 목록은 여기서 한 번만 조회해 패닉/체결판정/주문집행에 재사용합니다.

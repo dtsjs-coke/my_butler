@@ -3,11 +3,14 @@
 [저장 규칙]
 - 파일: data/bars/{TICKER}_{interval}_{세션날짜}.csv   (헤더 time,open,high,low,close,volume,source)
 - 세션 날짜는 core/vwap/session.py 의 SessionSpec(ADR-0008) 기준 '세션 시작 시각의 KST 날짜'입니다(자정 기준 아님).
-- 입력 df 의 마지막 행은 진행 중인 봉일 수 있으므로 저장하지 않습니다(마감된 봉만 저장).
+- 마감된 봉만 저장합니다. 마지막 행이 아닌 봉은 뒤에 봉이 있으므로 마감. 마지막 행은 asof(캔들 요청 직전 시각)가
+  주어지고 '봉 시각 + 봉 간격 + CLOSE_GRACE_SEC <= asof' 일 때만 마감으로 봅니다(세션 마지막 봉 누락 방지).
+  asof 가 없으면 마지막 행은 항상 제외합니다(이전 동작).
 - (ticker, interval)별 '마지막으로 저장한 봉 시각'보다 큰 행만 append 합니다. 이미 저장된 봉은 다시 쓰지 않습니다.
   프로세스를 재시작하면 해당 종목·간격의 가장 최근 파일 마지막 정상 줄에서 복원합니다.
 - 예외는 밖으로 던지지 않습니다(매매 루프 보호). 경고 로그는 10분에 1회만 남깁니다.
-- 이 모듈은 아직 봇에 연결되지 않았습니다(hook 함수만 제공). 연결은 3단계 Phase B 에서 합니다.
+- 봇 연결(3단계 Phase B SR-2): VWAPBot 이 모든 모드에 hook 을 post-cycle 훅으로 등록합니다(주문·체결 판정 이후 실행).
+- 출처(source)가 "toss"/"yahoo" 인 봉만 적재합니다. "mock"(난수 봉)·빈 값(출처 불명) 은 리플레이를 오염시키므로 무시합니다.
 """
 import os
 import glob
@@ -19,7 +22,7 @@ from datetime import datetime
 import pandas as pd
 
 import core.vwap.config_manager as _cm
-from core.vwap.session import SessionSpec, infer_market, to_kst_naive
+from core.vwap.session import SessionSpec, infer_market, to_kst_naive, to_kst_naive_dt, interval_minutes
 
 logger = logging.getLogger("vwap_bot")
 
@@ -27,6 +30,10 @@ COLUMNS = ["time", "open", "high", "low", "close", "volume", "source"]
 HEADER = ",".join(COLUMNS) + "\n"
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
 WARN_INTERVAL_SEC = 600  # 경고 로그 10분에 1회
+# 마지막 행을 '마감'으로 볼 때의 여유(초). 봉 경계 직후엔 거래소/브로커 집계가 덜 끝났을 수 있어 넉넉히 둡니다.
+# (봇 주기가 약 60초라, 다음 봉이 오는 정상 구간에선 이 규칙이 아니라 '뒤에 봉이 있음'으로 마감 판정됨)
+CLOSE_GRACE_SEC = 60
+STORABLE_SOURCES = ("toss", "yahoo")
 
 _lock = threading.Lock()
 _last_saved = {}      # (TICKER, interval) -> pd.Timestamp (마지막으로 저장한 봉 시각)
@@ -98,11 +105,26 @@ def _fmt_line(t, o, h, l, c, v, src) -> str:
     return f"{t.strftime(TIME_FMT)},{float(o)!r},{float(h)!r},{float(l)!r},{float(c)!r},{float(v)!r},{src}\n"
 
 
-def append_closed_bars(ticker, interval, df, reset_time="22:30", source="", market=None) -> int:
+def _last_row_closed(last_time, interval, asof) -> bool:
+    """마지막 행 봉이 asof 시점에 확실히 마감됐는지. asof 없음/해석 불가면 False(보수적)."""
+    if asof is None:
+        return False
+    try:
+        asof_k = pd.Timestamp(to_kst_naive_dt(pd.Timestamp(asof).to_pydatetime()))
+        step = pd.Timedelta(minutes=interval_minutes(str(interval)))
+        return bool(pd.Timestamp(last_time) + step + pd.Timedelta(seconds=CLOSE_GRACE_SEC) <= asof_k)
+    except Exception:
+        return False
+
+
+def append_closed_bars(ticker, interval, df, reset_time="22:30", source="", market=None, asof=None) -> int:
     """df 의 마감된 봉 중 아직 저장하지 않은 것만 세션별 파일에 append. 기록한 행 수를 반환(실패/없음 0).
+    asof: 캔들을 요청하기 직전 시각(KST naive 또는 tz-aware). 주면 마지막 행도 마감 여부를 시각으로 판정합니다.
     예외는 던지지 않습니다."""
     try:
-        if df is None or len(df) < 2:  # 마지막 행은 진행 중 봉일 수 있어 제외 → 최소 2행 필요
+        if df is None or len(df) < 1:
+            return 0
+        if len(df) < 2 and asof is None:  # asof 없으면 마지막 행은 항상 제외 → 최소 2행 필요
             return 0
         ticker = str(ticker).upper()
         interval = str(interval)
@@ -111,7 +133,8 @@ def append_closed_bars(ticker, interval, df, reset_time="22:30", source="", mark
         d = df[["time", "open", "high", "low", "close", "volume"]].copy()
         d["time"] = to_kst_naive(d["time"])
         d = d.sort_values("time").reset_index(drop=True)
-        d = d.iloc[:-1]  # 마지막(진행 중일 수 있는) 행 제외
+        if not _last_row_closed(d["time"].iloc[-1], interval, asof):
+            d = d.iloc[:-1]  # 마지막(진행 중일 수 있는) 행 제외
         for c in ("open", "high", "low", "close", "volume"):
             d[c] = pd.to_numeric(d[c], errors="coerce")
         d = d.dropna().drop_duplicates(subset="time", keep="last").reset_index(drop=True)
@@ -199,8 +222,10 @@ def read_range(ticker, interval, start_date, end_date) -> pd.DataFrame:
 
 def hook(ctx) -> int:
     """봇 주기 훅. ctx["df"] 가 비어 있지 않을 때만 동작하고 ctx["candles_source"] 를 source 로 기록.
-    config.bars_store_enabled 가 false 면 아무것도 하지 않습니다(키가 없으면 기본 true). 예외는 던지지 않습니다.
-    시장(US/KR)은 ticker 형식(숫자 6자리=KR)으로 추론합니다."""
+    config(평탄 dict)의 bars_store_enabled 가 false 면 아무것도 하지 않습니다(키가 없으면 기본 true).
+    candles_source 가 toss/yahoo 가 아니면(mock 난수 봉, 출처 불명) 적재하지 않습니다. 예외는 던지지 않습니다.
+    시장은 ctx["market"](봇 설정 값)을 쓰고, 없을 때만 ticker 형식(숫자 6자리=KR)으로 추론합니다.
+    ctx["candles_asof"] 가 있으면 마지막 봉도 시각 기준으로 마감 판정합니다."""
     try:
         cfg = ctx.get("config") or {}
         if not cfg.get("bars_store_enabled", True):
@@ -208,8 +233,12 @@ def hook(ctx) -> int:
         df = ctx.get("df")
         if df is None or len(df) == 0:
             return 0
+        source = str(ctx.get("candles_source") or "").strip().lower()
+        if source not in STORABLE_SOURCES:
+            return 0
         return append_closed_bars(ctx.get("ticker"), ctx.get("interval"), df,
-                                  ctx.get("reset_time") or "22:30", ctx.get("candles_source") or "")
+                                  ctx.get("reset_time") or "22:30", source,
+                                  market=ctx.get("market"), asof=ctx.get("candles_asof"))
     except Exception as e:
         _warn(f"[VWAP 봉적재] 훅 예외 (무시하고 계속): {e}")
         return 0

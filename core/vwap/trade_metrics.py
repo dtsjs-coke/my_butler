@@ -81,4 +81,8 @@ def enrich_record(record: dict, prior_trades: list, intended_price, meta: dict =
     record["reason_code"] = meta.get("reason_code") or record.get("reason_code") or ""
     record["filters"] = meta.get("filters") or record.get("filters") or {}
     record["config_snapshot"] = meta.get("config_snapshot") or record.get("config_snapshot") or {}
+    # (3단계 §5.1) 주문을 낸 주기의 cycle_id(마지막 봉 시각) — 섀도우 비교 키. 메타에 있을 때만 기록
+    cycle_id = meta.get("cycle_id") or record.get("cycle_id")
+    if cycle_id:
+        record["cycle_id"] = cycle_id
     return record
