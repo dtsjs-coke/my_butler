@@ -28,16 +28,16 @@ discord_client = None
 CHAT_CHANNEL_ID = int(os.getenv("CHAT_CHANNEL_ID", 0))
 # (ADR-0011) 인증 경계. API 토큰(BUTLER_API_TOKEN)은 요청 시점에 .env 에서 읽고 기본값이 없다(fail-closed).
 # 토큰은 템플릿에 넘기지 않는다 — 브라우저는 admin 세션 쿠키(vwap_session)로 인증한다.
-# 로그인 없이 열리는 페이지: /settlement, /liquor, /news (사용자 결정 2026-10-07). 그 외 페이지는 admin 세션 필요.
+# 로그인 없이 열리는 페이지: /, /trains, /settlement, /liquor, /news, 그리고 GET /api/system_status
+# (사용자 결정 2026-10-07, 2026-10-08 공개 범위 변경: / · /trains · system_status 추가 공개).
+# 로그인 필요: SRT 큐 조회·삭제·예매 API, 키워드 API, 주류 쓰기, VWAP 전체.
 from api.auth import session_or_token, token_only, local_send_only, page_login_required
 
 @app.route('/')
-@page_login_required
 def home():
     return render_template('index.html')
 
 @app.route('/trains')
-@page_login_required
 def trains_page():
     stations = load_stations()
     return render_template('trains.html', stations=stations)
@@ -216,8 +216,8 @@ def manage_keyword_groups():
         return jsonify({"status": "failed", "reason": "not_found"}), 404
 
 @app.route('/api/system_status')
-@session_or_token
 def api_status():
+    # 2026-10-08 사용자 결정: 메인 대시보드 상태 표시를 위해 공개. 배터리/RAM/CPU/저장공간/온도 등 읽기 전용 수치만 반환한다.
     start_time = time.time()
     data = get_system_status_data()
     data["history"] = get_system_status_history()

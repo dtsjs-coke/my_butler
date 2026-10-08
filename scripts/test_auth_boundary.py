@@ -6,7 +6,7 @@ Butler 인증 경계(ADR-0011) 검증 스크립트 — Flask test_client 만 사
   A3. 세션 쿠키로 대시보드 API 통과
   A4. /users/*, /subscriptions/* 는 세션만으로 접근 불가(토큰 전용)
   A5. /send: 로컬+헤더 없음+토큰 → 허용 / CF-Ray·Cf-Connecting-IP·X-Forwarded-For → 403 / 원격 주소 → 403 / 토큰 없음 → 401
-  A6. 비공개 페이지(/, /trains) 미로그인 → /vwap/?next=... 리다이렉트, 공개 페이지(/settlement, /liquor, /news) 200
+  A6. 공개 페이지(/, /trains, /settlement, /liquor, /news) 미로그인 200 (2026-10-08 사용자 결정: / · /trains 공개로 변경)
   A7. 로그인 후 next 로 복귀, 외부 주소 next 는 무시(오픈 리다이렉트 없음)
   A8. 공개 페이지 API 권한: liquor 조회 공개/쓰기 admin, 뉴스 그룹 조회 공개/수정 세션·토큰, 정산 공개(검증·상한)
   A9. 모든 페이지 HTML 에 토큰 값 0건 (테스트 토큰, 로컬 .env 토큰, 과거 코드 기본값)
@@ -173,8 +173,8 @@ class _Patches:
             p.stop()
 
 
+# 2026-10-08 사용자 결정: GET /api/system_status 는 공개 → 토큰 경로 목록에서 제외 (PUBLIC_API_ROUTES 로 별도 검증)
 TOKEN_ROUTES = [  # (method, path, json)
-    ("GET", "/api/system_status", None),
     ("GET", "/api/srt/queue", None),
     ("GET", "/api/keywords", None),
     ("GET", "/users/all", None),
@@ -229,27 +229,40 @@ def test_a2_token():
 def test_a3_session():
     print("\nA3. 세션 쿠키로 대시보드 API 통과")
     c = admin()
+    # 2026-10-08 사용자 결정: system_status 는 공개이므로 세션 없이도 200 (아래 별도 검사). SRT 3종은 세션 필요.
     for m, p, j in [("GET", "/api/system_status", None), ("GET", "/api/srt/queue", None),
+                    ("DELETE", "/api/srt/queue", {"user_id": "WEB_USER", "index": 99}),
                     ("GET", "/api/keywords", None), ("POST", "/api/keywords", {"keyword": "새키워드"}),
                     ("POST", "/api/keyword_groups", {"group_name": "G", "members": []}),
                     ("DELETE", "/api/keyword_groups", {"group_name": "G"})]:
         r = call(c, m, p, j)
-        check(f"세션 {m} {p} → 200", r.status_code == 200, f"{r.status_code} {r.get_data(as_text=True)[:80]}")
-    for m, p, j in [("GET", "/api/system_status", None), ("POST", "/api/srt/reserve", {"dep": "a", "arr": "b", "date": "20261010", "time": "000000"}),
-                    ("POST", "/api/keywords", {"keyword": "x"}), ("GET", "/api/keywords", None)]:
+        # DELETE /api/srt/queue 는 없는 인덱스라 404 (인증은 통과)
+        ok = (404,) if (m, p) == ("DELETE", "/api/srt/queue") else (200,)
+        check(f"세션 {m} {p} → 인증 통과 {ok}", r.status_code in ok, f"{r.status_code} {r.get_data(as_text=True)[:80]}")
+    r = call(c, "POST", "/api/srt/reserve", {"dep": "a", "arr": "b"})
+    check("세션 POST /api/srt/reserve → 인증 통과(400 missing_data)", r.status_code == 400, r.status_code)
+    # 2026-10-08 사용자 결정: 시스템 상태는 로그인 없이 공개
+    check("미인증 GET /api/system_status → 200 (2026-10-08 사용자 결정: 공개)", call(anon(), "GET", "/api/system_status").status_code == 200)
+    # 2026-10-08 사용자 결정: SRT 대기열 조회·삭제·예매는 로그인 필요 (여행 일정 노출 방지)
+    for m, p, j in [("GET", "/api/srt/queue", None),
+                    ("DELETE", "/api/srt/queue", {"user_id": "WEB_USER", "index": 0}),
+                    ("POST", "/api/srt/reserve", {"dep": "a", "arr": "b", "date": "20261010", "time": "000000"}),
+                    ("POST", "/api/keywords", {"keyword": "x"}), ("GET", "/api/keywords", None),
+                    ("POST", "/api/keyword_groups", {"group_name": "G", "members": []}),
+                    ("DELETE", "/api/keyword_groups", {"group_name": "G"})]:
         r = call(anon(), m, p, j)
         check(f"미인증 {m} {p} → 401", r.status_code == 401, r.status_code)
     bad = fa.app.test_client()
     bad.set_cookie("vwap_session", "garbage")
-    check("위조 세션 쿠키 → 401", call(bad, "GET", "/api/system_status").status_code == 401)
+    check("위조 세션 쿠키 → 401 (SRT 큐 조회; system_status 는 공개라 제외)", call(bad, "GET", "/api/srt/queue").status_code == 401)
     c2 = fa.app.test_client()
     with mock.patch("core.vwap.crypto.time.time", return_value=1_000_000.0):
         old = VwapCrypto.generate_session_token("admin")
     c2.set_cookie("vwap_session", old)
-    check("만료된 세션(24h 초과) → 401", call(c2, "GET", "/api/system_status").status_code == 401)
+    check("만료된 세션(24h 초과) → 401", call(c2, "GET", "/api/srt/queue").status_code == 401)
     c3 = fa.app.test_client()
     c3.set_cookie("vwap_session", VwapCrypto.generate_session_token("guest"))
-    check("admin 이 아닌 세션 → 401", call(c3, "GET", "/api/system_status").status_code == 401)
+    check("admin 이 아닌 세션 → 401", call(c3, "GET", "/api/srt/queue").status_code == 401)
 
 
 def test_a4_token_only():
@@ -313,23 +326,20 @@ def test_a5_send():
         check("401/403 경로에서는 전송되지 않음(누적 2회만)", rc.call_count == 2, rc.call_count)
 
 
-PRIVATE_PAGES = ["/", "/trains"]
-PUBLIC_PAGES = ["/settlement", "/liquor", "/news"]
+# 2026-10-08 사용자 결정: / 와 /trains 도 공개 (이전에는 PRIVATE_PAGES 로 admin 세션 필요)
+PRIVATE_PAGES = []
+PUBLIC_PAGES = ["/", "/trains", "/settlement", "/liquor", "/news"]
 
 
 def test_a6_pages():
     print("\nA6. 페이지 접근")
-    for p in PRIVATE_PAGES:
+    for p in ("/", "/trains"):
         r = anon().get(p)
-        check(f"미로그인 {p} → 302 /vwap/?next={p}", r.status_code == 302 and r.headers["Location"].endswith("/vwap/?next=" + p),
-              f"{r.status_code} {r.headers.get('Location')}")
-        r = anon().get(p, headers=TOK())
-        check(f"토큰만으로 {p} → 302 (페이지는 세션 전용)", r.status_code == 302, r.status_code)
+        check(f"미로그인 {p} → 200 (2026-10-08 사용자 결정: 공개)", r.status_code == 200, f"{r.status_code} {r.headers.get('Location')}")
         r = admin().get(p)
         check(f"로그인 {p} → 200", r.status_code == 200, r.status_code)
     r = anon().get("/trains?x=1&y=2")
-    check("쿼리 포함 경로도 next 로 보존(인코딩)", r.status_code == 302 and r.headers["Location"].endswith("/vwap/?next=/trains%3Fx%3D1%26y%3D2"),
-          r.headers.get("Location"))
+    check("쿼리 포함 /trains 미로그인 → 200 (2026-10-08 사용자 결정)", r.status_code == 200, r.status_code)
     for p in PUBLIC_PAGES:
         r = anon().get(p)
         check(f"미로그인 공개 페이지 {p} → 200", r.status_code == 200, r.status_code)
@@ -438,6 +448,7 @@ def test_a9_no_token_in_html():
     pages = []
     for p in PRIVATE_PAGES + PUBLIC_PAGES + ["/vwap/"]:
         pages.append(("세션", p, admin().get(p)))
+    # 2026-10-08 사용자 결정: / · /trains 가 공개가 됐으므로 미로그인 HTML 도 토큰 0건 검사 대상 (PUBLIC_PAGES 에 포함)
     for p in PUBLIC_PAGES + ["/vwap/"]:
         pages.append(("미로그인", p, anon().get(p)))
     total = 0

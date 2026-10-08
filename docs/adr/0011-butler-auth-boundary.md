@@ -233,3 +233,24 @@ D9·D10(A13·A14, 고정 시계): 키별 잠금·429 본문·`Retry-After`·해�
 
 - P1 복구 절차(`.env`의 `VWAP_ADMIN_PASSWORD` 설정)는 설정 파일의 `admin_password_hash`가 **비어 있거나("") 키가 없을 때만** 동작한다. 파일 해시가 공백 문자열, 0, `[]`, `false`이거나 손상된 형식(예: `scrypt$bad`)이면 파일 값이 env 대체값을 덮어써 로그인 불가가 유지된다(fail-closed). 이 경우 먼저 `vwap_config.json`의 `admin_password_hash`를 `""`로 바꾼 뒤 `.env` 설정 → 재시작 → 로그인 순서로 복구한다.
 - 운영 pm2 프로세스 이름은 `butler`가 맞다(2026-10-05~07 배포에서 `pm2 restart butler`로 반복 확인).
+
+### 정정 메모 P4 (2026-10-08, 사용자 결정: 공개 범위 변경)
+
+D3 표의 "비공개 페이지" 와 "대시보드 API" 행 중 아래를 대체한다. 충돌하는 부분은 이 메모를 따른다. 본문 D3·되돌리는 방법·결과의 "`/`, `/trains` 는 로그인 필요" 서술은 이 메모 기준으로 읽는다.
+
+| 구분 | 경로 | 권한 (2026-10-08 이후) |
+|---|---|---|
+| 공개 | `/`, `/trains` | 없음 (이전: admin 세션, 302 `/vwap/?next=`) |
+| 공개 | `GET /api/system_status` | 없음 (이전: 세션 또는 토큰) |
+| 공개 | `/settlement`, `/liquor`, `/news`, `GET /api/liquor_purchases`, `GET /api/keyword_groups`, `/api/settlements` | 기존과 동일 |
+| 로그인 필요 | `GET`·`DELETE /api/srt/queue`, `POST /api/srt/reserve` | 세션 또는 토큰 (변경 없음) |
+| 로그인 필요 | `/api/keywords`(GET 포함), `/api/keyword_groups` POST·DELETE | 세션 또는 토큰 (변경 없음) |
+| 로그인 필요 | 주류 쓰기·병합·무시·가져오기 | admin 세션 (변경 없음) |
+| 로그인 필요 | `/vwap/*` 전체 | 변경 없음 |
+| 토큰 전용 / 로컬 전용 | `/users/*`, `/subscriptions/*` / `/send` | 변경 없음 |
+
+- 이유: 메인 대시보드와 SRT 화면은 로그인 없이 보고 싶고, 대기열 조회는 여행 일정이 드러나므로 로그인을 요구한다.
+- `/system_status` 반환값은 배터리(%·온도·상태), RAM, CPU, 저장공간, 갱신 시각, 최근 추이뿐이다. 호스트명·경로·IP 는 없다.
+- `@page_login_required` 는 지금 쓰이는 라우트가 없지만 `api/auth.py` 에 재사용용으로 남긴다. 되돌리려면 `/`, `/trains` 에 다시 붙인다.
+- 토큰은 여전히 어떤 HTML 에도 넣지 않는다(공개 페이지가 늘었으므로 더 중요). 공개 페이지에서 SRT 대기열 영역은 401 을 받으므로 화면은 로그인 안내를 보여야 한다(UI 후속).
+- 회귀 테스트: `scripts/test_auth_boundary.py` A3·A6·A9 를 새 정책으로 수정.

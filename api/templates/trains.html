@@ -4,6 +4,7 @@
 
 {% block content %}
 <div class="space-y-8" id="srt-app">
+    <div id="srt-restore-notice" class="hidden px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-sm rounded-xl"></div>
     <!-- Step 1: 역 선택 -->
     <section id="step-1" class="space-y-6">
         <h2 class="text-2xl font-bold">1단계: 어디로 가시나요?</h2>
@@ -133,6 +134,46 @@
         seat_type: 'GENERAL_FIRST', window_seat: false
     };
 
+    const LOGIN_URL = '/vwap/?next=' + encodeURIComponent('/trains');
+    const DRAFT_KEY = 'srt_reserve_draft';
+    const DRAFT_FIELDS = {
+        dep: 'dep-station', arr: 'arr-station', date: 'srt-date', time: 'srt-time', time_limit: 'srt-time-limit',
+        adult: 'count-adult', child: 'count-child', senior: 'count-senior', disability: 'count-disability',
+        seat_type: 'seat-type'
+    };
+
+    // 로그인 이동 전에 입력 중이던 예매 정보를 이 탭의 sessionStorage에 임시 보관한다. (비밀값 아님, 복원 후 즉시 삭제)
+    function saveDraft() {
+        try {
+            const d = {};
+            for (const k in DRAFT_FIELDS) d[k] = document.getElementById(DRAFT_FIELDS[k]).value;
+            d.window_seat = document.getElementById('window-seat').checked;
+            sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+        } catch (e) {}
+    }
+
+    function restoreDraft() {
+        let d = null;
+        try {
+            d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
+            sessionStorage.removeItem(DRAFT_KEY);
+        } catch (e) { return; }
+        if (!d || typeof d !== 'object') return;
+        for (const k in DRAFT_FIELDS) {
+            if (d[k] !== undefined && d[k] !== null) document.getElementById(DRAFT_FIELDS[k]).value = String(d[k]);
+        }
+        document.getElementById('window-seat').checked = !!d.window_seat;
+        // 3단계 화면으로 복귀. nextStep(3)이 srtData를 다시 채운다.
+        if (d.dep && d.arr && d.date) {
+            srtData.dep = d.dep;
+            srtData.arr = d.arr;
+            nextStep(3);
+            const n = document.getElementById('srt-restore-notice');
+            n.textContent = '입력하신 예매 정보를 복원했습니다. 확인 후 "예약 대기열 등록"을 눌러 주세요.';
+            n.classList.remove('hidden');
+        }
+    }
+
     function nextStep(step) {
         if (step === 2) {
             srtData.dep = document.getElementById('dep-station').value;
@@ -186,11 +227,19 @@
         if(window.lucide) lucide.createIcons();
 
         try {
+            // 사용자가 직접 누른 동작: 401이면 입력값을 보존한 뒤 로그인 화면으로 보낸다.
             const res = await butlerFetch('/api/srt/reserve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(srtData)
+                body: JSON.stringify(srtData),
+                redirectOn401: false
             });
+            if (res.status === 401) {
+                saveDraft();
+                alert("로그인이 필요합니다. 로그인 화면으로 이동합니다.\n(입력하신 예매 정보는 로그인 후 복원됩니다.)");
+                location.href = LOGIN_URL;
+                return;
+            }
             const result = await res.json();
             if (result.status === 'success') {
                 alert("성공! 예약 대기열에 등록되었습니다.");
@@ -210,9 +259,19 @@
 
     async function loadQueue() {
         try {
-            const res = await butlerFetch('/api/srt/queue');
-            const data = await res.json();
+            // 자동 조회: 401이어도 이동하지 않고 로그인 안내를 보여 준다.
+            const res = await butlerFetch('/api/srt/queue', { redirectOn401: false });
             const container = document.getElementById('queue-list');
+            if (res.status === 401) {
+                container.innerHTML = `
+                    <div class="flex items-center justify-between gap-4 bg-white dark:bg-dark-card p-4 rounded-2xl border border-gray-200 dark:border-dark-border">
+                        <p class="text-sm text-gray-500 dark:text-gray-400">🔒 로그인하면 예매 대기열을 볼 수 있습니다</p>
+                        <a href="${escapeHtml(LOGIN_URL)}" class="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors whitespace-nowrap">로그인</a>
+                    </div>`;
+                return;
+            }
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
             
             if (!data.queue || Object.keys(data.queue).length === 0) {
                 container.innerHTML = '<p class="text-sm text-gray-400 italic">현재 진행 중인 예약 작업이 없습니다.</p>';
@@ -262,8 +321,14 @@
             const res = await butlerFetch('/api/srt/queue', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId, index: taskIdx })
+                body: JSON.stringify({ user_id: userId, index: taskIdx }),
+                redirectOn401: false
             });
+            if (res.status === 401) {
+                alert("로그인이 필요합니다. 로그인 화면으로 이동합니다.");
+                location.href = LOGIN_URL;
+                return;
+            }
             const result = await res.json();
             if (result.status === 'success') {
                 loadQueue();
@@ -279,6 +344,7 @@
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('srt-date').value = today;
 
+        restoreDraft();
         loadQueue();
         setInterval(loadQueue, 15000);
 

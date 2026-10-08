@@ -141,23 +141,25 @@
 
     async function updateStatus() {
         try {
-            const res = await butlerFetch('/api/system_status');
+            // 공개 API: 로그인 없이 호출한다. (401 리다이렉트 경로 없음)
+            const res = await fetch('/api/system_status', { credentials: 'same-origin' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
             const data = await res.json();
             
             // 1. Battery
-            document.getElementById('batt-status').innerHTML = `${data.battery.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">(${data.battery.status})</span>`;
+            document.getElementById('batt-status').innerHTML = `${escapeHtml(data.battery.percentage)}% <span class="text-xs font-normal text-gray-400 ml-2">(${escapeHtml(data.battery.status)})</span>`;
             
             // 2. Temp
             document.getElementById('sys-temp').innerText = `${data.battery.temperature}°C`;
             
             // 3. RAM
-            document.getElementById('mem-status').innerHTML = `${data.memory.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">${data.memory.used}/${data.memory.total} MB</span>`;
+            document.getElementById('mem-status').innerHTML = `${escapeHtml(data.memory.percentage)}% <span class="text-xs font-normal text-gray-400 ml-2">${escapeHtml(data.memory.used)}/${escapeHtml(data.memory.total)} MB</span>`;
             
             // 4. CPU (AP)
             document.getElementById('cpu-status').innerText = `${data.cpu.percentage}%`;
             
             // 5. Storage (HDD)
-            document.getElementById('storage-status').innerHTML = `${data.storage.percentage}% <span class="text-xs font-normal text-gray-400 ml-2">${data.storage.used}/${data.storage.total}</span>`;
+            document.getElementById('storage-status').innerHTML = `${escapeHtml(data.storage.percentage)}% <span class="text-xs font-normal text-gray-400 ml-2">${escapeHtml(data.storage.used)}/${escapeHtml(data.storage.total)}</span>`;
             
             // 6. Last Updated Time
             // 주의: #last-updated 엘리먼트가 없으면 여기서 예외가 나면서
