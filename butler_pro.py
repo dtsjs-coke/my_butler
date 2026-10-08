@@ -13,6 +13,11 @@ if PROJECT_ROOT not in sys.path:
 
 load_dotenv()
 
+# 공용 로거("vwap_bot", "butler_auth") 설정 — 아래 import(api.flask_app → vwap_api) 중에 남는 로그도
+# 파일에 기록되도록 다른 모듈 import 보다 먼저 1회 실행 (INFO → trading_bot_common.log, WARNING 이상은 stderr 에도)
+from utils.log_setup import setup_common_loggers
+setup_common_loggers()
+
 # 모듈별 임포트
 from config.constants import *
 from config.config_manager import (

@@ -29,7 +29,6 @@ import shutil
 import hashlib
 import inspect
 import tempfile
-import subprocess
 from unittest import mock
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,18 +64,40 @@ except Exception:
     ENV_FILE_TOKEN = ""
 
 
-def _legacy_default_token():
-    """과거 코드에 하드코딩돼 있던 공개 기본값을 기준 커밋에서 추출(이 파일에 문자열로 쓰지 않기 위함)."""
-    try:
-        src = subprocess.run(["git", "show", "94ce5fa:api/flask_app.py"], cwd=PROJECT_ROOT,
-                             capture_output=True, text=True, encoding="utf-8", timeout=20).stdout
-        m = re.search(r'os\.getenv\("BUTLER_API_TOKEN",\s*"([^"]+)"\)', src)
-        return m.group(1) if m else ""
-    except Exception:
-        return ""
+# 과거 코드에 하드코딩돼 있던 공개 기본 토큰의 sha256(hex). 값 자체는 어디에도 두지 않고, git 이력에도 의존하지 않는다.
+LEGACY_TOKEN_SHA256 = {
+    "aa72dc45e1bac8b490000eec8e12bb709f6338972deb17bd76bbeb264ae3be58",
+}
+_QUOTED_RE = re.compile(r"\"([^\"\n]*)\"|'([^'\n]*)'")
+_TOKENLIKE_RE = re.compile(r"[A-Za-z0-9_\-.~+/=]{6,}")
 
 
-LEGACY_TOKEN = _legacy_default_token()
+def _candidate_strings(text):
+    """텍스트에서 따옴표 안 문자열 리터럴 + 토큰 형태 문자열 + 공백 구분 조각을 모두 뽑는다."""
+    out = set()
+    for m in _QUOTED_RE.finditer(text):
+        out.add(m.group(1) if m.group(1) is not None else m.group(2))
+    out.update(_TOKENLIKE_RE.findall(text))
+    out.update(text.split())
+    return out
+
+
+def find_hash_matches(text, hashes):
+    """text 안 후보 문자열 중 sha256 이 hashes 와 일치하는 것의 개수(값은 반환/출력하지 않음)."""
+    return sum(1 for c in _candidate_strings(text)
+               if c and hashlib.sha256(c.encode("utf-8")).hexdigest() in hashes)
+
+
+LEGACY_SCAN_FILES = ["api/flask_app.py", "api/auth.py", "utils/tunnel_manager.py", "butler_agent.py"]
+
+
+def _legacy_scan_targets():
+    paths = [os.path.join(PROJECT_ROOT, *f.split("/")) for f in LEGACY_SCAN_FILES]
+    for root, _d, files in os.walk(os.path.join(PROJECT_ROOT, "api", "templates")):
+        paths += [os.path.join(root, n) for n in sorted(files)]
+    return paths
+
+
 TEST_TOKEN = "test-" + hashlib.sha256(os.urandom(16)).hexdigest()[:24]
 
 # flask_app 의 load_dotenv 는 기존 환경변수를 덮어쓰지 않는다 → 테스트 값이 우선.
@@ -206,8 +227,29 @@ def test_a1_fail_closed():
     src = inspect.getsource(butler_auth) + inspect.getsource(fa)
     check("코드에 토큰 기본값 없음: os.getenv/environ.get('BUTLER_API_TOKEN', <비어있지 않은 값>) 패턴 0건",
           not re.search(r'BUTLER_API_TOKEN"\s*,\s*"[^"]+"', src))
-    if LEGACY_TOKEN:
-        check("과거 공개 기본값 문자열이 flask_app.py / auth.py 에 0건", LEGACY_TOKEN not in src)
+    # 해시 일치 로직 자가 검증(임의 문자열 사용): 리터럴·토큰 형태·주변 문맥 속 탐지, 근접 값은 미탐지
+    probe = "probe-" + hashlib.sha256(os.urandom(16)).hexdigest()[:20]
+    ph = {hashlib.sha256(probe.encode()).hexdigest()}
+    check("자가 검증: 큰따옴표 리터럴 속 값 탐지", find_hash_matches(f'x = os.getenv("T", "{probe}")', ph) == 1)
+    check("자가 검증: 작은따옴표 리터럴 속 값 탐지", find_hash_matches(f"x = '{probe}'", ph) == 1)
+    check("자가 검증: 따옴표 없는 토큰 형태(HTML/주석) 탐지", find_hash_matches(f"<meta content={probe}> # {probe}", ph) >= 1)
+    check("자가 검증: 근접 값(접미 추가/한 글자 부족)·무관 텍스트는 미탐지",
+          find_hash_matches(f'a = "{probe}x"; b = "{probe[:-1]}"; c = "hello"', ph) == 0)
+    with tempfile.TemporaryDirectory() as td:
+        fp = os.path.join(td, "t.py")
+        with open(fp, "w", encoding="utf-8") as f:
+            f.write(f'TOKEN = "{probe}"\n')
+        with open(fp, encoding="utf-8") as f:
+            check("자가 검증: 임시 파일에 넣은 값 탐지", find_hash_matches(f.read(), ph) == 1)
+    targets = _legacy_scan_targets()
+    missing = [os.path.relpath(t, PROJECT_ROOT) for t in targets if not os.path.isfile(t)]
+    check(f"과거 공개 기본값 검사 대상 파일 존재 ({len(targets)}개: 소스 4 + 템플릿)", not missing and len(targets) >= 5, missing)
+    total = 0
+    for t in targets:
+        if os.path.isfile(t):
+            with open(t, encoding="utf-8", errors="replace") as f:
+                total += find_hash_matches(f.read(), LEGACY_TOKEN_SHA256)
+    check("과거 공개 기본값(해시 비교)이 flask_app.py / auth.py / tunnel_manager.py / butler_agent.py / 템플릿에 0건", total == 0, total)
 
 
 def test_a2_token():
@@ -442,9 +484,7 @@ def test_a9_no_token_in_html():
     secrets = [("테스트 토큰", TEST_TOKEN)]
     if ENV_FILE_TOKEN:
         secrets.append(("로컬 .env 토큰", ENV_FILE_TOKEN))
-    if LEGACY_TOKEN:
-        secrets.append(("과거 코드 기본값", LEGACY_TOKEN))
-    print(f"      (비교 대상 {len(secrets)}종: {', '.join(n for n, _ in secrets)} — 값은 출력하지 않음)")
+    print(f"      (비교 대상 {len(secrets)}종 + 과거 코드 기본값(해시): {', '.join(n for n, _ in secrets)} — 값은 출력하지 않음)")
     pages = []
     for p in PRIVATE_PAGES + PUBLIC_PAGES + ["/vwap/"]:
         pages.append(("세션", p, admin().get(p)))
@@ -455,6 +495,8 @@ def test_a9_no_token_in_html():
     for who, p, r in pages:
         html = r.get_data(as_text=True)
         hits = [n for n, v in secrets if v and v in html]
+        if find_hash_matches(html, LEGACY_TOKEN_SHA256):
+            hits.append("과거 코드 기본값(해시)")
         total += len(hits)
         check(f"{who} {p} ({r.status_code}, {len(html)}B) 토큰 0건", r.status_code == 200 and not hits, f"{r.status_code} {hits}")
     check("전체 페이지 토큰 노출 합계 0", total == 0, total)

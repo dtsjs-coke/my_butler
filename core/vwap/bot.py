@@ -13,6 +13,7 @@ from core.vwap.session import SessionSpec
 from core.vwap import events as vwap_events
 from core.vwap import bars_store
 from core.vwap.trade_metrics import enrich_record
+from utils.log_setup import make_rotating_file_handler, LOG_FORMAT, LOG_DATEFMT
 
 # 프로젝트 루트 경로
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -119,22 +120,25 @@ def setup_logger(mode="VIRTUAL"):
 
     log_path = os.path.join(PROJECT_ROOT, f"trading_bot_{mode.lower()}.log")
 
-    # 파일 핸들러 (UTF-8 인코딩)
-    file_handler = logging.FileHandler(log_path, encoding="utf-8")
-    file_handler.setLevel(logging.INFO)
-    
+    # 포맷터 설정
+    formatter = logging.Formatter(LOG_FORMAT, datefmt=LOG_DATEFMT)
+
+    # 파일 핸들러 (UTF-8, 기존 파일에 이어 쓰기, 5MB x 백업 5개로 회전 → trading_bot_<mode>.1.log ...)
+    # 핸들러 생성이 실패해도 봇 생성은 계속(콘솔 로그만) — 로깅 문제로 봇이 멈추지 않게
+    try:
+        file_handler = make_rotating_file_handler(log_path)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    except Exception as e:
+        print(f"[setup_logger] {logger_name} 파일 로그 설정 실패(콘솔만 사용): {e!r}")
+
     # 콘솔 핸들러
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
-    
-    # 포맷터 설정
-    formatter = logging.Formatter('[%(asctime)s] %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
-    
-    logger.addHandler(file_handler)
     logger.addHandler(console_handler)
-    
+
     return logger
 
 

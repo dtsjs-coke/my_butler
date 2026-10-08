@@ -153,6 +153,13 @@ RSI와 ADX 보조 지표를 활용하여 추세가 너무 강한 급락장에서
 * 종류: `BOT_START`, `BOT_STOP`, `SIGNAL_CHANGE`(판단이 바뀔 때만), `ORDER_PLACED`, `ORDER_REPLACED`, `ORDER_CANCELED`, `FILL`, `STOP_LOSS`, `PANIC`, `ERROR`, `CRITICAL`.
 * 조회 API: `GET /vwap/api/events?mode=REAL&limit=100&types=FILL,STOP_LOSS` (로그인 필요, 최신순, 최대 500건).
 
+### 텍스트 로그 파일 (S9 `my_butler` 폴더)
+* **봇별 로그**: `trading_bot_{real|virtual_1|virtual_2|virtual_3}.log` — 봇이 남기는 판단/주문/오류 메시지. 같은 내용이 `pm2 logs butler`에도 나옵니다.
+* **공용 로그**: `trading_bot_common.log` — 여러 모듈이 같이 쓰는 `vwap_bot` 로거(캔들 timestamp 확인, 봉 적재, 섀도우/리플레이, VWAP API 등)와 `butler_auth` 로거(로그인 실패·제한, 비밀번호 해시 관련)가 남기는 INFO 이상 메시지. 줄마다 로거 이름이 붙습니다. 이 중 WARNING 이상만 `pm2 logs`에도 1번 나오고, INFO는 이 파일에만 남습니다(예전에는 INFO가 어디에도 남지 않았습니다).
+* **크기 제한(회전)**: 각 파일이 5MB를 넘으면 `trading_bot_real.1.log` → `.2.log` … 처럼 뒤로 밀리고, 백업은 5개까지만 둡니다(로그 1종당 최대 약 30MB). 가장 오래된 백업은 자동 삭제됩니다. 이미 5MB가 넘는 기존 파일은 다음 기록 때 한 번에 `.1.log`로 밀립니다.
+* 이 파일들은 `sync_s9` 동기화 대상에서 제외됩니다(`trading_bot_*.log` 패턴 — 회전 파일 이름도 이 패턴에 맞게 `.N.log`로 끝납니다).
+* `/api/system_status` 요청 시간은 1초를 넘는 느린 경우에만 pm2 로그에 `[API] system_status slow: ...ms`로 남습니다.
+
 ### 거래기록 추가 필드
 `slippage`(체결가와 의도한 가격의 차이, **불리하면 +**: 매수는 `체결가-의도가`, 매도/손절은 `의도가-체결가`. 의도가는 지정가면 주문가, 시장가 청산이면 결정 시점 현재가), `slippage_pct`, `holding_minutes`(매도/손절 시 포지션 진입부터의 분), `reason_code`·`filters`·`config_snapshot`(주문 당시 판단/설정), `intended_price`. 기존 필드는 그대로입니다.
 

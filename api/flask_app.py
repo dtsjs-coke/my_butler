@@ -215,6 +215,9 @@ def manage_keyword_groups():
                 return jsonify({"status": "failed", "reason": "save_error"}), 500
         return jsonify({"status": "failed", "reason": "not_found"}), 404
 
+SYSTEM_STATUS_SLOW_MS = 1000
+
+
 @app.route('/api/system_status')
 def api_status():
     # 2026-10-08 사용자 결정: 메인 대시보드 상태 표시를 위해 공개. 배터리/RAM/CPU/저장공간/온도 등 읽기 전용 수치만 반환한다.
@@ -222,7 +225,9 @@ def api_status():
     data = get_system_status_data()
     data["history"] = get_system_status_history()
     elapsed = (time.time() - start_time) * 1000
-    print(f"[API] system_status request took {elapsed:.2f}ms")
+    # 공개 API 라 요청마다 찍으면 pm2 로그가 불어남 → 느린 경우(1초 초과)에만 기록
+    if elapsed > SYSTEM_STATUS_SLOW_MS:
+        print(f"[API] system_status slow: {elapsed:.2f}ms")
     return jsonify(data)
 
 from config.config_manager import save_keywords

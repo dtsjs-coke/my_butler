@@ -152,26 +152,56 @@
         } catch (e) {}
     }
 
+    function selectHasOption(id, value) {
+        return Array.from(document.getElementById(id).options).some(o => o.value === value && o.value !== '');
+    }
+
+    function isValidDateStr(v) {
+        if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+        const t = new Date(v + 'T00:00:00Z');
+        return !isNaN(t.getTime()) && t.toISOString().slice(0, 10) === v;
+    }
+
+    function showRestoreNotice(msg) {
+        const n = document.getElementById('srt-restore-notice');
+        n.textContent = msg;
+        n.classList.remove('hidden');
+    }
+
     function restoreDraft() {
         let d = null;
-        try {
-            d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null');
-            sessionStorage.removeItem(DRAFT_KEY);
-        } catch (e) { return; }
-        if (!d || typeof d !== 'object') return;
+        let raw = null;
+        try { raw = sessionStorage.getItem(DRAFT_KEY); } catch (e) {}
+        // 파싱 성공 여부와 관계없이 먼저 지운다. (깨진 값이 남아 반복되지 않게)
+        try { sessionStorage.removeItem(DRAFT_KEY); } catch (e) {}
+        if (raw === null) return;
+        try { d = JSON.parse(raw); } catch (e) { d = null; }
+        if (!d || typeof d !== 'object' || Array.isArray(d)) {
+            showRestoreNotice('저장된 예매 정보가 유효하지 않아 복원하지 않았습니다.');
+            return;
+        }
+        // 역/날짜 검증: 현재 select 목록에 있는 역, 서로 다른 역, 올바른 날짜 형식
+        const valid = typeof d.dep === 'string' && typeof d.arr === 'string'
+            && selectHasOption('dep-station', d.dep) && selectHasOption('arr-station', d.arr)
+            && d.dep !== d.arr && isValidDateStr(d.date);
+        if (!valid) {
+            showRestoreNotice('저장된 예매 정보가 유효하지 않아 복원하지 않았습니다.');
+            return;
+        }
         for (const k in DRAFT_FIELDS) {
             if (d[k] !== undefined && d[k] !== null) document.getElementById(DRAFT_FIELDS[k]).value = String(d[k]);
         }
         document.getElementById('window-seat').checked = !!d.window_seat;
-        // 3단계 화면으로 복귀. nextStep(3)이 srtData를 다시 채운다.
-        if (d.dep && d.arr && d.date) {
-            srtData.dep = d.dep;
-            srtData.arr = d.arr;
-            nextStep(3);
-            const n = document.getElementById('srt-restore-notice');
-            n.textContent = '입력하신 예매 정보를 복원했습니다. 확인 후 "예약 대기열 등록"을 눌러 주세요.';
-            n.classList.remove('hidden');
+        // srtData 는 select 에서 실제로 선택된 값으로 채운다.
+        srtData.dep = document.getElementById('dep-station').value;
+        srtData.arr = document.getElementById('arr-station').value;
+        if (!srtData.dep || !srtData.arr || srtData.dep === srtData.arr) {
+            showRestoreNotice('저장된 예매 정보가 유효하지 않아 복원하지 않았습니다.');
+            return;
         }
+        // 3단계 화면으로 복귀. nextStep(3)이 날짜/시간을 srtData에 채운다.
+        nextStep(3);
+        showRestoreNotice('입력하신 예매 정보를 복원했습니다. 확인 후 "예약 대기열 등록"을 눌러 주세요.');
     }
 
     function nextStep(step) {
@@ -257,7 +287,15 @@
         }
     }
 
+    const POLL_MS = 15000;
+    let pollTimer = null;
+    let queueInflight = false;
+    function startPolling() { if (pollTimer === null) pollTimer = setInterval(loadQueue, POLL_MS); }
+    function stopPolling() { if (pollTimer !== null) { clearInterval(pollTimer); pollTimer = null; } }
+
     async function loadQueue() {
+        if (queueInflight) return;
+        queueInflight = true;
         try {
             // 자동 조회: 401이어도 이동하지 않고 로그인 안내를 보여 준다.
             const res = await butlerFetch('/api/srt/queue', { redirectOn401: false });
@@ -268,9 +306,11 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">🔒 로그인하면 예매 대기열을 볼 수 있습니다</p>
                         <a href="${escapeHtml(LOGIN_URL)}" class="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors whitespace-nowrap">로그인</a>
                     </div>`;
+                stopPolling(); // 미로그인: 자동 폴링 중단. 탭 복귀/포커스 시 1회 재시도한다.
                 return;
             }
             if (!res.ok) throw new Error('HTTP ' + res.status);
+            startPolling(); // 200: 폴링 재개(이미 돌고 있으면 무시)
             const data = await res.json();
             
             if (!data.queue || Object.keys(data.queue).length === 0) {
@@ -312,8 +352,17 @@
         } catch (e) { 
             console.error("Queue load failed", e);
             document.getElementById('queue-list').innerHTML = '<p class="text-xs text-red-400">대기열 로딩 실패</p>';
+        } finally {
+            queueInflight = false;
         }
     }
+
+    // 다른 탭에서 로그인한 뒤 돌아오면(폴링이 멈춘 상태일 때만) 1회 재조회한다.
+    function retryIfStopped() {
+        if (pollTimer === null && !queueInflight) loadQueue();
+    }
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') retryIfStopped(); });
+    window.addEventListener('focus', retryIfStopped);
 
     async function deleteQueueTask(userId, taskIdx) {
         if (!confirm("이 예약 작업을 대기열에서 삭제하시겠습니까?")) return;
@@ -345,8 +394,8 @@
         document.getElementById('srt-date').value = today;
 
         restoreDraft();
+        startPolling();
         loadQueue();
-        setInterval(loadQueue, 15000);
 
         if (window.lucide) lucide.createIcons();
     });
