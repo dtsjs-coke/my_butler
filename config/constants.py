@@ -19,8 +19,9 @@ def _env_int_safe(name, default=0):
 
 # VWAP 자동매매 알림 전용 채널. 0(미설정/잘못된 값)이면 STATUS_CHANNEL_ID 로 대체 전송된다.
 VWAP_CHANNEL_ID = _env_int_safe("VWAP_CHANNEL_ID", 0)
-CLI_CHANNEL_ID = int(os.getenv("CLI_CHANNEL_ID", 1504087135827918898))
-DISCORD_ADMIN_USER_ID = int(os.getenv("DISCORD_ADMIN_USER_ID", 1451625941427159124))
+# 아래 두 값은 환경변수가 우선이고, 없거나 형식이 잘못되면 기존 기본값을 쓴다(S9 .env 미설정 시 알림·관리자 판정 유지용).
+CLI_CHANNEL_ID = _env_int_safe("CLI_CHANNEL_ID", 1504087135827918898)
+DISCORD_ADMIN_USER_ID = _env_int_safe("DISCORD_ADMIN_USER_ID", 1451625941427159124)
 NOTI_CHANNEL_ID = CHAT_CHANNEL_ID
 
 AVAILABLE_MODELS = [

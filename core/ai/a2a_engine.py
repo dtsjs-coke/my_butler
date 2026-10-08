@@ -149,7 +149,7 @@ class A2AEngine:
         CONTEXT: {context}
         DESIGN: {json.dumps(design)}
         RULES:
-        - Use Local API (http://localhost:5000/send) to report results to Discord.
+        - Use Local API (http://localhost:5000/send) to report results to Discord (requires header X-Butler-Token read from env BUTLER_API_TOKEN, local-only: 127.0.0.1).
         - Use os.getenv() for all secrets/IDs.
         - Only use standard libraries or already installed ones (requests, dotenv).
         """

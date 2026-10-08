@@ -15,6 +15,13 @@ VWAP admin 로그인(/vwap/login) 시도 제한 (ADR-0011 D9).
 상태는 프로세스 메모리에만 둔다(재시작하면 초기화). 실패가 일어날 때마다 디스크에 쓰지 않고,
 재시작 자체가 소유자의 비상 해제 수단이 된다. 외부 공격자는 원격으로 서버를 재시작시킬 수 없다.
 
+전역 제한 슬롯 선점 완화 (ADR-0011 정정 메모 P5):
+  전역 제한 중에는 공격자 요청이 30초 슬롯을 먼저 가져가 소유자 로그인이 계속 밀릴 수 있다. 그래서 이 프로세스에서
+  로그인에 성공한 적 있는 클라이언트 키(신뢰 키, 최대 TRUSTED_MAX 개, TRUSTED_TTL 동안)는 전역 슬롯을 기다리지 않고
+  검사받는다. 신뢰 키 검사는 공용 슬롯(_last_check)을 소비하지 않고, 실패는 그대로 키별·전역 카운트에 들어간다.
+  키별 잠금(5회/15분)은 신뢰 키에도 똑같이 적용되며, 신뢰 키가 잠기면 신뢰를 회수한다.
+  신뢰는 성공한 로그인으로만 생기므로 공격자가 스스로 만들 수 없다(비밀번호를 이미 알아야 함).
+
 동시성: 검사를 허용할 때 그 시도를 '실패'로 먼저 기록해 두고(가예약), 성공하면 지운다.
   같은 키로 동시에 요청을 많이 보내도 검사 전에 한도가 적용된다.
 """
@@ -45,6 +52,8 @@ class LoginThrottle:
     GLOBAL_WINDOW = 600
     GLOBAL_INTERVAL = 30       # 전역 제한 중에는 30초에 한 번만 검사
     MAX_KEYS = 2000            # 위조 헤더로 키를 무한히 만들어 메모리를 채우지 못하게
+    TRUSTED_TTL = 30 * 86400   # 로그인 성공 키를 전역 슬롯에서 우대하는 기간(30일, 프로세스 메모리)
+    TRUSTED_MAX = 20           # 신뢰 키 보관 상한(넘으면 가장 오래된 성공부터 버림)
 
     def __init__(self, clock=time.monotonic, **overrides):
         for k, v in overrides.items():
@@ -57,6 +66,7 @@ class LoginThrottle:
         self._global = deque()     # 실패(가예약 포함) 시각
         self._last_check = None    # 마지막으로 비밀번호 검사를 허용한 시각(전역 제한 간격 계산용)
         self._global_active = False
+        self._trusted = {}         # key -> 마지막 로그인 성공 시각 (P5: 전역 슬롯 우대)
 
     # -- 내부 -------------------------------------------------------------
     def _prune(self, now):
@@ -80,6 +90,15 @@ class LoginThrottle:
         while len(self._keys) > self.MAX_KEYS:
             oldest = min(self._keys, key=lambda k: self._keys[k]["last"])
             del self._keys[oldest]
+
+    def _is_trusted(self, key, now):
+        ts = self._trusted.get(key)
+        if ts is None:
+            return False
+        if ts <= now - self.TRUSTED_TTL:
+            del self._trusted[key]
+            return False
+        return True
 
     @staticmethod
     def _secs(delta):
@@ -110,7 +129,9 @@ class LoginThrottle:
             elif not global_hot and self._global_active:
                 self._global_active = False
                 logger.warning("[로그인] 전역 제한 해제")
-            if global_hot and not exempt_global and self._last_check is not None:
+            # (P5) 로그인 성공 이력이 있는 키는 전역 슬롯을 기다리지 않고, 공용 슬롯도 소비하지 않는다
+            trusted = global_hot and not exempt_global and self._is_trusted(key, now)
+            if global_hot and not exempt_global and not trusted and self._last_check is not None:
                 wait = self._last_check + self.GLOBAL_INTERVAL - now
                 if wait > 0:
                     return False, self._secs(wait), None
@@ -122,9 +143,11 @@ class LoginThrottle:
             st["fails"].append(now)
             st["last"] = now
             self._global.append(now)
-            self._last_check = now
+            if not trusted:
+                self._last_check = now
             if len(st["fails"]) >= self.PER_KEY_MAX:
                 st["locked_until"] = now + self.LOCKOUT
+                self._trusted.pop(key, None)  # 잠길 만큼 틀린 키는 더 우대하지 않는다
             return True, 0, now
 
     def report(self, key, ticket, success):
@@ -137,6 +160,10 @@ class LoginThrottle:
                 except ValueError:
                     pass
                 self._keys.pop(key, None)
+                self._trusted.pop(key, None)
+                self._trusted[key] = self._clock()  # 최근 성공을 뒤로(삽입 순서 = 오래된 순)
+                while len(self._trusted) > self.TRUSTED_MAX:
+                    del self._trusted[next(iter(self._trusted))]
                 return
             fails = len(st["fails"]) if st else 0
             locked = bool(st and st["locked_until"] > self._clock())
@@ -150,3 +177,4 @@ class LoginThrottle:
             self._global.clear()
             self._last_check = None
             self._global_active = False
+            self._trusted.clear()

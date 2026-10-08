@@ -148,3 +148,8 @@ QA 경미 이슈 M1·M2(보류 중 손절 공백을 사람에게 알리는 알�
 ## 정정 메모 (2026-10-07, ADR-0011 작성 시 추가 — 본문은 수정하지 않음)
 
 - **4단계 ADR 번호 재정정**: 이 문서에서 "4단계(전략 재연구) ADR 은 0011"이라고 적은 부분은 정정한다. 0011 은 [ADR-0011](0011-butler-auth-boundary.md)(Butler 대시보드·API 인증 경계)이 사용했으므로 **4단계 ADR 은 0012** 이다.
+
+## 정정 메모 (2026-10-08, CRITICAL 깜빡임 — 본문·기존 메모는 수정하지 않음)
+
+- 2026-10-07 메모의 "신뢰 주기가 와서 구간 종료 → 다음 구간은 다시 1주기째부터(재알림 번호도 초기화)" 때문에, 신뢰 불가 3주기와 신뢰 1주기가 반복되면 구간마다 첫 CRITICAL Discord가 나가 약 4분마다 CRITICAL이 왔다. 이제 **CRITICAL 이벤트는 구간마다 그대로 기록하되, Discord CRITICAL은 구간과 무관하게 마지막으로 보낸 CRITICAL Discord 후 `UNTRUSTED_CRITICAL_REPEAT_SEC`(=1800초)가 지나야 다시 보낸다.** 생략된 CRITICAL 이벤트에는 data `discord_suppressed=true`가 붙고, 생략 횟수와 미룬 구간 시작 횟수는 다음에 실제로 나가는 CRITICAL Discord에 묶여 나간다. 이 간격 상태는 `start()`에서만 초기화한다.
+- 근거: 직전 30분 안에 이미 CRITICAL로 사람을 불렀으므로 같은 원인의 깜빡임을 매번 다시 부를 필요가 없다(알림 피로). 이벤트 파일에는 전부 남으므로 기록은 줄지 않는다. 코드: `core/vwap/bot.py` `_on_untrusted_candles`, 테스트: `scripts/test_vwap_untrusted_candles.py` U10.

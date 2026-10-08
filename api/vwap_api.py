@@ -24,6 +24,8 @@ virtual_bots = {
 }
 virtual_bot = virtual_bots["VIRTUAL_1"]  # 하위 호환용 매핑
 real_bot = VWAPBot("REAL")
+# /api/reset-trades 가 초기화할 수 있는 모드(대시보드 버튼: REAL, VIRTUAL_1~3). 그 외는 400.
+RESET_TRADES_MODES = frozenset({"REAL", *virtual_bots})
 
 # (3단계 Phase C) 섀도우: REAL 주기가 끝날 때마다 훅으로 같은 봉·같은 설정의 가상 봇을 동기 1회 실행(Q1(a): REAL 과 함께만 동작).
 # shadow_enabled 는 등록 시점이 아니라 훅 안에서 매 주기 확인하므로 설정 변경이 곧바로 반영됩니다.
@@ -621,6 +623,8 @@ def api_get_logs():
     mode = request.args.get('mode', 'VIRTUAL_1').upper()
     if mode == "VIRTUAL":
         mode = "VIRTUAL_1"
+    if mode not in vwap_events.VALID_MODES:  # mode 가 로그 파일 경로에 들어가므로 허용 목록만(경로 조작 방지)
+        return jsonify({"status": "failed", "reason": "invalid_mode"}), 400
     log_path = os.path.join(PROJECT_ROOT, f"trading_bot_{mode.lower()}.log")
     
     if not os.path.exists(log_path):
@@ -867,11 +871,17 @@ def api_shadow_compare():
 @admin_required
 def api_reset_trades():
     """선택한 모드의 거래 체결 이력을 초기화하고 봇의 가상 브로커 잔고를 리셋합니다."""
-    data = request.get_json() or {}
-    mode = data.get('mode', 'VIRTUAL_1').upper()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        data = {}
+    raw_mode = data.get('mode', 'VIRTUAL_1')
+    mode = raw_mode.upper() if isinstance(raw_mode, str) else ""
     if mode == "VIRTUAL":
         mode = "VIRTUAL_1"
-    
+    # mode 는 거래기록 파일명(vwap_trades_<mode>.json)에 들어가므로 허용 목록 밖은 거부한다(경로 조작 방지).
+    if mode not in RESET_TRADES_MODES:
+        return jsonify({"status": "failed", "reason": "invalid_mode"}), 400
+
     try:
         VwapConfigManager.save_trades([], mode)
         

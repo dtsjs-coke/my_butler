@@ -339,6 +339,8 @@ def _validate_settlement_payload(data):
         return False, "invalid_id"
     if len(participants) > SETTLEMENT_MAX_PARTICIPANTS or len(items) > SETTLEMENT_MAX_ITEMS:
         return False, "too_large"
+    if len(title) > SETTLEMENT_MAX_TITLE:
+        return False, "too_long"
     if not _settlement_str_ok(title, SETTLEMENT_MAX_TITLE):
         return False, "invalid_chars"
     if not all(isinstance(p, str) for p in participants) or not all(isinstance(i, dict) for i in items):

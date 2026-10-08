@@ -82,9 +82,30 @@ def _candidate_strings(text):
     return out
 
 
-def find_hash_matches(text, hashes):
-    """text 안 후보 문자열 중 sha256 이 hashes 와 일치하는 것의 개수(값은 반환/출력하지 않음)."""
-    return sum(1 for c in _candidate_strings(text)
+# 옛 토큰의 길이는 비밀이 아니므로 범위로만 둔다(정확한 길이를 몰라도 이 범위의 모든 길이를 시도).
+LEGACY_TOKEN_LEN_RANGE = (8, 64)
+_TOKEN_RUN_RE = re.compile(r"[A-Za-z0-9_\-]+")
+
+
+def _window_candidates(text, len_range=LEGACY_TOKEN_LEN_RANGE):
+    """토큰 문자셋의 최대 연속 구간 + 그 안의 모든 부분 문자열(슬라이딩 윈도우, 길이 범위 내)."""
+    lo, hi = len_range
+    for m in _TOKEN_RUN_RE.finditer(text):
+        run = m.group(0)
+        if len(run) < lo:
+            continue
+        yield run
+        for n in range(lo, min(hi, len(run) - 1) + 1):
+            for i in range(len(run) - n + 1):
+                yield run[i:i + n]
+
+
+def find_hash_matches(text, hashes, len_range=LEGACY_TOKEN_LEN_RANGE):
+    """text 안에서 sha256 이 hashes 와 일치하는 부분 문자열의 개수(값은 반환/출력하지 않음).
+    1) 따옴표 리터럴·공백 조각·토큰 형태 조각 2) 토큰 문자셋 연속 구간 안의 모든 길이 윈도우를 비교한다.
+    같은 값은 한 번만 센다."""
+    cands = set(_candidate_strings(text)) | set(_window_candidates(text, len_range))
+    return sum(1 for c in cands
                if c and hashlib.sha256(c.encode("utf-8")).hexdigest() in hashes)
 
 
@@ -233,8 +254,15 @@ def test_a1_fail_closed():
     check("자가 검증: 큰따옴표 리터럴 속 값 탐지", find_hash_matches(f'x = os.getenv("T", "{probe}")', ph) == 1)
     check("자가 검증: 작은따옴표 리터럴 속 값 탐지", find_hash_matches(f"x = '{probe}'", ph) == 1)
     check("자가 검증: 따옴표 없는 토큰 형태(HTML/주석) 탐지", find_hash_matches(f"<meta content={probe}> # {probe}", ph) >= 1)
-    check("자가 검증: 근접 값(접미 추가/한 글자 부족)·무관 텍스트는 미탐지",
-          find_hash_matches(f'a = "{probe}x"; b = "{probe[:-1]}"; c = "hello"', ph) == 0)
+    # 붙어 있는 문자열·다른 구분자 속에서도 탐지(슬라이딩 윈도우)
+    check("자가 검증: 앞뒤에 문자가 붙은 값 탐지", find_hash_matches(f'x="abc{probe}def"', ph) >= 1)
+    check("자가 검증: 접두 문자열 결합(Bearer_토큰) 탐지", find_hash_matches(f"Authorization:Bearer_{probe}", ph) >= 1)
+    check("자가 검증: 따옴표 없음·구분자 다름(;,=:|'`()) 탐지",
+          all(find_hash_matches(f"k{sep}{probe}{sep}z", ph) >= 1 for sep in (";", ",", "=", ":", "|", "'", "`", "(", ")")))
+    check("자가 검증: 줄바꿈·탭 사이 탐지", find_hash_matches(f"a\n\t{probe}\r\nb", ph) >= 1)
+    check("자가 검증: 문자열 연결 형태 탐지", find_hash_matches(f'T = "pre" + "{probe}"', ph) >= 1)
+    check("자가 검증: 한 글자 부족한 값·한 글자 바뀐 값·무관 텍스트는 미탐지 (접미가 붙은 경우는 위에서 탐지됨)",
+          find_hash_matches(f'b = "{probe[:-1]}"; d = "{probe[:-1]}Z"; c = "hello"', ph) == 0)
     with tempfile.TemporaryDirectory() as td:
         fp = os.path.join(td, "t.py")
         with open(fp, "w", encoding="utf-8") as f:
@@ -456,7 +484,7 @@ def test_a8_public_api():
         ("id 비숫자", dict(good, id="x'); alert(1);//"), "invalid_id"),
         ("participants 타입", dict(good, participants="a,b"), "invalid_body"),
         ("항목 201개", dict(good, items=[{"id": str(i)} for i in range(201)]), "too_large"),
-        ("제목 101자", dict(good, title="가" * 101), "invalid_chars"),
+        ("제목 101자", dict(good, title="가" * 101), "too_long"),
         ("본문 비JSON", None, "invalid_body"),
     ]:
         r = call(a, "POST", "/api/settlements", payload)

@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import tempfile
 import logging
@@ -19,6 +20,16 @@ SENSITIVE_KEYS = ["toss_client_secret", "toss_account_seq"]
 
 # 설정 파일 쓰기 직렬화(Flask 요청 스레드 + 봇 스레드). RLock: update_admin_password_hash 가 잡은 채로 다시 쓴다.
 _config_write_lock = threading.RLock()
+
+# 거래기록 파일명(vwap_trades_<mode>.json)에 들어가는 mode 는 영문·숫자·밑줄만 허용(경로 조작 방지, 심층 방어).
+_SAFE_TRADES_MODE_RE = re.compile(r"[A-Za-z0-9_]{1,32}")
+
+
+def _trades_path(mode) -> str:
+    m = mode if isinstance(mode, str) else ""
+    if not _SAFE_TRADES_MODE_RE.fullmatch(m):
+        raise ValueError(f"허용되지 않는 거래기록 mode: {m[:40]!r}")
+    return os.path.join(DATA_DIR, f"vwap_trades_{m.lower()}.json")
 
 
 def _write_json_atomic(path: str, data) -> None:
@@ -374,7 +385,11 @@ class VwapConfigManager:
     @staticmethod
     def load_trades(mode: str = "VIRTUAL") -> list:
         """가상/실제 거래 이력을 로드합니다."""
-        trades_path = os.path.join(DATA_DIR, f"vwap_trades_{mode.lower()}.json")
+        try:
+            trades_path = _trades_path(mode)
+        except ValueError as e:
+            print(f"[ConfigManager] {e}")
+            return []
         if not os.path.exists(trades_path):
             # 하위 호환: 기존 vwap_trades.json이 있고 mode가 VIRTUAL이면 마이그레이션
             legacy_path = os.path.join(DATA_DIR, "vwap_trades.json")
@@ -396,7 +411,11 @@ class VwapConfigManager:
     def save_trades(cls, trades: list, mode: str = "VIRTUAL") -> bool:
         """거래 이력을 원자적으로 저장합니다 (임시파일 작성 후 교체 — 쓰는 도중 꺼져도 기존 파일 보존).
         Returns: 저장 성공 여부"""
-        trades_path = os.path.join(DATA_DIR, f"vwap_trades_{mode.lower()}.json")
+        try:
+            trades_path = _trades_path(mode)
+        except ValueError as e:
+            print(f"[ConfigManager] {e}")
+            return False
         tmp_path = trades_path + ".tmp"
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
@@ -417,7 +436,11 @@ class VwapConfigManager:
           - 그 외 읽기 오류(권한/IO 등): 아무것도 쓰지 않고 False 반환.
         Returns: 기록 성공 여부
         """
-        trades_path = os.path.join(DATA_DIR, f"vwap_trades_{mode.lower()}.json")
+        try:
+            trades_path = _trades_path(mode)
+        except ValueError as e:
+            print(f"[ConfigManager] {e}")
+            return False
         if os.path.exists(trades_path):
             try:
                 with open(trades_path, "r", encoding="utf-8") as f:

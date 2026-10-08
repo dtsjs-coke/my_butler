@@ -17,6 +17,8 @@ VWAP REAL 봇 '신뢰 불가 캔들' 보호(ADR-0010) 검증 스크립트 — �
       (UNTRUSTED_EPISODE_ALERT_MIN_SEC) 안이면 미뤘다가 요약/CRITICAL/다음 구간 시작 알림에 횟수로 묶여 전달 (고정 시각)
   U9. (M2, 2026-10-07) CRITICAL 3주기째 1회 + 지속 시 UNTRUSTED_CRITICAL_REPEAT_SEC 마다 재알림
       (지속 시간·마지막 신뢰 보유 수량·원인), 새 구간은 다시 첫 CRITICAL (고정 시각)
+  U10. (2026-10-08) 신뢰 불가 3주기 ↔ 신뢰 1주기 깜빡임: CRITICAL 이벤트는 구간마다 기록되지만 Discord CRITICAL 은
+      마지막 발송 후 UNTRUSTED_CRITICAL_REPEAT_SEC 간격을 지킴(생략 횟수 묶음), start() 하면 간격 초기화 (고정 시각)
 
 실행:  PYTHONUTF8=1 python scripts/test_vwap_untrusted_candles.py
 """
@@ -509,6 +511,54 @@ def test_u9_critical_repeat():
     check("U9 전 과정 주문/취소 0건(손절 보류 유지)", bad.placed == [] and bad.canceled == [])
 
 
+
+def test_u10_critical_flapping():
+    n = bot_module.UNTRUSTED_STREAK_CRITICAL
+    rep = bot_module.UNTRUSTED_CRITICAL_REPEAT_SEC
+    print(f"\nU10. 깜빡임(불가 {n}주기 ↔ 신뢰 1주기) 중 CRITICAL Discord 는 {rep}s 간격 유지 — 고정 시각")
+    h.reset_data_dir()
+    sender = use_sender()
+    crit = lambda: [e for e in read_events() if e["type"] == "CRITICAL" and e["reason_code"] == "DATA_UNTRUSTED"]  # noqa: E731
+    d_crit = lambda: [m for m in sender.calls if "CRITICAL" in m]  # noqa: E731
+    bad = fake_broker("mock", FLAT)
+    good = fake_broker("toss", FLAT)
+    sent_at = []
+    with use_clock(0.0) as clk:
+        bot = run_real(good, [FLAT_CANDLES])
+        t = 0
+        period = 60 * (n + 1)                       # 4분 주기 깜빡임
+        cycles = (rep * 2) // period + 2            # 1시간 넘게
+        for _ in range(cycles):
+            for _ in range(n):
+                t += 60; clk.t = t
+                before = len(d_crit())
+                run_real(bad, [FLAT_CANDLES], bot=bot)
+                if len(d_crit()) > before:
+                    sent_at.append(t)
+            t += 60; clk.t = t
+            run_real(good, [FLAT_CANDLES], bot=bot)
+        c = crit()
+        check(f"구간마다 CRITICAL 이벤트 기록({cycles}건, 이벤트는 줄이지 않음)", len(c) == cycles, f"{len(c)}")
+        gaps = [b - a for a, b in zip(sent_at, sent_at[1:])]
+        check(f"Discord CRITICAL 은 {rep}s 이상 간격(발송 {len(sent_at)}건, 간격 {gaps})",
+              len(sent_at) >= 2 and all(g >= rep for g in gaps) and len(sent_at) == len(d_crit()))
+        check(f"Discord 는 약 {rep // 60}분마다 1건(이전 동작은 {period // 60}분마다 → {cycles}건)",
+              len(sent_at) <= (t // rep) + 1, f"{len(sent_at)}")
+        sup = [e for e in c if e["data"].get("discord_suppressed")]
+        check("생략된 CRITICAL 이벤트에는 discord_suppressed=true, 첫 CRITICAL 문구(재알림 아님) 유지",
+              len(sup) == cycles - len(sent_at) and all("재알림" not in e["message"] for e in sup))
+        check("간격 뒤 발송된 CRITICAL Discord 에 '생략된 CRITICAL N회' 묶음 표기",
+              "생략된 CRITICAL" in d_crit()[1], d_crit()[1][:200] if len(d_crit()) > 1 else "")
+        # start() 는 알림 상태를 초기화 → 다음 구간 CRITICAL 즉시 발송
+        bot._reset_untrusted_alert_state()
+        ev.notifier._last_sent.clear()  # 구간 번호가 1부터 다시 시작하므로 알림기 60초(실시간) 중복 키 억제를 비움
+        before = len(d_crit())
+        for _ in range(n):
+            t += 60; clk.t = t
+            run_real(bad, [FLAT_CANDLES], bot=bot)
+        check("알림 상태 초기화(start) 후 첫 CRITICAL 은 간격과 무관하게 발송", len(d_crit()) == before + 1)
+    check("U10 전 과정 주문/취소 0건", bad.placed == [] and bad.canceled == [])
+
 # ---------------------------------------------------------------------------
 class _Resp:
     def __init__(self, status, payload=None):
@@ -605,7 +655,8 @@ def main():
     print(" VWAP REAL 신뢰 불가 캔들 보호(ADR-0010) 검증 (네트워크 없음, 임시 DATA_DIR: %s)" % h.TMP_DIR)
     print("=" * 70)
     tests = [test_u1_block, test_u2_stop_loss_held, test_u3_trusted_unchanged, test_u4_virtual_unchanged,
-             test_u5_streak_critical, test_u6_broker, test_u8_episode_alerts, test_u9_critical_repeat]
+             test_u5_streak_critical, test_u6_broker, test_u8_episode_alerts, test_u9_critical_repeat,
+             test_u10_critical_flapping]
     for fn in tests:
         try:
             fn()

@@ -1066,6 +1066,10 @@ class VWAPBot:
         self._untrusted_episode_started = None   # 현재 구간 첫 주기 시각(_monotonic)
         self._untrusted_critical_last = None     # 현재 구간 마지막 CRITICAL 시각
         self._untrusted_critical_count = 0       # 현재 구간 CRITICAL 횟수 (1=첫 알림, 2~=재알림)
+        # (ADR-0010 정정 2) 구간과 무관하게 마지막으로 Discord 로 보낸 CRITICAL 시각·그 뒤 간격 제한으로 생략한 횟수.
+        # 새 구간 시작(n==1)에서는 초기화하지 않는다 — 신뢰/불가 깜빡임마다 CRITICAL 이 나가지 않게.
+        self._untrusted_critical_notified = None
+        self._untrusted_critical_suppressed = 0
         self._untrusted_alert_last = None        # 마지막 '구간 시작/요약' Discord 시각
         self._untrusted_alert_pending = 0        # 최소 간격 때문에 Discord 를 미룬 구간 시작 횟수
         self._untrusted_pending_since = None     # 미룬 첫 구간 시작 시각
@@ -1104,7 +1108,9 @@ class VWAPBot:
             UNTRUSTED_EPISODE_ALERT_MIN_SEC 가 지났으면 즉시, 아니면 미뤄서 다음 알림에 횟수로 묶음
           - 같은 구간의 이후 주기: 같은 키 warn 이벤트 10분 1회(ERROR_EVENT_REPEAT_SEC), Discord 없음
           - 연속 UNTRUSTED_STREAK_CRITICAL 주기째 CRITICAL 1회, 이후 계속되면 UNTRUSTED_CRITICAL_REPEAT_SEC 마다 재알림
-            (지속 시간·마지막 신뢰 보유 수량·원인 포함)"""
+            (지속 시간·마지막 신뢰 보유 수량·원인 포함)
+          - (2026-10-08 정정) CRITICAL 이벤트는 매번 기록하되, Discord 는 구간이 바뀌어도 마지막 CRITICAL Discord 후
+            UNTRUSTED_CRITICAL_REPEAT_SEC 가 지나야 다시 보냄(생략 횟수는 다음 CRITICAL Discord 에 묶음)"""
         now = _monotonic()
         self._untrusted_streak += 1
         n = self._untrusted_streak
@@ -1159,16 +1165,30 @@ class VWAPBot:
             k = self._untrusted_critical_count
             crit_data = dict(data)
             crit_data["critical_seq"] = k
+            # (ADR-0010 정정 2) 이벤트는 매번 기록하고, Discord 는 구간이 바뀌어도 마지막 발송 후 REPEAT_SEC 간격을 지킨다.
+            notified = self._untrusted_critical_notified
+            send = notified is None or now - notified >= UNTRUSTED_CRITICAL_REPEAT_SEC
             if first_crit:
                 head = f"{UNTRUSTED_STREAK_CRITICAL}주기 연속 시세 신뢰 불가({desc}, {_fmt_duration(duration)} 경과)"
             else:
                 head = (f"[재알림 {k - 1}회째] 시세 신뢰 불가 {_fmt_duration(duration)} 지속"
                         f"(연속 {n}주기, 원인: {desc})")
+            if send:
+                note = self._take_untrusted_pending_note()
+                if self._untrusted_critical_suppressed > 0:
+                    note += (f" (알림 간격 제한으로 생략된 CRITICAL {self._untrusted_critical_suppressed}회 — "
+                             f"이벤트 기록에는 남아 있음)")
+                self._untrusted_critical_suppressed = 0
+                self._untrusted_critical_notified = now
+            else:
+                note = ""  # 미룬 구간 시작 알림은 다음에 실제로 나가는 알림에 묶는다
+                self._untrusted_critical_suppressed += 1
+                crit_data["discord_suppressed"] = True
             self._emit("CRITICAL", "critical", "DATA_UNTRUSTED",
                        f"{head} — 손절 판정이 멈춰 있습니다. "
                        f"보유 포지션이 있으면 토스 앱에서 직접 확인하세요 ({qty_note})"
-                       f"{self._take_untrusted_pending_note()}",
-                       crit_data, notify=True, dedup_extra=("untrusted_critical", seq, k))
+                       f"{note}",
+                       crit_data, notify=send, dedup_extra=("untrusted_critical", seq, k))
 
     def _build_hook_ctx(self) -> dict:
         """훅에 넘길 이번 주기 컨텍스트(공통 원본). 훅마다 _run_post_cycle_hooks 가 복사본을 만듭니다."""
