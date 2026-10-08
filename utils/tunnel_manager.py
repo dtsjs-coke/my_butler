@@ -2,6 +2,7 @@ import subprocess
 import re
 import os
 import time
+import logging
 import requests
 import asyncio
 import threading
@@ -97,11 +98,13 @@ def git_push_changes(new_url):
         return False
 
 
-def notify_via_butler(message, retries=3, retry_delay=5, channel_id=None):
+def notify_via_butler(message, retries=3, retry_delay=5, channel_id=None, connect_retry_delays=None):
     """Butler를 통해 디스코드에 알림 전송 (Flask API 호출).
     pm2 resurrect 등으로 butler(Flask)와 butler-tunnel이 동시에 뜰 때
     Flask가 아직 기동 전이라 실패하는 레이스컨디션이 있어 재시도한다.
-    channel_id: None(기본)이면 STATUS_CHANNEL_ID 채널로 보낸다 (기존 동작)."""
+    channel_id: None(기본)이면 STATUS_CHANNEL_ID 채널로 보낸다 (기존 동작).
+    connect_retry_delays: 예) (2, 4, 8). 지정하면 '연결 자체가 실패'(ConnectionError, 연결 거부)한 경우에만
+    해당 간격으로 추가 재시도한다 (Flask 기동 전 레이스용). HTTP 응답(4xx/5xx)은 이 경로로 재시도하지 않는다."""
     if channel_id:
         status_channel_id = channel_id
     else:
@@ -126,22 +129,43 @@ def notify_via_butler(message, retries=3, retry_delay=5, channel_id=None):
         "X-Butler-Token": api_token
     }
 
-    for attempt in range(1, retries + 1):
+    connect_delays = list(connect_retry_delays or ())
+    attempt = 0
+    connect_retried = 0
+    while True:
+        attempt += 1
         try:
             # timeout을 짧게 설정하여 메인 루프 지연 방지
             response = requests.post(url, json=payload, headers=headers, timeout=5)
             if response.status_code == 200:
                 print(f"✅ Discord notification sent to {status_channel_id}: {message[:30]}...")
+                if connect_retried:
+                    logging.getLogger(__name__).info(
+                        f"Butler /send 연결 재시도 {connect_retried}회 후 알림 전송 성공")
                 return True
             else:
                 print(f"⚠️ Discord notification failed (HTTP {response.status_code}): {response.text}")
+                # connect_retry_delays 지정 호출자만: 4xx 는 재시도해도 소용없으므로 즉시 중단
+                if connect_delays and 400 <= response.status_code < 500:
+                    return False
+        except requests.exceptions.ConnectionError as e:
+            if connect_retried < len(connect_delays):
+                delay = connect_delays[connect_retried]
+                connect_retried += 1
+                print(f"❌ Butler /send 연결 실패 - {delay}초 후 재시도 ({connect_retried}/{len(connect_delays)}): {e}")
+                time.sleep(delay)
+                attempt -= 1  # 연결 재시도는 일반 재시도 횟수(retries)를 소모하지 않는다
+                continue
+            print(f"❌ Discord notification error (attempt {attempt}/{retries}): {e}")
+            if connect_delays:
+                return False  # 연결 재시도를 모두 쓴 뒤에는 추가 대기 없이 종료 (총 대기 2+4+8s)
         except Exception as e:
             print(f"❌ Discord notification error (attempt {attempt}/{retries}): {e}")
 
         if attempt < retries:
             time.sleep(retry_delay)
-
-    return False
+        else:
+            return False
 
 def handle_url_change(new_url):
     """URL 변경 감지 시 호출하여 업데이트 및 알림 수행"""

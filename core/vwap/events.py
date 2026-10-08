@@ -150,11 +150,17 @@ def read_events(mode: str, limit: int = 100, types=None) -> list:
 # ----------------------------------------------------------------------
 # Discord 알림
 # ----------------------------------------------------------------------
+CONNECT_RETRY_DELAYS = (2, 4, 8)
+
+
 def _default_sender(message: str):
     """기존 Butler 알림 경로 재사용 (utils/tunnel_manager.notify_via_butler).
     지연 import — 테스트/단독 실행 시 불필요한 의존을 피하고, import 실패도 봇에 영향 없게."""
     from utils.tunnel_manager import notify_via_butler
-    return notify_via_butler(message, retries=2, retry_delay=3, channel_id=_vwap_channel_id())
+    # 연결 거부(Flask 기동 전): 2/4/8초 간격 재시도(최대 3회). HTTP 5xx/타임아웃: 3초 후 1회 재시도. 4xx: 재시도 없음.
+    # 이 함수는 DiscordNotifier 데몬 워커 스레드에서 호출되므로 매매 루프를 막지 않는다.
+    return notify_via_butler(message, retries=2, retry_delay=3, channel_id=_vwap_channel_id(),
+                             connect_retry_delays=CONNECT_RETRY_DELAYS)
 
 
 def _vwap_channel_id():
